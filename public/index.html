@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>👾 Agent HQ - 8-Bit Tech Startup Office (5 Desks x 8 Seats + 5 Meeting Rooms)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="crt-screen">
+    <!-- TOP RETRO HEADER -->
+    <header class="retro-header">
+      <div class="header-left">
+        <div class="logo">
+          <span class="pixel-icon">🚀</span>
+          <span class="title">AGENT HQ</span>
+          <span class="tag">TECH STARTUP 8-BIT OFFICE</span>
+        </div>
+      </div>
+      <div class="header-center">
+        <div class="stats-badge">
+          <span class="dot live-dot"></span>
+          <span id="agent-count">0 AGENTS</span>
+          <span class="separator">|</span>
+          <span id="room-stats">OPEN SPACE: 0/40 · 5 MEETING ROOMS</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <button id="gallery-toggle" class="retro-btn" onclick="toggleGallery()" title="View Generated 8-Bit GIFs & Sprites">
+          🖼️ SPRITES & GIFS
+        </button>
+        <button id="sound-toggle" class="retro-btn" title="Toggle 8-bit Sound">
+          🔊 SFX: ON
+        </button>
+        <span class="status-indicator connected" id="ws-status">ONLINE</span>
+      </div>
+    </header>
+
+    <!-- LIVE TASK & PROGRESS TICKER -->
+    <div class="task-ticker">
+      <span class="ticker-label">📊 LIVE AGENT TASKS:</span>
+      <div class="ticker-items" id="ticker-items">
+        <span class="ticker-item">Awaiting agent tasks...</span>
+      </div>
+    </div>
+
+    <!-- ASSETS GALLERY MODAL -->
+    <div id="assets-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>👾 8-BIT ASSETS GALLERY (ImageMagick & Pyxel)</h3>
+          <button class="close-btn" onclick="toggleGallery()">✖</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">Generated via <code>Pyxel (MIT)</code>, <code>ImageMagick</code>, and compatible with <code>LibreSprite</code> / <code>Aseprite</code>:</p>
+          <div class="gif-showcase">
+            <div class="gif-card">
+              <img src="assets/gifs/cyan_working.gif" alt="Working">
+              <span>💻 Working</span>
+            </div>
+            <div class="gif-card">
+              <img src="assets/gifs/cyan_sleeping.gif" alt="Sleeping">
+              <span>💤 Sleeping</span>
+            </div>
+            <div class="gif-card">
+              <img src="assets/gifs/cyan_talking.gif" alt="Talking">
+              <span>💬 Talking</span>
+            </div>
+            <div class="gif-card">
+              <img src="assets/gifs/green_working.gif" alt="Green Working">
+              <span>🟢 Green Dev</span>
+            </div>
+            <div class="gif-card">
+              <img src="assets/gifs/orange_working.gif" alt="Orange Working">
+              <span>🟠 Orange Dev</span>
+            </div>
+            <div class="gif-card">
+              <img src="assets/gifs/purple_working.gif" alt="Purple Working">
+              <span>🟣 Purple AI</span>
+            </div>
+          </div>
+          <div class="spritesheet-preview">
+            <h4>📦 Master Spritesheet:</h4>
+            <a href="assets/spritesheet.png" target="_blank"><img src="assets/spritesheet.png" class="sheet-img" alt="Spritesheet"></a>
+            <div class="modal-links">
+              <a href="assets/spritesheet.png" download class="retro-btn">⬇️ Download Spritesheet PNG</a>
+              <a href="assets/spritesheet.json" target="_blank" class="retro-btn">📄 View LibreSprite/Aseprite JSON</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN CANVAS CONTAINER -->
+    <main class="canvas-wrapper">
+      <canvas id="office-canvas" width="1440" height="850"></canvas>
+      <div class="scanlines"></div>
+      <div class="vignette"></div>
+    </main>
+
+    <!-- BOTTOM COMMAND CHEATSHEET & INTERACTIVE DOCK -->
+    <footer class="retro-footer">
+      <div class="cli-hints">
+        <span class="hint-label">⌨️ CLI:</span>
+        <code>agent-team spawn dev</code>
+        <code>agent-team work dev1</code>
+        <code>agent-team sleep dev1</code>
+        <code>agent-team meet dev1 dev2 -r 1</code>
+        <code>agent-team meet dev3 dev4 -r 2</code>
+        <code>agent-team end-meeting 1</code>
+      </div>
+      <div class="quick-actions">
+        <button class="action-btn" onclick="quickAction('spawn', 'dev')">+ Dev</button>
+        <button class="action-btn" onclick="quickAction('spawn-potato')">🥔 Potato Squad (10)</button>
+        <button class="action-btn" onclick="quickAction('work-all')">💻 Work All</button>
+        <button class="action-btn" onclick="quickAction('sleep-all')">💤 Sleep All</button>
+        <select id="room-select" class="retro-select">
+          <option value="1">Room 1</option>
+          <option value="2">Room 2</option>
+          <option value="3">Room 3</option>
+          <option value="4">Room 4</option>
+          <option value="5">Room 5 (Board)</option>
+        </select>
+        <button class="action-btn meeting-btn" onclick="quickMeetSelected()">📋 Meet</button>
+        <button class="action-btn leave-btn" onclick="quickEndSelected()">🚪 End Meet</button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="audio.js"></script>
+  <script src="sprites.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

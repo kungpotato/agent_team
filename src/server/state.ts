@@ -1,0 +1,712 @@
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession } from './types.js';
+import { potatoAgentRegistry } from './potato-agents.js';
+
+export class StateManager {
+  private agents: Map<string, Agent> = new Map();
+  private meetingTopics: Map<number, string> = new Map();
+  private meetingQueue: MeetingQueueItem[] = [];
+  private visits: Map<string, VisitSession> = new Map();
+  private listeners: ((state: ServerState, event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) => void)[] = [];
+
+  constructor() {}
+
+  public subscribe(listener: (state: ServerState, event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) => void) {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+
+  private notify(event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) {
+    const state = this.getState();
+    for (const listener of this.listeners) {
+      listener(state, event);
+    }
+  }
+
+  public getState(): ServerState {
+    const topicsObj: Record<number, string> = {};
+    this.meetingTopics.forEach((val, key) => {
+      topicsObj[key] = val;
+    });
+
+    return {
+      agents: Array.from(this.agents.values()).sort((a, b) => a.updatedAt - b.updatedAt),
+      meetingTopics: topicsObj,
+      meetingQueue: [...this.meetingQueue],
+      visits: Array.from(this.visits.values())
+    };
+  }
+
+
+
+  /**
+   * Automatically resolve name with suffix if needed (e.g., 'dev' -> 'dev1', 'dev2')
+   */
+  public resolveNextName(baseRoleOrName: string): string {
+    const trimmed = baseRoleOrName.trim().toLowerCase();
+    const match = trimmed.match(/^([a-z_-]+)(\d+)$/i);
+    if (match) {
+      return trimmed;
+    }
+
+    const base = trimmed;
+    let nextNum = 1;
+    while (this.agents.has(`${base}${nextNum}`)) {
+      nextNum++;
+    }
+    return `${base}${nextNum}`;
+  }
+
+  /**
+   * Find an available desk slot in work room
+   */
+  private findAvailableWorkSlot(): number {
+    const occupied = new Set(
+      Array.from(this.agents.values())
+        .filter(a => a.room === 'work')
+        .map(a => a.slot)
+    );
+    let slot = 0;
+    while (occupied.has(slot)) {
+      slot++;
+    }
+    return slot;
+  }
+
+  /**
+   * Find an available slot on a specific bench (0..4), fallback to any slot
+   */
+  private findAvailableBenchSlot(benchIndex: number): number {
+    const occupied = new Set(
+      Array.from(this.agents.values())
+        .filter(a => a.room === 'work')
+        .map(a => a.slot)
+    );
+    const start = benchIndex * 8;
+    for (let s = start; s < start + 8; s++) {
+      if (!occupied.has(s)) return s;
+    }
+    return this.findAvailableWorkSlot();
+  }
+
+  /**
+   * Find an available chair slot in a specific meeting room (1..5)
+   */
+  private findAvailableMeetingSlot(meetingRoomId: number): number {
+    const occupied = new Set(
+      Array.from(this.agents.values())
+        .filter(a => a.room === 'meeting' && a.meetingRoomId === meetingRoomId)
+        .map(a => a.slot)
+    );
+    let slot = 0;
+    while (occupied.has(slot)) {
+      slot++;
+    }
+    return slot;
+  }
+
+  /**
+   * Spawn a new agent or update an existing one
+   */
+  public spawn(roleOrName: string, initialStatus: AgentStatus = 'working', message?: string): Agent {
+    let name: string;
+    let role: string;
+
+    const match = roleOrName.trim().toLowerCase().match(/^([a-z_-]+)(\d+)$/i);
+    if (match) {
+      name = roleOrName.trim().toLowerCase();
+      role = match[1];
+    } else {
+      role = roleOrName.trim().toLowerCase();
+      name = this.resolveNextName(role);
+    }
+
+    const potatoDef = potatoAgentRegistry.get(role);
+
+    let agent = this.agents.get(name);
+    if (agent) {
+      agent.status = initialStatus;
+      agent.message = message || (potatoDef ? potatoDef.defaultTask : (initialStatus === 'working' ? 'Working...' : undefined));
+      agent.updatedAt = Date.now();
+      this.notify({ type: initialStatus === 'sleeping' ? 'sleep' : initialStatus === 'talking' ? 'talk' : 'work', agent });
+      return agent;
+    }
+
+    const slot = potatoDef ? this.findAvailableBenchSlot(potatoDef.targetBench) : this.findAvailableWorkSlot();
+    const colorIndex = potatoDef ? potatoDef.colorIndex : (this.agents.size + 1) % 10;
+    const roleTitle = potatoDef ? potatoDef.roleTitle : role.toUpperCase();
+    const defaultMsg = message || (potatoDef ? potatoDef.defaultTask : (initialStatus === 'working' ? 'Coding...' : undefined));
+
+    agent = {
+      id: name,
+      name,
+      role,
+      roleTitle,
+      status: initialStatus,
+      room: 'work',
+      slot,
+      message: defaultMsg,
+      progress: initialStatus === 'working' ? 20 : undefined,
+      color: potatoDef ? potatoDef.color : undefined,
+      colorIndex,
+      updatedAt: Date.now()
+    };
+
+    this.agents.set(name, agent);
+    this.notify({ type: 'spawn', agent });
+    return agent;
+  }
+
+  /**
+   * Spawn the entire 10-person potato-skill squad
+   */
+  public spawnPotatoSquad(): Agent[] {
+    const spawned: Agent[] = [];
+    for (const [roleName] of potatoAgentRegistry.entries()) {
+      const a = this.spawn(roleName, 'working');
+      spawned.push(a);
+    }
+    return spawned;
+  }
+
+  /**
+   * Set agent to working (seated at desk, typing on laptop)
+   */
+  /**
+   * Set agent to working (seated at desk, typing on laptop). Auto-spawns if agent does not exist!
+   */
+  public setWorking(name: string, task?: string, progress?: number): Agent {
+    let agent = this.agents.get(name.toLowerCase());
+    if (!agent) {
+      agent = this.spawn(name, 'working', task || 'Working...');
+    }
+
+    if (agent.room !== 'work') {
+      agent.room = 'work';
+      agent.meetingRoomId = undefined;
+      agent.slot = this.findAvailableWorkSlot();
+    }
+    agent.status = 'working';
+    if (task) agent.message = task;
+    if (typeof progress === 'number') {
+      agent.progress = Math.max(0, Math.min(100, progress));
+    } else if (agent.progress === undefined) {
+      agent.progress = 25;
+    }
+    agent.updatedAt = Date.now();
+
+    this.notify({ type: 'work', agent });
+    return agent;
+  }
+
+  /**
+   * Update task progress (0-100). Auto-spawns if agent does not exist!
+   */
+  public setProgress(name: string, progress: number, task?: string): Agent {
+    let agent = this.agents.get(name.toLowerCase());
+    if (!agent) {
+      agent = this.spawn(name, 'working', task || 'Working...');
+    }
+
+    agent.status = 'working';
+    agent.progress = Math.max(0, Math.min(100, progress));
+    if (task) agent.message = task;
+    agent.updatedAt = Date.now();
+
+    this.notify({ type: 'work', agent });
+    return agent;
+  }
+
+  /**
+   * Set agent to sleeping (sitting asleep, snoring Zzz). Auto-spawns if agent does not exist!
+   */
+  public setSleeping(name: string): Agent {
+    let agent = this.agents.get(name.toLowerCase());
+    if (!agent) {
+      agent = this.spawn(name, 'sleeping', 'Zzz...');
+    }
+
+    agent.status = 'sleeping';
+    agent.message = 'Zzz...';
+    agent.updatedAt = Date.now();
+
+    this.notify({ type: 'sleep', agent });
+    return agent;
+  }
+
+  /**
+   * Set agent to talking (speech bubble, gesturing). Auto-spawns if agent does not exist!
+   */
+  public setTalking(name: string, message: string): Agent {
+    let agent = this.agents.get(name.toLowerCase());
+    if (!agent) {
+      agent = this.spawn(name, 'talking', message);
+    }
+
+    agent.status = 'talking';
+    agent.message = message;
+    agent.updatedAt = Date.now();
+
+    this.notify({ type: 'talk', agent });
+    return agent;
+  }
+
+  /**
+   * Get real-time status of meeting rooms (1..5)
+   */
+  public getRoomStatus(targetRoomId?: number): RoomStatusInfo[] {
+    const roomNames = [
+      '',
+      'Executive Suite 1',
+      'Executive Suite 2',
+      'Executive Suite 3',
+      'Executive Suite 4',
+      'Main Boardroom'
+    ];
+    const results: RoomStatusInfo[] = [];
+
+    const roomIds = targetRoomId ? [Math.max(1, Math.min(5, targetRoomId))] : [1, 2, 3, 4, 5];
+
+    for (const rId of roomIds) {
+      const attendees = Array.from(this.agents.values())
+        .filter(a => a.room === 'meeting' && (a.meetingRoomId === rId || (!a.meetingRoomId && rId === 1)))
+        .map(a => a.name);
+
+      const occupancy = attendees.length;
+      const capacity = 8;
+      const isOccupied = occupancy > 0;
+      const isFull = occupancy >= capacity;
+      const topic = this.meetingTopics.get(rId);
+
+      results.push({
+        roomId: rId,
+        name: roomNames[rId],
+        occupancy,
+        capacity,
+        isFull,
+        isOccupied,
+        topic,
+        attendees
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Enqueue agents waiting for a meeting room
+   */
+  public enqueueMeeting(names: string[], topic?: string, targetRoomId?: number): { queueItem: MeetingQueueItem; position: number; agents: Agent[] } {
+    const cleanNames = names.map(n => n.trim().toLowerCase()).filter(Boolean);
+    const resolvedRoomId = targetRoomId ? Math.max(1, Math.min(5, targetRoomId)) : undefined;
+    const meetingTopic = topic || (resolvedRoomId ? `Meeting Room ${resolvedRoomId}` : 'Conference Sync');
+    const queueId = `Q-${Math.floor(100 + Math.random() * 900)}`;
+
+    const waitingAgents: Agent[] = [];
+
+    for (const rawName of cleanNames) {
+      let agent = this.agents.get(rawName);
+      if (!agent) {
+        agent = this.spawn(rawName, 'waiting', `⏳ Waiting for ${resolvedRoomId ? `Room ${resolvedRoomId}` : 'Meeting'}`);
+      } else {
+        agent.status = 'waiting';
+        agent.message = `⏳ Waiting for ${resolvedRoomId ? `Room ${resolvedRoomId}` : 'Meeting'}: ${meetingTopic}`;
+        agent.updatedAt = Date.now();
+      }
+      waitingAgents.push(agent);
+      this.notify({ type: 'wait', agent });
+    }
+
+    const queueItem: MeetingQueueItem = {
+      id: queueId,
+      names: cleanNames,
+      topic: meetingTopic,
+      targetRoomId: resolvedRoomId,
+      queuedAt: Date.now()
+    };
+
+    this.meetingQueue.push(queueItem);
+    return {
+      queueItem,
+      position: this.meetingQueue.length,
+      agents: waitingAgents
+    };
+  }
+
+  /**
+   * Cancel / Dequeue a meeting request
+   */
+  public cancelQueue(queueIdOrName: string): MeetingQueueItem | null {
+    const target = queueIdOrName.trim().toLowerCase();
+    const idx = this.meetingQueue.findIndex(q =>
+      q.id.toLowerCase() === target || q.names.some(n => n.toLowerCase() === target)
+    );
+
+    if (idx === -1) return null;
+
+    const [removed] = this.meetingQueue.splice(idx, 1);
+    for (const name of removed.names) {
+      const agent = this.agents.get(name);
+      if (agent && agent.status === 'waiting') {
+        agent.status = 'working';
+        agent.message = 'Back to work';
+        agent.updatedAt = Date.now();
+        this.notify({ type: 'work', agent });
+      }
+    }
+    return removed;
+  }
+
+  /**
+   * Move agents into a specified meeting room (1..5)
+   * If the room is at capacity (8 agents) or doesn't have room for all requested agents,
+   * automatically places the request into the waiting queue!
+   */
+  public startMeeting(
+    names: string[],
+    topic?: string,
+    targetRoomId: number = 1,
+    options?: { autoQueueIfFull?: boolean }
+  ): {
+    started: boolean;
+    queued: boolean;
+    roomId: number;
+    agents?: Agent[];
+    queueItem?: MeetingQueueItem;
+    position?: number;
+    message?: string;
+  } {
+    const roomId = Math.max(1, Math.min(5, targetRoomId));
+    const autoQueue = options?.autoQueueIfFull !== false;
+
+    // Check current occupancy in target room
+    const currentOccupants = Array.from(this.agents.values()).filter(
+      a => a.room === 'meeting' && (a.meetingRoomId === roomId || (!a.meetingRoomId && roomId === 1))
+    );
+
+    const availableSeats = 8 - currentOccupants.length;
+
+    // If room is full or cannot fit all requested agents
+    if (availableSeats < names.length) {
+      if (autoQueue) {
+        const queued = this.enqueueMeeting(names, topic || `Meeting Room ${roomId}`, roomId);
+        return {
+          started: false,
+          queued: true,
+          roomId,
+          queueItem: queued.queueItem,
+          position: queued.position,
+          message: `Meeting Room ${roomId} is full (${currentOccupants.length}/8 seats taken). Agents queued at position #${queued.position}.`
+        };
+      } else {
+        return {
+          started: false,
+          queued: false,
+          roomId,
+          message: `Meeting Room ${roomId} is full (${currentOccupants.length}/8 seats taken, requested ${names.length}).`
+        };
+      }
+    }
+
+    // Room has available seats: admit them now!
+    const modified: Agent[] = [];
+    this.meetingTopics.set(roomId, topic || `Meeting Room ${roomId}`);
+
+    // Remove them from meeting queue if they were waiting
+    this.meetingQueue = this.meetingQueue.filter(
+      q => !q.names.some(n => names.map(x => x.toLowerCase()).includes(n.toLowerCase()))
+    );
+
+    for (const rawName of names) {
+      let agent = this.agents.get(rawName.toLowerCase());
+      if (!agent) {
+        agent = this.spawn(rawName, 'talking', topic || 'Discussing...');
+      }
+
+      agent.room = 'meeting';
+      agent.meetingRoomId = roomId;
+      agent.slot = this.findAvailableMeetingSlot(roomId);
+      agent.status = 'talking';
+      agent.message = topic ? `Topic: ${topic}` : `In Room ${roomId}`;
+      agent.updatedAt = Date.now();
+      modified.push(agent);
+      this.notify({ type: 'talk', agent });
+    }
+
+    return {
+      started: true,
+      queued: false,
+      roomId,
+      agents: modified,
+      message: `Meeting started in Room ${roomId}`
+    };
+  }
+
+  /**
+   * End meeting: agents in meeting room(s) disappear as requested!
+   * Automatically checks the waiting queue and admits the next queued meeting if a room became free!
+   */
+  public endMeeting(options?: { roomId?: number; names?: string[] }): {
+    removed: Agent[];
+    autoAdmitted?: { roomId: number; queueItem: MeetingQueueItem; agents: Agent[] };
+  } {
+    const removed: Agent[] = [];
+    const targetAgents = Array.from(this.agents.values()).filter(a => a.room === 'meeting');
+
+    const roomId = options?.roomId;
+    const names = options?.names?.map(n => n.toLowerCase());
+
+    for (const agent of targetAgents) {
+      const matchRoom = roomId ? agent.meetingRoomId === roomId : true;
+      const matchName = names && names.length > 0 ? names.includes(agent.name.toLowerCase()) : true;
+
+      if (matchRoom && matchName) {
+        this.agents.delete(agent.name);
+        removed.push(agent);
+        this.notify({ type: 'disappear', agent });
+      }
+    }
+
+    // Clean up empty meeting topics
+    const freedRooms: number[] = [];
+    if (roomId) {
+      const remainingInRoom = Array.from(this.agents.values()).filter(a => a.room === 'meeting' && a.meetingRoomId === roomId);
+      if (remainingInRoom.length === 0) {
+        this.meetingTopics.delete(roomId);
+        freedRooms.push(roomId);
+      }
+    } else {
+      // Check all 5 rooms
+      for (let r = 1; r <= 5; r++) {
+        const remainingInRoom = Array.from(this.agents.values()).filter(a => a.room === 'meeting' && a.meetingRoomId === r);
+        if (remainingInRoom.length === 0) {
+          this.meetingTopics.delete(r);
+          freedRooms.push(r);
+        }
+      }
+    }
+
+    // Check waiting queue to auto-admit next meeting into freed room!
+    let autoAdmitted: { roomId: number; queueItem: MeetingQueueItem; agents: Agent[] } | undefined;
+    if (this.meetingQueue.length > 0 && freedRooms.length > 0) {
+      for (const freedId of freedRooms) {
+        const qIdx = this.meetingQueue.findIndex(q => !q.targetRoomId || q.targetRoomId === freedId);
+        if (qIdx !== -1) {
+          const [nextQueue] = this.meetingQueue.splice(qIdx, 1);
+          const startResult = this.startMeeting(nextQueue.names, nextQueue.topic, freedId, { autoQueueIfFull: false });
+          if (startResult.started && startResult.agents) {
+            autoAdmitted = {
+              roomId: freedId,
+              queueItem: nextQueue,
+              agents: startResult.agents
+            };
+            break; // Auto-admitted one meeting into this freed room
+          }
+        }
+      }
+    }
+
+    return { removed, autoAdmitted };
+  }
+
+
+  /**
+   * Remove a single agent completely
+   */
+  public remove(name: string): Agent | null {
+    const agent = this.agents.get(name.toLowerCase());
+    if (!agent) return null;
+
+    this.agents.delete(name.toLowerCase());
+    this.notify({ type: 'disappear', agent });
+    return agent;
+  }
+
+  /**
+   * Remove multiple agents by names, or remove all idle/sleeping agents
+   */
+  public removeFiltered(options: { names?: string[]; idleOnly?: boolean; sleepingOnly?: boolean }): Agent[] {
+    const removed: Agent[] = [];
+    const all = Array.from(this.agents.values());
+
+    for (const agent of all) {
+      let shouldRemove = false;
+      if (options.names && options.names.length > 0) {
+        if (options.names.map(n => n.toLowerCase()).includes(agent.name.toLowerCase())) {
+          shouldRemove = true;
+        }
+      } else if (options.sleepingOnly) {
+        if (agent.status === 'sleeping') shouldRemove = true;
+      } else if (options.idleOnly) {
+        if (agent.status !== 'working') shouldRemove = true;
+      }
+
+      if (shouldRemove) {
+        this.agents.delete(agent.name.toLowerCase());
+        removed.push(agent);
+        this.notify({ type: 'disappear', agent });
+      }
+    }
+    return removed;
+  }
+
+  /**
+   * Start a desk visit: an agent walks over to another agent's desk to ask a question
+   */
+  public startVisit(
+    fromName: string,
+    toName: string,
+    question: string,
+    customReply?: string,
+    durationSec: number = 12
+  ): { visit: VisitSession; visitor: Agent; target: Agent } {
+    const from = fromName.trim().toLowerCase();
+    const to = toName.trim().toLowerCase();
+
+    // Auto-spawn visitor if not present
+    let visitor = this.agents.get(from);
+    if (!visitor) {
+      visitor = this.spawn(from, 'working', 'Consulting...');
+    }
+
+    // Auto-spawn target if not present
+    let target = this.agents.get(to);
+    if (!target) {
+      target = this.spawn(to, 'working', 'Working...');
+    }
+
+    // If target has task / progress, generate contextual reply if omitted
+    let reply = customReply;
+    if (!reply) {
+      if (target.message && typeof target.progress === 'number') {
+        reply = `Working on "${target.message}" (${target.progress}%)!`;
+      } else if (target.status === 'sleeping') {
+        reply = `*yawns* Give me a moment, checking the specs...`;
+      } else {
+        reply = `Got it! I am on it right away.`;
+      }
+    }
+
+    const visitId = `V-${Math.floor(100 + Math.random() * 900)}`;
+    const session: VisitSession = {
+      id: visitId,
+      visitorName: visitor.name,
+      targetName: target.name,
+      question,
+      reply,
+      startedAt: Date.now(),
+      durationSec,
+      phase: 'walking'
+    };
+
+    // Update visitor state
+    visitor.status = 'walking';
+    visitor.message = `❓ Asking ${target.name}: "${question}"`;
+    visitor.currentVisit = {
+      partnerName: target.name,
+      isVisitor: true,
+      question,
+      reply
+    };
+    visitor.updatedAt = Date.now();
+
+    // Update target state with visit context
+    target.currentVisit = {
+      partnerName: visitor.name,
+      isVisitor: false,
+      question,
+      reply
+    };
+    target.updatedAt = Date.now();
+
+    this.visits.set(visitor.name.toLowerCase(), session);
+    this.notify({ type: 'walk', agent: visitor });
+
+    // Transition from walking to talking/visiting phase after walking arrival (~2.2s)
+    setTimeout(() => {
+      const active = this.visits.get(visitor.name.toLowerCase());
+      if (active && active.id === visitId && active.phase === 'walking') {
+        active.phase = 'talking';
+        visitor.status = 'visiting';
+        this.notify({ type: 'talk', agent: visitor });
+      }
+    }, 2200);
+
+    // Auto-return timer if durationSec > 0
+    if (durationSec > 0) {
+      setTimeout(() => {
+        const active = this.visits.get(visitor.name.toLowerCase());
+        if (active && active.id === visitId && active.phase !== 'returning') {
+          this.returnVisit(visitor.name);
+        }
+      }, durationSec * 1000);
+    }
+
+    return { visit: session, visitor, target };
+  }
+
+  /**
+   * Return a visiting agent back to their home desk
+   */
+  public returnVisit(visitorName: string): { success: boolean; visitor?: Agent } {
+    const key = visitorName.trim().toLowerCase();
+    const session = this.visits.get(key);
+    const visitor = this.agents.get(key);
+    if (!session || !visitor) return { success: false };
+
+    const target = this.agents.get(session.targetName.toLowerCase());
+    if (target && target.currentVisit?.partnerName.toLowerCase() === key) {
+      target.currentVisit = undefined;
+      target.updatedAt = Date.now();
+    }
+
+    session.phase = 'returning';
+    visitor.status = 'walking';
+    visitor.message = 'Returning to desk...';
+    visitor.updatedAt = Date.now();
+    this.notify({ type: 'walk', agent: visitor });
+
+    // After walking back (~2.2s), return to sitting at desk
+    setTimeout(() => {
+      this.visits.delete(key);
+      if (this.agents.has(key)) {
+        const v = this.agents.get(key)!;
+        v.status = 'working';
+        v.currentVisit = undefined;
+        v.message = 'Coding...';
+        v.updatedAt = Date.now();
+        this.notify({ type: 'work', agent: v });
+      }
+    }, 2200);
+
+    return { success: true, visitor };
+  }
+
+  /**
+   * Reset / clear all agents
+   */
+  public reset(): void {
+    this.agents.clear();
+    this.meetingTopics.clear();
+    this.visits.clear();
+    const dummyAgent: Agent = {
+      id: '_all',
+      name: 'all',
+      role: 'all',
+      status: 'working',
+      room: 'work',
+      slot: 0,
+      colorIndex: 0,
+      updatedAt: Date.now()
+    };
+    this.notify({ type: 'disappear', agent: dummyAgent });
+  }
+
+  public getAgent(name: string): Agent | undefined {
+    return this.agents.get(name.toLowerCase());
+  }
+}
+
+
+export const stateManager = new StateManager();

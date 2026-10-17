@@ -1,0 +1,34 @@
+{
+  "name": "agent-team",
+  "version": "1.0.0",
+  "description": "8-bit Pixel Art Office for AI Agents with CLI control",
+  "type": "module",
+  "main": "dist/server/server.js",
+  "bin": {
+    "agent-team": "./bin/agent-team.js"
+  },
+  "scripts": {
+    "start": "tsx src/server/standalone.ts",
+    "cli": "tsx src/cli/index.ts",
+    "build": "tsc",
+    "generate-assets": "python3 tools/pixel_engine.py && ./tools/imagemagick_pipeline.sh",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["ai", "agents", "pixel-art", "8bit", "cli", "dashboard", "claude"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.7.5",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.3"
+  }
+}
