@@ -2,7 +2,7 @@
 
 **Agent Team** คือ CLI และ Localhost Web Server จำลองออฟฟิศสไตล์ **8-bit Pixel Art Animation** แบบเรียลไทม์ สำหรับแสดงสถานะของ **AI Agents** (เช่น Claude Code, Autonomous Subagents, Dev Agents, Potato-Skill Agents) ขณะนั่งเขียนโค้ด ประชุม รอคิว หรือพักผ่อนบนเว็บเบราว์เซอร์ พร้อมระบบเสียง Retro Synth และระบบ Background Daemon ในตัว
 
-![8-bit Office Banner](public/assets/spritesheet.png)
+![8-bit Virtual Office Live Demo](public/assets/demo.gif)
 
 ---
 
