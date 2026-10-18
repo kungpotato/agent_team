@@ -55,11 +55,33 @@ async function ensureServer(port: number = DEFAULT_PORT): Promise<void> {
   console.warn(`[agent-team] Warning: Server launch initiated, but port ${port} is not yet responding. Check /tmp/agent-team.err.log`);
 }
 
-async function apiCall(endpoint: string, method: string = 'GET', body?: any, port: number = DEFAULT_PORT): Promise<any> {
+function resolveSession(sessionArg?: string): string {
+  if (sessionArg && typeof sessionArg === 'string' && sessionArg.trim()) {
+    return sessionArg.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  }
+  const envSession = process.env.AGENT_TEAM_SESSION || process.env.CLAUDE_PROJECT_DIR;
+  if (envSession && envSession.trim()) {
+    return envSession.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  }
+  const dirName = path.basename(process.cwd());
+  return dirName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'default';
+}
+
+async function apiCall(endpoint: string, method: string = 'GET', body?: any, port: number = DEFAULT_PORT, session?: string): Promise<any> {
   await ensureServer(port);
-  const res = await fetch(`${getBaseUrl(port)}${endpoint}`, {
+  const targetSession = session || (program.opts ? program.opts().session : undefined);
+  const resolvedSession = resolveSession(targetSession);
+  const base = getBaseUrl(port);
+  const url = new URL(`${base}${endpoint}`);
+  if (!url.searchParams.has('session')) {
+    url.searchParams.set('session', resolvedSession);
+  }
+  const res = await fetch(url.toString(), {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-session-id': resolvedSession
+    },
     body: body ? JSON.stringify(body) : undefined
   });
 
@@ -75,7 +97,8 @@ const program = new Command();
 program
   .name('agent-team')
   .description('8-Bit Pixel Art Office CLI for AI Agents')
-  .version('1.0.0');
+  .version('1.0.0')
+  .option('-S, --session <name>', 'Project directory session name (defaults to current directory name)');
 
 // START COMMAND
 program
@@ -1142,6 +1165,81 @@ program
   .action(async () => {
     const { runMcpServer } = await import('../mcp/index.js');
     await runMcpServer();
+  });
+
+// SESSIONS COMMANDS
+program
+  .command('sessions')
+  .alias('session-list')
+  .description('List all project directory sessions and their status')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/sessions', 'GET', undefined, port);
+      const current = resolveSession(program.opts().session);
+      console.log(`\n📁 ACTIVE PROJECT SESSIONS (Current: "${current}")`);
+      console.log('═'.repeat(95));
+      console.log(
+        'SESSION NAME'.padEnd(25) + ' | ' +
+        'AGENTS'.padEnd(16) + ' | ' +
+        'SPRINT'.padEnd(14) + ' | ' +
+        'PHASE'.padEnd(16) + ' | ' +
+        'CURRENT STORY'
+      );
+      console.log('─'.repeat(95));
+      for (const s of res.sessions || []) {
+        const isCurrent = s.id === current;
+        const prefix = isCurrent ? '👉 ' : '   ';
+        const nameCol = (prefix + s.name).padEnd(25);
+        const agentsCol = `${s.agentCount} (${s.workingCount}w / ${s.meetingCount}m)`.padEnd(16);
+        const sprintCol = `Sprint #${s.sprintNumber}`.padEnd(14);
+        const phaseCol = s.sprintPhase.toUpperCase().padEnd(16);
+        const storyCol = (s.story || '-').slice(0, 22);
+        console.log(`${nameCol} | ${agentsCol} | ${sprintCol} | ${phaseCol} | ${storyCol}`);
+      }
+      console.log('═'.repeat(95));
+      console.log(`💡 Switch project session with: "agent-team -S <session> <command>" or select in Web UI at http://localhost:${port}\n`);
+    } catch (err: any) {
+      console.error(`❌ Failed to list sessions: ${err.message}`);
+    }
+  });
+
+program
+  .command('session-current')
+  .description('Print the currently active session name (derived from current project dir or env)')
+  .action(() => {
+    const session = resolveSession(program.opts().session);
+    console.log(`📁 Current directory session: "${session}" (from directory "${path.basename(process.cwd())}")`);
+  });
+
+program
+  .command('session-create <name>')
+  .description('Create or connect to a new project directory session')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (name, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/sessions', 'POST', { name }, port);
+      console.log(`✨ Project session created / connected: "${res.session}"`);
+      console.log(`💡 View in browser at http://localhost:${port}?session=${res.session}`);
+    } catch (err: any) {
+      console.error(`❌ Failed to create session: ${err.message}`);
+    }
+  });
+
+program
+  .command('session-delete <name>')
+  .description('Delete a project directory session')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (name, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall(`/api/sessions/${encodeURIComponent(name)}`, 'DELETE', undefined, port);
+      console.log(`🗑️ Session "${name}" deleted: ${res.success}`);
+    } catch (err: any) {
+      console.error(`❌ Failed to delete session: ${err.message}`);
+    }
   });
 
 program.parse(process.argv);

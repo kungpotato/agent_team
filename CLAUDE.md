@@ -49,6 +49,12 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
 - Once the sprint retrospective is complete, Claude MUST call `office_sprint_complete` (or `agent-team sprint complete`) to formally close and archive the sprint.
 - To take on new work, Claude immediately launches the next sprint with `office_sprint_start` (auto-incrementing to Sprint #N+1). This allows continuous agile delivery across infinite milestones.
 
+### Rule 6: Multi-Session Segmentation by Project Directory
+- Every running project directory where Claude Code operates automatically receives its own isolated session (derived from `path.basename(process.cwd())` or `CLAUDE_PROJECT_DIR`).
+- Each directory session maintains its own independent agent roster, active sprint lifecycle, card backlog, and conference rooms.
+- Sessions can be monitored and listed via `office_list_sessions` or CLI `agent-team sessions`.
+- The Web Canvas UI (`http://localhost:3333`) provides an interactive directory session dropdown in the retro header to switch between projects seamlessly in real-time.
+
 ---
 
 ## 🛠️ Tool Calling Mapping for Claude
@@ -57,6 +63,8 @@ When Claude operates via MCP or terminal CLI:
 
 | Sprint Step | MCP Tool Call | CLI Command Shortcut |
 |---|---|---|
+| List Directory Sessions | `office_list_sessions({})` | `agent-team sessions` |
+| Current Session Info | `office_get_session({})` | `agent-team session-current` |
 | View Card Backlog | `office_get_cards({ source: "taskwarrior" })` | `agent-team cards` or `agent-team backlog` |
 | Add Story Card | `office_add_card({ title, points, tags, priority })` | `agent-team card-add <title> -p <pts>` |
 | Initialize Sprint | `office_sprint_start({ card_id, source: "taskwarrior", sprint_number, story, points })` | `agent-team sprint start [-c id] [-s tw]` |

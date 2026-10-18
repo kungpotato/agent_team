@@ -61,3 +61,8 @@ When the user requests to plan, execute, or complete work, you MUST follow the m
 
 - After Phase 8 (`retro`), call `office_sprint_complete({ summary: "..." })` (or `agent-team sprint complete`) to archive the sprint. This marks the associated Taskwarrior/Jira card as `done`.
 - Call `office_sprint_start` to kick off the next sprint milestone.
+
+## Multi-Session by Project Directory
+- Sprints, ceremonies, and agents run independently per project directory.
+- Switch or view project sessions in the Web UI (`http://localhost:3333`) via the top header directory dropdown.
+- Check active sessions using `office_list_sessions` or CLI `agent-team sessions`.

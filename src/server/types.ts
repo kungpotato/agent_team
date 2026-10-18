@@ -183,19 +183,36 @@ export interface SprintState {
   completedSprints?: SprintRecord[];
 }
 
+export interface SessionSummary {
+  id: string; // Session ID / project dir name (e.g. 'agent_team', 'mobile-app')
+  name: string; // Display name
+  projectDir?: string;
+  agentCount: number;
+  workingCount: number;
+  meetingCount: number;
+  sprintNumber: number;
+  sprintPhase: SprintPhase;
+  story: string;
+  storyPoints?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ServerState {
   agents: Agent[];
   meetingTopics: Record<number, string>; // room 1..5 -> topic
   meetingQueue: MeetingQueueItem[];
   visits: VisitSession[];
   sprint: SprintState;
+  session?: string;
 }
 
 export type WSMessage =
-  | { type: 'INIT'; payload: ServerState }
-  | { type: 'STATE_UPDATE'; payload: ServerState }
-  | { type: 'AGENT_EVENT'; payload: { event: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent } }
-  | { type: 'SPRINT_UPDATE'; payload: SprintState };
+  | { type: 'INIT'; session?: string; payload: ServerState; sessions?: SessionSummary[] }
+  | { type: 'STATE_UPDATE'; session?: string; payload: ServerState }
+  | { type: 'AGENT_EVENT'; session?: string; payload: { event: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent } }
+  | { type: 'SPRINT_UPDATE'; session?: string; payload: SprintState }
+  | { type: 'SESSIONS_UPDATE'; payload: SessionSummary[] };
 
 export interface MeetingRoomInfo {
   id: number; // 1 to 5

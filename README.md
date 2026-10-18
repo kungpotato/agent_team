@@ -91,6 +91,14 @@ The core operating model of Agent Team is facilitating autonomous **Sprint Cerem
 
 ---
 
+### 9. 📁 Multi-Session Support by Project Directory
+- **Automatic Directory Isolation**: When running across multiple project directories where Claude Code operates, each project directory automatically receives its own isolated session (named after the directory name, e.g. `agent_team`, `mobile-app`, `ecommerce-backend`).
+- **Interactive Directory Session Switcher**: The Web Canvas UI (`http://localhost:3333`) features a retro **📁 DIR:** dropdown in the top header, allowing you to select and switch between project sessions in real time.
+- **Dedicated State per Project**: Each directory session manages its own distinct agent roster, active sprint pipeline, meetings, card backlog, and real-time activities without interfering with other projects.
+- **CLI & MCP Session Support**: Run `agent-team -S <session> <command>` to target a specific directory session, or use `agent-team sessions` to view all active directory sessions and their sprint milestones.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -227,6 +235,25 @@ Whenever Claude or any AI agent uses this project or its MCP tools, **it is stri
 ---
 
 ## 📖 CLI Command Reference
+
+### 0. 📁 Project Directory Sessions
+
+#### `agent-team sessions`
+> **Aliases:** `session-list`
+
+List all active project directory sessions, showing agent counts, current sprint number, phase, and story ticket:
+```bash
+# List all active project sessions
+agent-team sessions
+
+# Check which session is active for the current directory
+agent-team session-current
+
+# Explicitly target a session for any CLI command via -S
+agent-team -S mobile-app sprint status
+agent-team -S mobile-app spawn-potato
+agent-team -S ecommerce-backend meet -r sigma dev1 dev2
+```
 
 ### 1. 🏢 Status & Roster Inspection
 

@@ -64,11 +64,32 @@ async function ensureServer(port: number = DEFAULT_PORT): Promise<void> {
   console.error(`[agent-team MCP] Warning: Server launch initiated, but port ${port} is not yet responding.`);
 }
 
-async function apiCall(endpoint: string, method: string = 'GET', body?: any, port: number = DEFAULT_PORT): Promise<any> {
+function resolveSession(sessionArg?: string): string {
+  if (sessionArg && typeof sessionArg === 'string' && sessionArg.trim()) {
+    return sessionArg.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  }
+  const envSession = process.env.AGENT_TEAM_SESSION || process.env.CLAUDE_PROJECT_DIR;
+  if (envSession && envSession.trim()) {
+    return envSession.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  }
+  const dirName = path.basename(process.cwd());
+  return dirName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'default';
+}
+
+async function apiCall(endpoint: string, method: string = 'GET', body?: any, port: number = DEFAULT_PORT, session?: string): Promise<any> {
   await ensureServer(port);
-  const res = await fetch(`${getBaseUrl(port)}${endpoint}`, {
+  const resolvedSession = resolveSession(session || (body && body.session));
+  const base = getBaseUrl(port);
+  const url = new URL(`${base}${endpoint}`);
+  if (!url.searchParams.has('session')) {
+    url.searchParams.set('session', resolvedSession);
+  }
+  const res = await fetch(url.toString(), {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-session-id': resolvedSession
+    },
     body: body ? JSON.stringify(body) : undefined
   });
 
@@ -671,6 +692,47 @@ STRICT RULES:
         content: [{
           type: 'text',
           text: `✨ CREATED STORY CARD [${src.toUpperCase()}] #${res.card.id}:\n📋 Title: "${res.card.title}"\n🎯 Points: ${res.card.points || '-'} pts | Priority: ${res.card.priority || '-'}\n💡 Ready to start sprint: call office_sprint_start with card_id: "${res.card.id}"`
+        }]
+      };
+    }
+  );
+
+  // 20. LIST PROJECT SESSIONS
+  server.tool(
+    'office_list_sessions',
+    'List all active project directory sessions, their active agents count, sprint status, and current story.',
+    {},
+    async () => {
+      const res = await apiCall('/api/sessions', 'GET');
+      const current = resolveSession();
+      const lines = [
+        `📁 ACTIVE PROJECT SESSIONS (Current Claude project session: "${current}"):`,
+        ...res.sessions.map((s: any) => {
+          const isCur = s.id === current ? '👉 [ACTIVE]' : '  ';
+          return `${isCur} Session: "${s.name}" | Agents: ${s.agentCount} (${s.workingCount}w / ${s.meetingCount}m) | Sprint #${s.sprintNumber} (${s.sprintPhase.toUpperCase()}) | Story: "${s.story || '-'}"`;
+        }),
+        ``,
+        `💡 Sessions are automatically segmented by project directory where Claude Code is working. View live in browser at http://localhost:3333`
+      ];
+      return {
+        content: [{ type: 'text', text: lines.join('\n') }]
+      };
+    }
+  );
+
+  // 21. GET CURRENT PROJECT SESSION
+  server.tool(
+    'office_get_session',
+    'Get current project directory session information and status.',
+    {},
+    async () => {
+      const current = resolveSession();
+      const res = await apiCall('/api/agents', 'GET', undefined, DEFAULT_PORT, current);
+      const sprint = res.sprint || {};
+      return {
+        content: [{
+          type: 'text',
+          text: `📁 CURRENT CLAUDE PROJECT SESSION: "${current}"\n👥 Active Agents: ${res.agents?.length || 0}\n🏃 Sprint: #${sprint.sprintNumber || 1} (${sprint.phase?.toUpperCase() || 'IDLE'})\n📋 Current Story: "${sprint.story || '-'}" (${sprint.storyPoints || 0} pts)\n🌐 Web UI: http://localhost:3333?session=${current}`
         }]
       };
     }

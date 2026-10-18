@@ -19,6 +19,38 @@ let currentSprint = null;
 let animationFrame = 0;
 let particles = [];
 
+// Multi-session State (Defaults to URL param, saved localStorage, or 'agent_team')
+const urlParams = new URLSearchParams(window.location.search);
+let currentSessionId = urlParams.get('session') || localStorage.getItem('agent_hq_session') || 'agent_team';
+let knownSessions = [];
+
+async function apiFetch(endpoint, options = {}) {
+  const url = new URL(endpoint, window.location.origin);
+  if (!url.searchParams.has('session')) {
+    url.searchParams.set('session', currentSessionId);
+  }
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-session-id': currentSessionId,
+    ...(options.headers || {})
+  };
+
+  let body = options.body;
+  if (body && typeof body === 'string') {
+    try {
+      const parsed = JSON.parse(body);
+      if (!parsed.session) {
+        parsed.session = currentSessionId;
+        body = JSON.stringify(parsed);
+      }
+    } catch {
+      // not JSON
+    }
+  }
+
+  return fetch(url.toString(), { ...options, headers, body });
+}
+
 
 
 // BENCH CONFIGURATION (5 Departments x 8 seats = 40 workstations)
@@ -878,9 +910,121 @@ function loop(currentTime) {
 let socket = null;
 let reconnectDelay = 1000;
 
+function updateSessionDropdown(sessionsList) {
+  knownSessions = sessionsList || [];
+  const select = document.getElementById('session-select');
+  if (!select) return;
+
+  select.innerHTML = '';
+  for (const s of knownSessions) {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    const isCurrent = s.id === currentSessionId;
+    opt.textContent = `${s.name} (${s.agentCount}👥 · ${s.sprintPhase.toUpperCase()})`;
+    if (isCurrent) {
+      opt.selected = true;
+    }
+    select.appendChild(opt);
+  }
+
+  // If currentSessionId is not in list, add it
+  if (!knownSessions.some(s => s.id === currentSessionId)) {
+    const opt = document.createElement('option');
+    opt.value = currentSessionId;
+    opt.textContent = `${currentSessionId} (active)`;
+    opt.selected = true;
+    select.appendChild(opt);
+  }
+  select.value = currentSessionId;
+}
+
+window.onSessionSelectChange = function(newSessionId) {
+  window.switchSession(newSessionId);
+};
+
+window.switchSession = function(newSessionId) {
+  if (!newSessionId) return;
+  currentSessionId = newSessionId;
+  localStorage.setItem('agent_hq_session', newSessionId);
+
+  // Update browser URL query param without reload
+  const newUrl = new URL(window.location);
+  newUrl.searchParams.set('session', newSessionId);
+  window.history.replaceState({}, '', newUrl);
+
+  const select = document.getElementById('session-select');
+  if (select) select.value = newSessionId;
+
+  // Inform WebSocket server
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'SWITCH_SESSION', session: newSessionId }));
+  }
+
+  // Load new session state
+  fetchSessionState(newSessionId);
+};
+
+async function fetchSessionState(sessionId) {
+  try {
+    const res = await fetch(`/api/agents?session=${encodeURIComponent(sessionId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      agents = data.agents || [];
+      meetingTopics = data.meetingTopics || {};
+      meetingQueue = data.meetingQueue || [];
+      visits = data.visits || [];
+      if (data.sprint) {
+        currentSprint = data.sprint;
+      }
+      updateHUD();
+      updateSprintHUD();
+    }
+  } catch (err) {
+    console.error('Failed to load session state:', err);
+  }
+}
+
+window.promptNewSession = function() {
+  const name = prompt('Enter project directory name to view or create (e.g. "my-project", "ecommerce-backend"):');
+  if (name && name.trim()) {
+    const clean = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: clean })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.session) {
+          window.switchSession(data.session);
+          if (Array.isArray(data.sessions)) {
+            updateSessionDropdown(data.sessions);
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Failed to create session:', err);
+      });
+  }
+};
+
+async function fetchSessionsList() {
+  try {
+    const res = await fetch('/api/sessions');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.sessions)) {
+        updateSessionDropdown(data.sessions);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch sessions:', err);
+  }
+}
+
 function connectWS() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}`;
+  const wsUrl = `${protocol}//${window.location.host}?session=${encodeURIComponent(currentSessionId)}`;
   socket = new WebSocket(wsUrl);
 
   const statusEl = document.getElementById('ws-status');
@@ -889,60 +1033,80 @@ function connectWS() {
     statusEl.textContent = 'ONLINE';
     statusEl.className = 'status-indicator connected';
     reconnectDelay = 1000;
+    fetchSessionsList();
   };
 
   socket.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      if (data.type === 'INIT' || data.type === 'STATE_UPDATE') {
-        const prevAgents = [...agents];
-        agents = data.payload.agents || [];
-        meetingTopics = data.payload.meetingTopics || {};
-        meetingQueue = data.payload.meetingQueue || [];
-        visits = data.payload.visits || [];
-        if (data.payload.sprint) {
-          currentSprint = data.payload.sprint;
+      if (data.type === 'SESSIONS_UPDATE') {
+        if (Array.isArray(data.payload)) {
+          updateSessionDropdown(data.payload);
         }
-        updateHUD();
-        updateSprintHUD();
+        return;
+      }
 
-        // Check if any agent disappeared -> spawn poof particle at chair position!
-        for (const oldA of prevAgents) {
-          if (!agents.find(a => a.name === oldA.name)) {
-            let px = 500, py = 350;
-            if (oldA.room === 'meeting') {
-              const rId = oldA.meetingRoomId || 1;
-              const room = OFFICE_LAYOUT.meetingRooms[rId];
-              if (room) {
-                const slot = room.slots[oldA.slot % room.slots.length];
-                px = slot ? slot.x : room.tableX;
-                py = slot ? slot.y : room.tableY;
+      if (data.type === 'INIT' || data.type === 'STATE_UPDATE') {
+        if (data.session && data.type === 'INIT') {
+          currentSessionId = data.session;
+          localStorage.setItem('agent_hq_session', data.session);
+        }
+        if (Array.isArray(data.sessions)) {
+          updateSessionDropdown(data.sessions);
+        }
+
+        // Only update office canvas if this message matches the currently active session
+        if (!data.session || data.session === currentSessionId) {
+          const prevAgents = [...agents];
+          agents = data.payload.agents || [];
+          meetingTopics = data.payload.meetingTopics || {};
+          meetingQueue = data.payload.meetingQueue || [];
+          visits = data.payload.visits || [];
+          if (data.payload.sprint) {
+            currentSprint = data.payload.sprint;
+          }
+          updateHUD();
+          updateSprintHUD();
+
+          // Check if any agent disappeared -> spawn poof particle at chair position!
+          for (const oldA of prevAgents) {
+            if (!agents.find(a => a.name === oldA.name)) {
+              let px = 500, py = 350;
+              if (oldA.room === 'meeting') {
+                const rId = oldA.meetingRoomId || 1;
+                const room = OFFICE_LAYOUT.meetingRooms[rId];
+                if (room) {
+                  const slot = room.slots[oldA.slot % room.slots.length];
+                  px = slot ? slot.x : room.tableX;
+                  py = slot ? slot.y : room.tableY;
+                }
+              } else {
+                const bIdx = Math.floor(oldA.slot / 8);
+                const sIdx = oldA.slot % 8;
+                const bench = OFFICE_LAYOUT.workRoom.benches[bIdx] || OFFICE_LAYOUT.workRoom.benches[0];
+                const slot = bench.slots[sIdx] || bench.slots[0];
+                px = slot.x;
+                py = slot.y;
               }
-            } else {
-              const bIdx = Math.floor(oldA.slot / 8);
-              const sIdx = oldA.slot % 8;
-              const bench = OFFICE_LAYOUT.workRoom.benches[bIdx] || OFFICE_LAYOUT.workRoom.benches[0];
-              const slot = bench.slots[sIdx] || bench.slots[0];
-              px = slot.x;
-              py = slot.y;
+              spawnPoof(px, py);
             }
-            spawnPoof(px, py);
           }
         }
       } else if (data.type === 'AGENT_EVENT') {
-        const ev = data.payload;
-        if (ev.event === 'spawn') {
-          window.soundSystem.playSpawn();
-        } else if (ev.event === 'sleep') {
-          window.soundSystem.playSleep();
-        } else if (ev.event === 'talk') {
-          window.soundSystem.playTalk();
-        } else if (ev.event === 'walk') {
-          window.soundSystem.playSpawn();
+        if (!data.session || data.session === currentSessionId) {
+          const ev = data.payload;
+          if (ev.event === 'spawn') {
+            window.soundSystem.playSpawn();
+          } else if (ev.event === 'sleep') {
+            window.soundSystem.playSleep();
+          } else if (ev.event === 'talk') {
+            window.soundSystem.playTalk();
+          } else if (ev.event === 'walk') {
+            window.soundSystem.playSpawn();
+          }
         }
       }
     } catch (e) {
-
       console.error('Error handling WS message:', e);
     }
   };
@@ -1083,7 +1247,7 @@ window.loadCards = async function(src) {
   container.innerHTML = `<div style="color:#94a3b8; font-size:12px; text-align:center; padding:15px;">Loading ${src.toUpperCase()} backlog...</div>`;
 
   try {
-    const res = await fetch(`/api/cards?source=${src}`);
+    const res = await apiFetch(`/api/cards?source=${src}`);
     const data = await res.json();
     if (!data.success || !data.cards || data.cards.length === 0) {
       container.innerHTML = `<div style="color:#94a3b8; font-size:12px; text-align:center; padding:15px;">No cards found in ${src.toUpperCase()} backlog.</div>`;
@@ -1136,9 +1300,8 @@ window.loadCards = async function(src) {
 
 window.startSprintWithCard = async function(cardId, source) {
   try {
-    const res = await fetch('/api/sprint/start', {
+    const res = await apiFetch('/api/sprint/start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cardId, source })
     });
     const data = await res.json();
@@ -1171,9 +1334,8 @@ window.submitNewCard = async function() {
   const priority = priSelect.value || 'M';
 
   try {
-    const res = await fetch('/api/cards/add', {
+    const res = await apiFetch('/api/cards/add', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, points, priority, source: 'taskwarrior' })
     });
     const data = await res.json();
@@ -1190,9 +1352,8 @@ window.submitNewCard = async function() {
 
 window.quickSprintNext = async function() {
   try {
-    const res = await fetch('/api/sprint/next', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+    const res = await apiFetch('/api/sprint/next', {
+      method: 'POST'
     });
     const data = await res.json();
     if (data.error) {
@@ -1211,9 +1372,8 @@ window.quickSprintNext = async function() {
 
 window.quickSprintComplete = async function() {
   try {
-    const res = await fetch('/api/sprint/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+    const res = await apiFetch('/api/sprint/complete', {
+      method: 'POST'
     });
     const data = await res.json();
     if (data.error) {
@@ -1240,9 +1400,8 @@ window.quickSprintStartPrompt = async function() {
   const points = parseInt(ptsStr, 10) || 5;
 
   try {
-    const res = await fetch('/api/sprint/start', {
+    const res = await apiFetch('/api/sprint/start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sprintNumber: defaultNum, story, points })
     });
     const data = await res.json();
@@ -1263,45 +1422,39 @@ window.quickSprintStartPrompt = async function() {
 async function quickAction(type, arg) {
   try {
     if (type === 'spawn') {
-      await fetch('/api/agents/spawn', {
+      await apiFetch('/api/agents/spawn', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: arg || 'dev', status: 'working' })
       });
     } else if (type === 'spawn-team') {
       // Spawn 8 devs to fill a startup bench
       for (let i = 0; i < 8; i++) {
-        await fetch('/api/agents/spawn', {
+        await apiFetch('/api/agents/spawn', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role: 'dev', status: 'working' })
         });
       }
     } else if (type === 'spawn-potato') {
-      await fetch('/api/potato-agents/spawn-squad', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+      await apiFetch('/api/potato-agents/spawn-squad', {
+        method: 'POST'
       });
     } else if (type === 'work-all') {
       for (const a of agents) {
-        await fetch('/api/agents/work', {
+        await apiFetch('/api/agents/work', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: a.name, task: 'Refactoring codebase' })
         });
       }
     } else if (type === 'sleep-all') {
       for (const a of agents) {
-        await fetch('/api/agents/sleep', {
+        await apiFetch('/api/agents/sleep', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: a.name })
         });
       }
     } else if (type === 'reset') {
-      await fetch('/api/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+      await apiFetch('/api/reset', {
+        method: 'POST'
       });
     }
   } catch (err) {
@@ -1312,9 +1465,8 @@ async function quickAction(type, arg) {
 window.quickSpawnDept = async function(dept) {
   if (!dept) return;
   try {
-    const res = await fetch('/api/departments/spawn', {
+    const res = await apiFetch('/api/departments/spawn', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ department: dept, count: 1 })
     });
     const data = await res.json();
@@ -1332,9 +1484,8 @@ async function quickMeetSelected() {
   const roomId = parseInt(select.value, 10) || 1;
   const names = agents.slice(0, 8).map(a => a.name);
 
-  await fetch('/api/agents/meet', {
+  await apiFetch('/api/agents/meet', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ names, room: roomId, topic: `Standup Room ${roomId}` })
   });
 }
@@ -1343,9 +1494,8 @@ async function quickEndSelected() {
   const select = document.getElementById('room-select');
   const roomId = parseInt(select.value, 10) || 1;
 
-  await fetch('/api/agents/end-meeting', {
+  await apiFetch('/api/agents/end-meeting', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ room: roomId })
   });
 }

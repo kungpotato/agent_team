@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { stateManager } from './state.js';
+import { sessionManager, StateManager } from './state.js';
 import { potatoAgentRegistry, getAllPotatoRoles } from './potato-agents.js';
 import { cardManager } from './cards.js';
 import { WSMessage, DEPARTMENTS, DepartmentId, Agent, MEETING_ROOMS, resolveRoomId } from './types.js';
@@ -12,6 +12,10 @@ import { WSMessage, DEPARTMENTS, DepartmentId, Agent, MEETING_ROOMS, resolveRoom
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.resolve(__dirname, '../../public');
+
+interface SessionWebSocket extends WebSocket {
+  currentSessionId?: string;
+}
 
 export function createServer() {
   const app = express();
@@ -22,102 +26,197 @@ export function createServer() {
   app.use(express.json());
   app.use(express.static(publicDir));
 
-  // Broadcast helper
-  const broadcast = (message: WSMessage) => {
-    const data = JSON.stringify(message);
-    wss.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(data);
+  // Multi-session resolution middleware
+  app.use((req, res, next) => {
+    const sessionQuery = (req.query.session || req.query.sessionId) as string | undefined;
+    const sessionHeader = req.headers['x-session-id'] as string | undefined;
+    const sessionBody = req.body && (req.body.session || req.body.sessionId);
+    const rawId = sessionQuery || sessionHeader || sessionBody;
+    const sessionId = sessionManager.sanitizeSessionName(rawId || sessionManager.getDefaultSessionId());
+    (req as any).sessionId = sessionId;
+    (req as any).stateManager = sessionManager.getOrCreateSession(sessionId);
+    next();
+  });
+
+  // State changes subscription across all directory sessions
+  sessionManager.subscribe((sessionId, state, event) => {
+    const stateMsg = JSON.stringify({ type: 'STATE_UPDATE', session: sessionId, payload: state });
+    const eventMsg = event ? JSON.stringify({ type: 'AGENT_EVENT', session: sessionId, payload: { event: event.type, agent: event.agent } }) : null;
+
+    wss.clients.forEach((client: SessionWebSocket) => {
+      if (client.readyState === WebSocket.OPEN && client.currentSessionId === sessionId) {
+        client.send(stateMsg);
+        if (eventMsg) {
+          client.send(eventMsg);
+        }
       }
     });
-  };
+  });
 
-  // State changes subscription
-  stateManager.subscribe((state, event) => {
-    broadcast({ type: 'STATE_UPDATE', payload: state });
-    if (event) {
-      broadcast({ type: 'AGENT_EVENT', payload: { event: event.type, agent: event.agent } });
+  // Session list changes subscription
+  sessionManager.subscribeSessionList((sessions) => {
+    const msg = JSON.stringify({ type: 'SESSIONS_UPDATE', payload: sessions });
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(msg);
+      }
+    });
+  });
+
+  // WebSocket connection with session tracking
+  wss.on('connection', (ws: SessionWebSocket, req) => {
+    try {
+      const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+      const requestedSession = url.searchParams.get('session');
+      const sessionId = sessionManager.sanitizeSessionName(requestedSession || sessionManager.getDefaultSessionId());
+      ws.currentSessionId = sessionId;
+
+      const sm = sessionManager.getOrCreateSession(sessionId);
+      ws.send(JSON.stringify({
+        type: 'INIT',
+        session: sessionId,
+        payload: sm.getState(),
+        sessions: sessionManager.listSessions()
+      }));
+    } catch (e) {
+      console.error('[WebSocket] Connection initialization error:', e);
     }
+
+    ws.on('message', (raw) => {
+      try {
+        const data = JSON.parse(raw.toString());
+        if (data.type === 'SUBSCRIBE_SESSION' || data.type === 'SWITCH_SESSION') {
+          const nextSession = sessionManager.sanitizeSessionName(data.session);
+          ws.currentSessionId = nextSession;
+          const targetSm = sessionManager.getOrCreateSession(nextSession);
+          ws.send(JSON.stringify({
+            type: 'INIT',
+            session: nextSession,
+            payload: targetSm.getState(),
+            sessions: sessionManager.listSessions()
+          }));
+        }
+      } catch (err) {
+        console.error('[WebSocket] Message handling error:', err);
+      }
+    });
   });
 
-  // WebSocket connection
-  wss.on('connection', ws => {
-    ws.send(JSON.stringify({ type: 'INIT', payload: stateManager.getState() }));
-  });
-
-  // REST API
+  // REST API: Health
   app.get('/api/health', (req, res) => {
-    res.json({ ok: true, uptime: process.uptime() });
+    res.json({
+      ok: true,
+      uptime: process.uptime(),
+      defaultSession: sessionManager.getDefaultSessionId(),
+      activeSessionsCount: sessionManager.listSessions().length
+    });
   });
 
+  // REST API: Sessions Management
+  app.get('/api/sessions', (req, res) => {
+    res.json({
+      success: true,
+      currentSession: (req as any).sessionId,
+      sessions: sessionManager.listSessions()
+    });
+  });
+
+  app.post('/api/sessions', (req, res) => {
+    const name = req.body?.name || req.body?.session;
+    if (!name) return res.status(400).json({ error: 'Session name is required' });
+    const sm = sessionManager.getOrCreateSession(name);
+    res.json({
+      success: true,
+      session: sm.sessionId,
+      summary: sm.getSummary(),
+      sessions: sessionManager.listSessions()
+    });
+  });
+
+  app.delete('/api/sessions/:id', (req, res) => {
+    const success = sessionManager.deleteSession(req.params.id);
+    res.json({ success, sessions: sessionManager.listSessions() });
+  });
+
+  // REST API: Agents
   app.get('/api/agents', (req, res) => {
-    res.json(stateManager.getState());
+    const sm: StateManager = (req as any).stateManager;
+    res.json({ session: (req as any).sessionId, ...sm.getState() });
   });
 
   app.post('/api/agents/spawn', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { role = 'dev', name, status = 'working', message } = req.body;
     const target = name || role;
-    const agent = stateManager.spawn(target, status, message);
-    res.json({ success: true, agent });
+    const agent = sm.spawn(target, status, message);
+    res.json({ success: true, session: sm.sessionId, agent });
   });
 
   app.post('/api/agents/work', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { name, task, progress } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
-    const agent = stateManager.setWorking(name, task, progress !== undefined ? Number(progress) : undefined);
-    if (!agent) return res.status(404).json({ error: `Agent ${name} not found` });
-    res.json({ success: true, agent });
+    const agent = sm.setWorking(name, task, progress !== undefined ? Number(progress) : undefined);
+    if (!agent) return res.status(404).json({ error: `Agent ${name} not found in session ${sm.sessionId}` });
+    res.json({ success: true, session: sm.sessionId, agent });
   });
 
   app.post('/api/agents/progress', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { name, progress, task } = req.body;
     if (!name || progress === undefined) return res.status(400).json({ error: 'Name and progress are required' });
-    const agent = stateManager.setProgress(name, Number(progress), task);
-    if (!agent) return res.status(404).json({ error: `Agent ${name} not found` });
-    res.json({ success: true, agent });
+    const agent = sm.setProgress(name, Number(progress), task);
+    if (!agent) return res.status(404).json({ error: `Agent ${name} not found in session ${sm.sessionId}` });
+    res.json({ success: true, session: sm.sessionId, agent });
   });
 
   app.post('/api/agents/sleep', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
-    const agent = stateManager.setSleeping(name);
-    if (!agent) return res.status(404).json({ error: `Agent ${name} not found` });
-    res.json({ success: true, agent });
+    const agent = sm.setSleeping(name);
+    if (!agent) return res.status(404).json({ error: `Agent ${name} not found in session ${sm.sessionId}` });
+    res.json({ success: true, session: sm.sessionId, agent });
   });
 
   app.post('/api/agents/talk', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { name, message = 'Hello!' } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
-    const agent = stateManager.setTalking(name, message);
-    if (!agent) return res.status(404).json({ error: `Agent ${name} not found` });
-    res.json({ success: true, agent });
+    const agent = sm.setTalking(name, message);
+    if (!agent) return res.status(404).json({ error: `Agent ${name} not found in session ${sm.sessionId}` });
+    res.json({ success: true, session: sm.sessionId, agent });
   });
 
   app.post('/api/agents/meet', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { names = [], topic, room, roomId, forceQueue } = req.body;
     if (!Array.isArray(names) || names.length === 0) {
       return res.status(400).json({ error: 'Array of agent names is required' });
     }
     const targetRoom = resolveRoomId(room || roomId) || 1;
-    const result = stateManager.startMeeting(names, topic, targetRoom, { autoQueueIfFull: forceQueue !== false });
-    res.json({ success: true, ...result, topic, roomId: targetRoom });
+    const result = sm.startMeeting(names, topic, targetRoom, { autoQueueIfFull: forceQueue !== false });
+    res.json({ success: true, session: sm.sessionId, ...result, topic, roomId: targetRoom });
   });
 
   app.post('/api/agents/end-meeting', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { names, room, roomId } = req.body;
     const targetRoom = resolveRoomId(room || roomId);
-    const { removed, autoAdmitted } = stateManager.endMeeting({ roomId: targetRoom, names });
-    res.json({ success: true, removed, autoAdmitted, roomId: targetRoom });
+    const { removed, autoAdmitted } = sm.endMeeting({ roomId: targetRoom, names });
+    res.json({ success: true, session: sm.sessionId, removed, autoAdmitted, roomId: targetRoom });
   });
 
   // Meeting Room Status & Reservation Queue Endpoints
   app.get('/api/meeting-rooms/status', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { roomId } = req.query;
     const rId = resolveRoomId(roomId as string);
-    const rooms = stateManager.getRoomStatus(rId);
-    const state = stateManager.getState();
+    const rooms = sm.getRoomStatus(rId);
+    const state = sm.getState();
     res.json({
       success: true,
+      session: sm.sessionId,
       rooms,
       queue: state.meetingQueue,
       meetingRoomsInfo: Object.values(MEETING_ROOMS)
@@ -125,72 +224,77 @@ export function createServer() {
   });
 
   app.post('/api/meeting-rooms/queue', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { names = [], topic, room, roomId } = req.body;
     if (!Array.isArray(names) || names.length === 0) {
       return res.status(400).json({ error: 'Array of agent names is required' });
     }
     const targetRoom = resolveRoomId(room || roomId);
-    const result = stateManager.enqueueMeeting(names, topic, targetRoom);
-    res.json({ success: true, ...result });
+    const result = sm.enqueueMeeting(names, topic, targetRoom);
+    res.json({ success: true, session: sm.sessionId, ...result });
   });
 
   app.post('/api/meeting-rooms/dequeue', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { id, name } = req.body;
     if (!id && !name) {
       return res.status(400).json({ error: 'Queue ID or agent name is required' });
     }
-    const removed = stateManager.cancelQueue(id || name);
-    res.json({ success: !!removed, removed });
+    const removed = sm.cancelQueue(id || name);
+    res.json({ success: !!removed, session: sm.sessionId, removed });
   });
 
   // Desk Visit & Walk-to-Consult Endpoints
   app.post('/api/agents/visit', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { from, to, question, reply, duration } = req.body;
     if (!from || !to) {
       return res.status(400).json({ error: 'Both "from" (visitor) and "to" (target) agent names are required' });
     }
     const durationSec = duration !== undefined ? Number(duration) : 12;
     const qText = question || 'Hey, do you have a minute to sync on this?';
-    const result = stateManager.startVisit(from, to, qText, reply, durationSec);
-    res.json({ success: true, ...result });
+    const result = sm.startVisit(from, to, qText, reply, durationSec);
+    res.json({ success: true, session: sm.sessionId, ...result });
   });
 
   app.post('/api/agents/return', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { name, visitor } = req.body;
     const targetName = name || visitor;
     if (!targetName) {
       return res.status(400).json({ error: 'Agent name is required to return from visit' });
     }
-    const result = stateManager.returnVisit(targetName);
-    res.json({ success: result.success });
+    const result = sm.returnVisit(targetName);
+    res.json({ success: result.success, session: sm.sessionId });
   });
 
   app.get('/api/agents/visits', (req, res) => {
-    res.json({ success: true, visits: stateManager.getState().visits });
+    const sm: StateManager = (req as any).stateManager;
+    res.json({ success: true, session: sm.sessionId, visits: sm.getState().visits });
   });
 
-
-
   app.post('/api/agents/remove', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { name, names, idle, sleeping } = req.body;
     if (idle || sleeping || (Array.isArray(names) && names.length > 0)) {
-      const removed = stateManager.removeFiltered({
+      const removed = sm.removeFiltered({
         names: Array.isArray(names) ? names : (name ? [name] : undefined),
         idleOnly: !!idle,
         sleepingOnly: !!sleeping
       });
-      return res.json({ success: true, count: removed.length, removed });
+      return res.json({ success: true, session: sm.sessionId, count: removed.length, removed });
     }
 
     if (!name) return res.status(400).json({ error: 'Name, names, or filter (idle/sleeping) is required' });
-    const agent = stateManager.remove(name);
-    if (!agent) return res.status(404).json({ error: `Agent ${name} not found` });
-    res.json({ success: true, count: 1, removed: [agent] });
+    const agent = sm.remove(name);
+    if (!agent) return res.status(404).json({ error: `Agent ${name} not found in session ${sm.sessionId}` });
+    res.json({ success: true, session: sm.sessionId, count: 1, removed: [agent] });
   });
 
   app.post('/api/reset', (req, res) => {
-    const result = stateManager.reset();
-    res.json({ success: true, count: result.count });
+    const sm: StateManager = (req as any).stateManager;
+    const result = sm.reset();
+    res.json({ success: true, session: sm.sessionId, count: result.count });
   });
 
   app.get('/api/potato-agents', (req, res) => {
@@ -198,17 +302,19 @@ export function createServer() {
   });
 
   app.post('/api/potato-agents/spawn-squad', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const roles = getAllPotatoRoles();
     const spawned: Agent[] = [];
     for (const role of roles) {
-      const agent = stateManager.spawn(role);
+      const agent = sm.spawn(role);
       spawned.push(agent);
     }
-    res.json({ success: true, count: spawned.length, agents: spawned });
+    res.json({ success: true, session: sm.sessionId, count: spawned.length, agents: spawned });
   });
 
   app.get('/api/departments', (req, res) => {
-    const state = stateManager.getState();
+    const sm: StateManager = (req as any).stateManager;
+    const state = sm.getState();
     const depts = Object.values(DEPARTMENTS).map(d => {
       const benchAgents = state.agents.filter(a => a.room === 'work' && a.slot >= d.benchIndex * 8 && a.slot < (d.benchIndex + 1) * 8);
       return {
@@ -219,10 +325,11 @@ export function createServer() {
         agents: benchAgents
       };
     });
-    res.json({ success: true, departments: depts });
+    res.json({ success: true, session: sm.sessionId, departments: depts });
   });
 
   app.post('/api/departments/spawn', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
     const { department, count } = req.body || {};
     if (!department) return res.status(400).json({ error: 'department is required (product, designer, tech, devops, ai_data)' });
     const dept = DEPARTMENTS[department as DepartmentId];
@@ -232,27 +339,29 @@ export function createServer() {
     const spawned: Agent[] = [];
     for (let i = 0; i < num; i++) {
       const role = dept.roles[i % dept.roles.length];
-      const agent = stateManager.spawn(role);
+      const agent = sm.spawn(role);
       spawned.push(agent);
     }
-    res.json({ success: true, department: dept.name, count: spawned.length, agents: spawned });
+    res.json({ success: true, session: sm.sessionId, department: dept.name, count: spawned.length, agents: spawned });
   });
 
   app.get('/api/sprint', (req, res) => {
-    res.json({ success: true, sprint: stateManager.getSprint() });
+    const sm: StateManager = (req as any).stateManager;
+    res.json({ success: true, session: sm.sessionId, sprint: sm.getSprint() });
   });
 
   app.post('/api/sprint/start', async (req, res) => {
     try {
+      const sm: StateManager = (req as any).stateManager;
       const { sprintNumber, story, points, cardId, source } = req.body || {};
-      const sprint = await stateManager.startSprint({
+      const sprint = await sm.startSprint({
         sprintNumber: sprintNumber ? Number(sprintNumber) : undefined,
         story,
         points: points ? Number(points) : undefined,
         cardId,
         source
       });
-      res.json({ success: true, sprint });
+      res.json({ success: true, session: sm.sessionId, sprint });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -260,15 +369,16 @@ export function createServer() {
 
   app.post('/api/sprint/ceremony', (req, res) => {
     try {
+      const sm: StateManager = (req as any).stateManager;
       const { phase, points, topic } = req.body || {};
       if (!phase) {
-        return res.status(400).json({ error: 'phase is required (validation, grooming, planning, working, demo, retro or 1..6)' });
+        return res.status(400).json({ error: 'phase is required (validation, grooming, planning, working, demo, retro or 1..8)' });
       }
-      const result = stateManager.runCeremony(phase, {
+      const result = sm.runCeremony(phase, {
         points: points ? Number(points) : undefined,
         topic
       });
-      res.json({ success: true, ...result });
+      res.json({ success: true, session: sm.sessionId, ...result });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -276,8 +386,9 @@ export function createServer() {
 
   app.post('/api/sprint/next', (req, res) => {
     try {
-      const result = stateManager.nextCeremony();
-      res.json({ success: true, ...result });
+      const sm: StateManager = (req as any).stateManager;
+      const result = sm.nextCeremony();
+      res.json({ success: true, session: sm.sessionId, ...result });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -285,16 +396,18 @@ export function createServer() {
 
   app.post('/api/sprint/complete', (req, res) => {
     try {
+      const sm: StateManager = (req as any).stateManager;
       const { summary } = req.body || {};
-      const result = stateManager.completeSprint(summary);
-      res.json({ success: true, ...result });
+      const result = sm.completeSprint(summary);
+      res.json({ success: true, session: sm.sessionId, ...result });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
   app.get('/api/sprint/history', (req, res) => {
-    res.json({ success: true, completedSprints: stateManager.getCompletedSprints() });
+    const sm: StateManager = (req as any).stateManager;
+    res.json({ success: true, session: sm.sessionId, completedSprints: sm.getCompletedSprints() });
   });
 
   // Story Cards API (Taskwarrior default, or Jira)

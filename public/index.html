@@ -19,6 +19,14 @@
           <span class="title">AGENT HQ</span>
           <span class="tag">TECH STARTUP 8-BIT OFFICE</span>
         </div>
+        <!-- DIRECTORY SESSION SELECTOR -->
+        <div class="session-selector-box" title="Select Claude Code Project Directory Session">
+          <span class="session-label">📁 DIR:</span>
+          <select id="session-select" class="session-dropdown" onchange="onSessionSelectChange(this.value)">
+            <option value="agent_team">agent_team (active)</option>
+          </select>
+          <button class="retro-btn session-btn" onclick="promptNewSession()" title="Connect / Create Project Directory Session">➕</button>
+        </div>
       </div>
       <div class="header-center">
         <div class="stats-badge">

@@ -1,4 +1,5 @@
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId } from './types.js';
+import path from 'path';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
 
@@ -94,6 +95,9 @@ export const SPRINT_CEREMONIES: {
 ];
 
 export class StateManager {
+  public readonly sessionId: string;
+  public readonly createdAt: number = Date.now();
+  public updatedAt: number = Date.now();
   private agents: Map<string, Agent> = new Map();
   private meetingTopics: Map<number, string> = new Map();
   private meetingQueue: MeetingQueueItem[] = [];
@@ -111,7 +115,9 @@ export class StateManager {
   };
   private listeners: ((state: ServerState, event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) => void)[] = [];
 
-  constructor() {}
+  constructor(sessionId: string = 'default') {
+    this.sessionId = sessionId;
+  }
 
   public subscribe(listener: (state: ServerState, event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) => void) {
     this.listeners.push(listener);
@@ -121,6 +127,7 @@ export class StateManager {
   }
 
   private notify(event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) {
+    this.updatedAt = Date.now();
     const state = this.getState();
     for (const listener of this.listeners) {
       listener(state, event);
@@ -138,7 +145,25 @@ export class StateManager {
       meetingTopics: topicsObj,
       meetingQueue: [...this.meetingQueue],
       visits: Array.from(this.visits.values()),
-      sprint: { ...this.sprint }
+      sprint: { ...this.sprint },
+      session: this.sessionId
+    };
+  }
+
+  public getSummary(): SessionSummary {
+    const allAgents = Array.from(this.agents.values());
+    return {
+      id: this.sessionId,
+      name: this.sessionId,
+      agentCount: allAgents.length,
+      workingCount: allAgents.filter(a => a.status === 'working').length,
+      meetingCount: allAgents.filter(a => a.room === 'meeting').length,
+      sprintNumber: this.sprint.sprintNumber,
+      sprintPhase: this.sprint.phase,
+      story: this.sprint.story,
+      storyPoints: this.sprint.storyPoints,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
     };
   }
 
@@ -1147,4 +1172,110 @@ export class StateManager {
 }
 
 
-export const stateManager = new StateManager();
+export class SessionManager {
+  private sessions: Map<string, StateManager> = new Map();
+  private defaultSessionId: string;
+  private listeners: ((sessionId: string, state: ServerState, event?: any) => void)[] = [];
+  private sessionListListeners: ((sessions: SessionSummary[]) => void)[] = [];
+
+  constructor() {
+    this.defaultSessionId = this.sanitizeSessionName(
+      process.env.AGENT_TEAM_SESSION ||
+      process.env.CLAUDE_PROJECT_DIR ||
+      path.basename(process.cwd()) ||
+      'agent_team'
+    );
+    this.getOrCreateSession(this.defaultSessionId);
+  }
+
+  public getDefaultSessionId(): string {
+    return this.defaultSessionId;
+  }
+
+  public sanitizeSessionName(name?: string | null): string {
+    if (!name) return this.defaultSessionId || 'default';
+    const clean = String(name).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    return clean || 'default';
+  }
+
+  public getOrCreateSession(rawId?: string | null): StateManager {
+    const id = this.sanitizeSessionName(rawId || this.defaultSessionId);
+    let manager = this.sessions.get(id);
+    if (!manager) {
+      manager = new StateManager(id);
+      this.sessions.set(id, manager);
+
+      // Forward session updates to global listeners
+      manager.subscribe((state, event) => {
+        for (const l of this.listeners) {
+          try {
+            l(id, state, event);
+          } catch (err) {
+            console.error(`[SessionManager] Error in listener for ${id}:`, err);
+          }
+        }
+      });
+
+      this.notifySessionListChange();
+    }
+    return manager;
+  }
+
+  public getSession(rawId: string): StateManager | undefined {
+    const id = this.sanitizeSessionName(rawId);
+    return this.sessions.get(id);
+  }
+
+  public hasSession(rawId: string): boolean {
+    const id = this.sanitizeSessionName(rawId);
+    return this.sessions.has(id);
+  }
+
+  public listSessions(): SessionSummary[] {
+    return Array.from(this.sessions.values())
+      .map(m => m.getSummary())
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  public deleteSession(rawId: string): boolean {
+    const id = this.sanitizeSessionName(rawId);
+    if (this.sessions.size <= 1 && id === this.defaultSessionId) {
+      this.sessions.get(id)?.reset();
+      this.notifySessionListChange();
+      return true;
+    }
+    const existed = this.sessions.delete(id);
+    if (existed) {
+      this.notifySessionListChange();
+    }
+    return existed;
+  }
+
+  public subscribe(listener: (sessionId: string, state: ServerState, event?: any) => void) {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+
+  public subscribeSessionList(listener: (sessions: SessionSummary[]) => void) {
+    this.sessionListListeners.push(listener);
+    return () => {
+      this.sessionListListeners = this.sessionListListeners.filter(l => l !== listener);
+    };
+  }
+
+  public notifySessionListChange() {
+    const list = this.listSessions();
+    for (const l of this.sessionListListeners) {
+      try {
+        l(list);
+      } catch (err) {
+        console.error('[SessionManager] Error in session list listener:', err);
+      }
+    }
+  }
+}
+
+export const sessionManager = new SessionManager();
+export const stateManager = sessionManager.getOrCreateSession();
