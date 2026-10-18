@@ -1728,6 +1728,21 @@ threadCmd
   });
 
 threadCmd
+  .command('clear')
+  .description('Clear all threads in the active session (must be human lead or admin)')
+  .option('-a, --author <name>', 'Your agent name (must be human or admin)', 'human')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/threads', 'DELETE', { author: options.author }, port);
+      console.log(`\n🧹 Cleared all threads (${res.clearedCount || 0} removed) in session "${res.session}".\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+threadCmd
   .command('edit-msg <threadId> <messageId>')
   .description('Edit an existing message in a thread with Smart Brevity')
   .requiredOption('-a, --author <name>', 'Author agent name (must be message author or human)')

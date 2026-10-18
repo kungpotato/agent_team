@@ -106,6 +106,7 @@ export class StateManager {
   private visits: Map<string, VisitSession> = new Map();
   private completedSprints: SprintRecord[] = [];
   private threads: Map<string, Thread> = new Map();
+  private threadsCleared: boolean = false;
   private sprint: SprintState = {
     sprintNumber: 1,
     story: 'AUTH-101: Implement OAuth2 & JWT Security',
@@ -191,7 +192,8 @@ export class StateManager {
       visits: Array.from(this.visits.values()),
       sprint: this.sprint,
       completedSprints: this.completedSprints,
-      threads: Array.from(this.threads.values())
+      threads: Array.from(this.threads.values()),
+      threadsCleared: this.threadsCleared
     };
   }
 
@@ -235,6 +237,9 @@ export class StateManager {
         completedSprints: [...this.completedSprints]
       };
     }
+    if (typeof data.threadsCleared === 'boolean') {
+      this.threadsCleared = data.threadsCleared;
+    }
     if (Array.isArray(data.threads)) {
       this.threads.clear();
       for (const th of data.threads) {
@@ -242,8 +247,11 @@ export class StateManager {
           this.threads.set(th.id, th);
         }
       }
+      if (data.threads.length > 0) {
+        this.threadsCleared = false;
+      }
     }
-    if (this.threads.size === 0) {
+    if (this.threads.size === 0 && !this.threadsCleared) {
       this.seedDefaultThreadsIfEmpty();
     }
   }
@@ -518,7 +526,7 @@ export class StateManager {
    * Seed default threads so the Slack Feed is never an empty desert
    */
   public seedDefaultThreadsIfEmpty(): void {
-    if (this.threads.size > 0) return;
+    if (this.threadsCleared || this.threads.size > 0) return;
 
     // 1. If sprint has a phase, generate ceremony thread
     if (this.sprint.phase && this.sprint.phase !== 'idle' && this.sprint.phase !== 'completed') {
@@ -767,8 +775,29 @@ export class StateManager {
     }
 
     this.threads.delete(threadId);
+    if (this.threads.size === 0) {
+      this.threadsCleared = true;
+    }
     this.notify();
     return { success: true, threadId };
+  }
+
+  /**
+   * Clear all discussion threads in the session
+   */
+  public clearThreads(requesterAuthor?: string): { success: boolean; clearedCount: number } {
+    if (requesterAuthor) {
+      const req = requesterAuthor.trim().toLowerCase();
+      if (req !== 'human' && req !== 'admin') {
+        throw new Error(`Permission denied: Only human lead or admin can clear all threads`);
+      }
+    }
+
+    const clearedCount = this.threads.size;
+    this.threads.clear();
+    this.threadsCleared = true;
+    this.notify();
+    return { success: true, clearedCount };
   }
 
   /**
@@ -2151,11 +2180,7 @@ export class SessionManager {
 
   public getSession(rawId: string): StateManager | undefined {
     const id = this.sanitizeSessionName(rawId);
-    const mgr = this.sessions.get(id);
-    if (mgr) {
-      mgr.seedDefaultThreadsIfEmpty();
-    }
-    return mgr;
+    return this.sessions.get(id);
   }
 
   public hasSession(rawId: string): boolean {

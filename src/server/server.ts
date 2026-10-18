@@ -530,6 +530,17 @@ export function createServer() {
     }
   });
 
+  app.delete('/api/threads', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const author = (req.body?.author || req.query?.author) as string | undefined;
+    try {
+      const result = sm.clearThreads(author);
+      res.json({ session: sm.sessionId, ...result });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 500).json({ error: err.message });
+    }
+  });
+
   app.delete('/api/threads/:id', (req, res) => {
     const sm: StateManager = (req as any).stateManager;
     const author = (req.body?.author || req.query?.author) as string | undefined;
@@ -616,6 +627,18 @@ export function createServer() {
       res.json({ success: true, session: sm.sessionId, thread });
     } catch (err: any) {
       res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/sessions/:id/threads', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const author = (req.body?.author || req.query?.author) as string | undefined;
+    try {
+      const result = sm.clearThreads(author);
+      res.json({ session: sm.sessionId, ...result });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 500).json({ error: err.message });
     }
   });
 

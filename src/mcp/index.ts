@@ -1012,6 +1012,24 @@ STRICT RULES:
     }
   );
 
+  // 31b. CLEAR THREADS
+  server.tool(
+    'office_clear_threads',
+    'Clear all discussion threads in the session. Only human lead or admin can clear.',
+    {
+      author: z.string().default('human').describe('Your agent name (must be human or admin)')
+    },
+    async ({ author }) => {
+      const res = await apiCall('/api/threads', 'DELETE', { author });
+      return {
+        content: [{
+          type: 'text',
+          text: `🧹 Cleared all threads (${res.clearedCount || 0} removed) in session "${res.session}".`
+        }]
+      };
+    }
+  );
+
   // 32. UPDATE THREAD MESSAGE
   server.tool(
     'office_update_thread_message',
