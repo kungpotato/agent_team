@@ -213,6 +213,7 @@ export interface ThreadMessage {
   nextSteps?: string; // "Next steps / Action item"
   mentions: string[]; // e.g. ["@coder1", "@qa-tester1"]
   timestamp: number;
+  editedAt?: number; // timestamp when updated
 }
 
 export interface Thread {
@@ -288,7 +289,11 @@ export type WSMessage =
   | { type: 'SPRINT_UPDATE'; session?: string; payload: SprintState }
   | { type: 'SESSIONS_UPDATE'; payload: SessionSummary[] }
   | { type: 'THREAD_CREATED'; session?: string; payload: Thread }
-  | { type: 'THREAD_MESSAGE'; session?: string; payload: { threadId: string; message: ThreadMessage; thread: Thread } };
+  | { type: 'THREAD_UPDATED'; session?: string; payload: Thread }
+  | { type: 'THREAD_DELETED'; session?: string; payload: { threadId: string } }
+  | { type: 'THREAD_MESSAGE'; session?: string; payload: { threadId: string; message: ThreadMessage; thread: Thread } }
+  | { type: 'THREAD_MESSAGE_UPDATED'; session?: string; payload: { threadId: string; message: ThreadMessage; thread: Thread } }
+  | { type: 'THREAD_MESSAGE_DELETED'; session?: string; payload: { threadId: string; messageId: string; thread: Thread } };
 
 export interface MeetingRoomInfo {
   id: number; // 1 to 5

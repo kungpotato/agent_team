@@ -519,6 +519,57 @@ export function createServer() {
     }
   });
 
+  app.put('/api/threads/:id', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const { title, category, status, roomId, author } = req.body || {};
+    try {
+      const thread = sm.updateThread(req.params.id, { title, category, status, roomId }, author);
+      res.json({ success: true, session: sm.sessionId, thread });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/threads/:id', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const author = (req.body?.author || req.query?.author) as string | undefined;
+    try {
+      const result = sm.deleteThread(req.params.id, author);
+      res.json({ session: sm.sessionId, ...result });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/threads/:id/messages/:messageId', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const { author, content, topic, intent, point, nextSteps, mentions } = req.body || {};
+    try {
+      const result = sm.updateThreadMessage(req.params.id, req.params.messageId, {
+        content,
+        topic,
+        intent,
+        point,
+        nextSteps,
+        mentions
+      }, author);
+      res.json({ success: true, session: sm.sessionId, message: result.message, thread: result.thread });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/threads/:id/messages/:messageId', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const author = (req.body?.author || req.query?.author) as string | undefined;
+    try {
+      const result = sm.deleteThreadMessage(req.params.id, req.params.messageId, author);
+      res.json({ success: true, session: sm.sessionId, thread: result.thread });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
+    }
+  });
+
   // Session-scoped Thread Endpoints
   app.get('/api/sessions/:id/threads', (req, res) => {
     const sm = sessionManager.getSession(req.params.id);
@@ -553,6 +604,61 @@ export function createServer() {
       res.json({ success: true, session: sm.sessionId, message: result.message, thread: result.thread });
     } catch (err: any) {
       res.status(404).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/sessions/:id/threads/:threadId', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const { title, category, status, roomId, author } = req.body || {};
+    try {
+      const thread = sm.updateThread(req.params.threadId, { title, category, status, roomId }, author);
+      res.json({ success: true, session: sm.sessionId, thread });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/sessions/:id/threads/:threadId', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const author = (req.body?.author || req.query?.author) as string | undefined;
+    try {
+      const result = sm.deleteThread(req.params.threadId, author);
+      res.json({ session: sm.sessionId, ...result });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/sessions/:id/threads/:threadId/messages/:messageId', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const { author, content, topic, intent, point, nextSteps, mentions } = req.body || {};
+    try {
+      const result = sm.updateThreadMessage(req.params.threadId, req.params.messageId, {
+        content,
+        topic,
+        intent,
+        point,
+        nextSteps,
+        mentions
+      }, author);
+      res.json({ success: true, session: sm.sessionId, message: result.message, thread: result.thread });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/sessions/:id/threads/:threadId/messages/:messageId', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const author = (req.body?.author || req.query?.author) as string | undefined;
+    try {
+      const result = sm.deleteThreadMessage(req.params.threadId, req.params.messageId, author);
+      res.json({ success: true, session: sm.sessionId, thread: result.thread });
+    } catch (err: any) {
+      res.status(err.message.includes('Permission denied') ? 403 : 404).json({ error: err.message });
     }
   });
 

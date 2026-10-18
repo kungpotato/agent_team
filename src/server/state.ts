@@ -421,6 +421,157 @@ export class StateManager {
     return { message, thread };
   }
 
+  /**
+   * Update an existing thread (title, category, status: active|resolved|archived)
+   * Enforces that only the creator or human lead can modify the thread.
+   */
+  public updateThread(threadId: string, params: {
+    title?: string;
+    category?: ThreadCategory;
+    status?: 'active' | 'resolved' | 'archived';
+    roomId?: number;
+  }, requesterAuthor?: string): Thread {
+    const thread = this.threads.get(threadId);
+    if (!thread) {
+      throw new Error(`Thread "${threadId}" not found`);
+    }
+
+    if (requesterAuthor) {
+      const req = requesterAuthor.trim().toLowerCase();
+      const creator = thread.createdBy.toLowerCase();
+      if (req !== 'human' && req !== 'admin' && req !== creator) {
+        throw new Error(`Permission denied: Only thread creator (@${thread.createdBy}) or human lead can update this thread`);
+      }
+    }
+
+    if (params.title !== undefined) thread.title = params.title.trim();
+    if (params.category !== undefined) thread.category = params.category;
+    if (params.status !== undefined) thread.status = params.status;
+    if (params.roomId !== undefined) thread.roomId = params.roomId;
+    thread.updatedAt = Date.now();
+
+    this.notify();
+    return thread;
+  }
+
+  /**
+   * Delete an entire thread
+   * Enforces that only the creator or human lead can delete the thread.
+   */
+  public deleteThread(threadId: string, requesterAuthor?: string): { success: boolean; threadId: string } {
+    const thread = this.threads.get(threadId);
+    if (!thread) {
+      throw new Error(`Thread "${threadId}" not found`);
+    }
+
+    if (requesterAuthor) {
+      const req = requesterAuthor.trim().toLowerCase();
+      const creator = thread.createdBy.toLowerCase();
+      if (req !== 'human' && req !== 'admin' && req !== creator) {
+        throw new Error(`Permission denied: Only thread creator (@${thread.createdBy}) or human lead can delete this thread`);
+      }
+    }
+
+    this.threads.delete(threadId);
+    this.notify();
+    return { success: true, threadId };
+  }
+
+  /**
+   * Update an existing message in a thread with Smart Brevity formatting
+   * Enforces that only the original author or human lead can edit the message.
+   */
+  public updateThreadMessage(threadId: string, messageId: string, params: {
+    content?: string;
+    topic?: string;
+    intent?: string;
+    point?: string;
+    nextSteps?: string;
+    mentions?: string[];
+  }, requesterAuthor?: string): { message: ThreadMessage; thread: Thread } {
+    const thread = this.threads.get(threadId);
+    if (!thread) {
+      throw new Error(`Thread "${threadId}" not found`);
+    }
+
+    const message = thread.messages.find(m => m.id === messageId);
+    if (!message) {
+      throw new Error(`Message "${messageId}" not found in thread "${threadId}"`);
+    }
+
+    if (requesterAuthor) {
+      const req = requesterAuthor.trim().toLowerCase();
+      const author = message.author.toLowerCase();
+      if (req !== 'human' && req !== 'admin' && req !== author) {
+        throw new Error(`Permission denied: Only message author (@${message.author}) or human lead can edit this message`);
+      }
+    }
+
+    if (params.topic !== undefined) message.topic = params.topic;
+    if (params.intent !== undefined) message.intent = params.intent;
+    if (params.point !== undefined) message.point = params.point;
+    if (params.nextSteps !== undefined) message.nextSteps = params.nextSteps;
+
+    const mentions = Array.from(new Set([
+      ...(params.mentions || message.mentions || []),
+      ...extractMentions(params.content || ''),
+      ...extractMentions(message.point || ''),
+      ...extractMentions(message.nextSteps || '')
+    ]));
+    message.mentions = mentions;
+
+    message.content = formatSmartBrevity({
+      topic: message.topic,
+      intent: message.intent,
+      point: message.point,
+      nextSteps: message.nextSteps,
+      content: params.content,
+      mentions
+    });
+    message.editedAt = Date.now();
+    thread.updatedAt = Date.now();
+
+    for (const m of mentions) {
+      if (!thread.mentions.includes(m)) {
+        thread.mentions.push(m);
+      }
+    }
+
+    this.notify();
+    return { message, thread };
+  }
+
+  /**
+   * Delete a specific message from a thread
+   * Enforces that only the author or human lead can delete the message.
+   */
+  public deleteThreadMessage(threadId: string, messageId: string, requesterAuthor?: string): { success: boolean; thread: Thread } {
+    const thread = this.threads.get(threadId);
+    if (!thread) {
+      throw new Error(`Thread "${threadId}" not found`);
+    }
+
+    const msgIndex = thread.messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) {
+      throw new Error(`Message "${messageId}" not found in thread "${threadId}"`);
+    }
+
+    const message = thread.messages[msgIndex];
+    if (requesterAuthor) {
+      const req = requesterAuthor.trim().toLowerCase();
+      const author = message.author.toLowerCase();
+      if (req !== 'human' && req !== 'admin' && req !== author) {
+        throw new Error(`Permission denied: Only message author (@${message.author}) or human lead can delete this message`);
+      }
+    }
+
+    thread.messages.splice(msgIndex, 1);
+    thread.updatedAt = Date.now();
+    this.notify();
+    return { success: true, thread };
+  }
+
+
 
 
   /**

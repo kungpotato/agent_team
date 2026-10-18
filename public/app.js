@@ -1773,12 +1773,24 @@ window.openThreadDetail = function(threadId) {
   threadView.style.display = 'flex';
   const titleEl = document.getElementById('thread-view-title');
   const catBadge = document.getElementById('thread-category-badge');
+  const statusBadge = document.getElementById('thread-status-badge');
+  const statusBtn = document.getElementById('thread-status-btn');
 
   if (titleEl) titleEl.textContent = thread.title;
   if (catBadge) {
     const cat = thread.category || 'general';
     catBadge.textContent = cat.toUpperCase();
     catBadge.className = `thread-category-badge thread-badge ${cat}`;
+  }
+
+  const st = thread.status || 'active';
+  if (statusBadge) {
+    statusBadge.textContent = st.toUpperCase();
+    statusBadge.style.background = st === 'resolved' ? '#3b82f6' : st === 'archived' ? '#64748b' : '#10b981';
+    statusBadge.style.color = '#fff';
+  }
+  if (statusBtn) {
+    statusBtn.textContent = st === 'resolved' ? '🔄 Reopen' : '✅ Resolve';
   }
 
   renderThreadMessages(threadId);
@@ -1814,6 +1826,7 @@ function renderThreadMessages(threadId) {
 
   stream.innerHTML = msgs.map(m => {
     const timeStr = formatTimeAgo(m.timestamp);
+    const editedBadge = m.editedAt ? `<span style="font-size:8px; color:#94a3b8; font-style:italic; margin-left:4px;">(edited)</span>` : '';
     const formattedContent = formatBrevityHtml(m.content);
 
     // Dynamic role and department styling
@@ -1824,12 +1837,16 @@ function renderThreadMessages(threadId) {
     const roleLabel = agentObj?.roleTitle || agentObj?.role || (m.author === 'human' ? 'Human Lead' : m.roleTitle || 'Agent');
 
     return `
-      <div class="slack-message-bubble">
+      <div class="slack-message-bubble" id="bubble-${escapeHtml(m.id)}">
         <div class="msg-header">
-          <span class="msg-author">${escapeHtml(m.author)}</span>
+          <span class="msg-author">@${escapeHtml(m.author)}</span>
           <span class="msg-role">${escapeHtml(roleLabel)}</span>
           <span class="${deptClass}">${escapeHtml(deptLabel)}</span>
-          <span class="msg-time">${escapeHtml(timeStr)}</span>
+          <span class="msg-time">${escapeHtml(timeStr)}${editedBadge}</span>
+          <div class="msg-actions" style="margin-left:auto; display:flex; gap:4px;">
+            <button class="retro-btn" onclick="openEditMessageModal('${escapeHtml(thread.id)}', '${escapeHtml(m.id)}')" title="Edit message" style="font-size:8px; padding:1px 5px; background:#1e293b; color:#38bdf8;">✏️</button>
+            <button class="retro-btn" onclick="deleteMessagePrompt('${escapeHtml(thread.id)}', '${escapeHtml(m.id)}', '${escapeHtml(m.author)}')" title="Delete message" style="font-size:8px; padding:1px 5px; background:#450a0a; color:#f87171; border-color:#991b1b;">🗑️</button>
+          </div>
         </div>
         <div class="msg-body">${formattedContent}</div>
       </div>
@@ -1839,6 +1856,145 @@ function renderThreadMessages(threadId) {
   // Auto scroll to bottom
   stream.scrollTop = stream.scrollHeight;
 }
+
+window.toggleThreadStatus = async function() {
+  if (!activeThreadId) return;
+  const thread = slackThreads.find(t => t.id === activeThreadId);
+  if (!thread) return;
+  const newStatus = thread.status === 'resolved' ? 'active' : 'resolved';
+  const authorSelect = document.getElementById('reply-author-select');
+  const author = authorSelect ? authorSelect.value : 'human';
+  try {
+    const res = await apiFetch(`/api/threads/${encodeURIComponent(activeThreadId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus, author })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(`Failed to update status: ${data.error}`);
+      return;
+    }
+    if (data.thread) {
+      const idx = slackThreads.findIndex(t => t.id === activeThreadId);
+      if (idx !== -1) slackThreads[idx] = data.thread;
+      renderSlackThreads();
+      openThreadDetail(activeThreadId);
+    }
+  } catch (err) {
+    alert(`Error updating thread status: ${err.message}`);
+  }
+};
+
+window.deleteCurrentThread = async function() {
+  if (!activeThreadId) return;
+  const thread = slackThreads.find(t => t.id === activeThreadId);
+  if (!thread) return;
+  if (!confirm(`Are you sure you want to delete thread "${thread.title}"? This cannot be undone.`)) return;
+  const authorSelect = document.getElementById('reply-author-select');
+  const author = authorSelect ? authorSelect.value : 'human';
+  try {
+    const res = await apiFetch(`/api/threads/${encodeURIComponent(activeThreadId)}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ author })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(`Failed to delete thread: ${data.error}`);
+      return;
+    }
+    slackThreads = slackThreads.filter(t => t.id !== activeThreadId);
+    closeThreadDetail();
+    renderSlackThreads();
+  } catch (err) {
+    alert(`Error deleting thread: ${err.message}`);
+  }
+};
+
+window.openEditMessageModal = function(threadId, messageId) {
+  const thread = slackThreads.find(t => t.id === threadId);
+  if (!thread) return;
+  const msg = thread.messages.find(m => m.id === messageId);
+  if (!msg) return;
+
+  const modal = document.getElementById('edit-message-modal');
+  if (!modal) return;
+
+  document.getElementById('edit-msg-id').value = messageId;
+  const authorSelect = document.getElementById('edit-msg-author');
+  if (authorSelect) authorSelect.value = msg.author || 'human';
+
+  document.getElementById('edit-msg-topic').value = msg.topic || '';
+  document.getElementById('edit-msg-intent').value = msg.intent || '';
+  document.getElementById('edit-msg-point').value = msg.point || msg.content || '';
+  document.getElementById('edit-msg-next').value = msg.nextSteps || '';
+
+  modal.style.display = 'flex';
+};
+
+window.closeEditMessageModal = function() {
+  const modal = document.getElementById('edit-message-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.submitEditMessageModal = async function() {
+  if (!activeThreadId) return;
+  const messageId = document.getElementById('edit-msg-id').value;
+  const author = document.getElementById('edit-msg-author').value;
+  const topic = document.getElementById('edit-msg-topic').value.trim();
+  const intent = document.getElementById('edit-msg-intent').value.trim();
+  const point = document.getElementById('edit-msg-point').value.trim();
+  const nextSteps = document.getElementById('edit-msg-next').value.trim();
+
+  if (!point) {
+    alert('The Point is required.');
+    return;
+  }
+
+  try {
+    const res = await apiFetch(`/api/threads/${encodeURIComponent(activeThreadId)}/messages/${encodeURIComponent(messageId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ author, topic, intent, point, nextSteps })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(`Failed to update message: ${data.error}`);
+      return;
+    }
+
+    closeEditMessageModal();
+    if (data.thread) {
+      const idx = slackThreads.findIndex(t => t.id === activeThreadId);
+      if (idx !== -1) slackThreads[idx] = data.thread;
+      renderSlackThreads();
+      renderThreadMessages(activeThreadId);
+    }
+  } catch (err) {
+    alert(`Error updating message: ${err.message}`);
+  }
+};
+
+window.deleteMessagePrompt = async function(threadId, messageId, author) {
+  if (!confirm('Delete this message? This cannot be undone.')) return;
+  try {
+    const res = await apiFetch(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ author: author || 'human' })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(`Failed to delete message: ${data.error}`);
+      return;
+    }
+    if (data.thread) {
+      const idx = slackThreads.findIndex(t => t.id === threadId);
+      if (idx !== -1) slackThreads[idx] = data.thread;
+      renderSlackThreads();
+      renderThreadMessages(threadId);
+    }
+  } catch (err) {
+    alert(`Error deleting message: ${err.message}`);
+  }
+};
 
 window.sendThreadReply = async function() {
   if (!activeThreadId) return;

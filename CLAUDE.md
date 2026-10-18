@@ -107,11 +107,14 @@ When Claude operates via MCP or terminal CLI:
 | 8. Retrospective | `office_sprint_ceremony({ phase: "retro" })` | `agent-team retro` |
 | Complete Sprint | `office_sprint_complete({ summary })` | `agent-team complete-sprint` or `agent-team sprint complete` |
 | Sequential Next | `office_sprint_next({})` | `agent-team sprint next` |
-| Status Check | `office_sprint_status({})` | `agent-team sprint status` |
-| List Slack Threads | `office_get_threads({ category, room_id })` | `agent-team thread list [-c cat] [-r room]` |
-| View Thread History | `office_get_thread({ thread_id })` | `agent-team thread view <threadId>` |
-| Post Smart Brevity Thread | `office_post_thread({ title, category, intent, point, next_steps, author })` | `agent-team thread post <title> -i ... -p ... -n ...` |
-| Reply to Thread | `office_reply_thread({ thread_id, author, point, intent, next_steps })` | `agent-team thread reply <threadId> -a ... -p ...` |
+| List Slack Threads (Read) | `office_get_threads({ category, room_id })` | `agent-team thread list [-c cat] [-r room]` |
+| View Thread History (Read) | `office_get_thread({ thread_id })` | `agent-team thread view <threadId>` |
+| Post Smart Brevity Thread (Create) | `office_post_thread({ title, category, intent, point, next_steps, author })` | `agent-team thread post <title> -i ... -p ... -n ...` |
+| Reply to Thread (Create Msg) | `office_reply_thread({ thread_id, author, point, intent, next_steps })` | `agent-team thread reply <threadId> -a ... -p ...` |
+| Update Thread (Update) | `office_update_thread({ thread_id, author, title, status, category })` | `agent-team thread update <threadId> [-s status] [-t title]` |
+| Delete Thread (Delete) | `office_delete_thread({ thread_id, author })` | `agent-team thread delete <threadId> -a <author>` |
+| Edit Message (Update Msg) | `office_update_thread_message({ thread_id, message_id, author, point, intent, next_steps })` | `agent-team thread edit-msg <threadId> <msgId> -a ... -p ...` |
+| Delete Message (Delete Msg) | `office_delete_thread_message({ thread_id, message_id, author })` | `agent-team thread delete-msg <threadId> <msgId> -a <author>` |
 
 
 ---

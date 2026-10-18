@@ -1682,4 +1682,96 @@ threadCmd
     }
   });
 
+threadCmd
+  .command('update <threadId>')
+  .description('Update thread title, category, room, or status (active | resolved | archived)')
+  .option('-t, --title <title>', 'New thread title / headline')
+  .option('-s, --status <status>', 'Status: active | resolved | archived')
+  .option('-c, --category <type>', 'Category: meeting | ceremony | consult | general')
+  .option('-r, --room <number>', 'Room ID (1..5)')
+  .option('-a, --author <name>', 'Your agent name (must be creator or human)', 'human')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (threadId, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall(`/api/threads/${encodeURIComponent(threadId)}`, 'PUT', {
+        title: options.title,
+        status: options.status,
+        category: options.category,
+        roomId: options.room ? Number(options.room) : undefined,
+        author: options.author
+      }, port);
+      const t = res.thread;
+      console.log(`\n✅ Thread [${t.id}] updated by @${options.author}:`);
+      console.log(`   Title: "${t.title}"`);
+      console.log(`   Status: [${t.status.toUpperCase()}] | Category: [${t.category.toUpperCase()}]\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+threadCmd
+  .command('delete <threadId>')
+  .description('Delete an entire thread (must be creator or human lead)')
+  .option('-a, --author <name>', 'Your agent name (must be creator or human)', 'human')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (threadId, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      await apiCall(`/api/threads/${encodeURIComponent(threadId)}`, 'DELETE', {
+        author: options.author
+      }, port);
+      console.log(`\n🗑️ Thread [${threadId}] successfully deleted by @${options.author}.\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+threadCmd
+  .command('edit-msg <threadId> <messageId>')
+  .description('Edit an existing message in a thread with Smart Brevity')
+  .requiredOption('-a, --author <name>', 'Author agent name (must be message author or human)')
+  .option('-t, --topic <topic>', 'Updated topic name')
+  .option('-i, --intent <text>', 'Updated Why It Matters')
+  .option('-p, --point <text>', 'Updated The Point')
+  .option('-n, --next <text>', 'Updated Next Steps / Ask')
+  .option('--tag <mentions...>', 'Updated agent tags')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (threadId, messageId, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const mentions = options.tag ? options.tag.map((t: string) => t.startsWith('@') ? t : `@${t}`) : undefined;
+      const res = await apiCall(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`, 'PUT', {
+        author: options.author,
+        topic: options.topic,
+        intent: options.intent,
+        point: options.point,
+        nextSteps: options.next,
+        mentions
+      }, port);
+      console.log(`\n✏️ Message [${messageId}] updated by @${options.author}:`);
+      console.log(res.message?.content);
+      console.log();
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+threadCmd
+  .command('delete-msg <threadId> <messageId>')
+  .description('Delete a specific message from a thread (must be author or human lead)')
+  .option('-a, --author <name>', 'Your agent name (must be author or human)', 'human')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (threadId, messageId, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      await apiCall(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`, 'DELETE', {
+        author: options.author
+      }, port);
+      console.log(`\n🗑️ Message [${messageId}] in thread [${threadId}] deleted by @${options.author}.\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
 program.parse(process.argv);

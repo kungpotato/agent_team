@@ -963,6 +963,107 @@ STRICT RULES:
     }
   );
 
+  // 30. UPDATE THREAD
+  server.tool(
+    'office_update_thread',
+    'Update an existing discussion thread (title, category, status: active|resolved|archived). Only the thread creator or human lead can update.',
+    {
+      thread_id: z.string().describe('The thread ID to update'),
+      author: z.string().describe('Your agent name (must be thread creator or human)'),
+      title: z.string().optional().describe('New thread title / headline'),
+      status: z.enum(['active', 'resolved', 'archived']).optional().describe('New status for the thread'),
+      category: z.enum(['meeting', 'ceremony', 'consult', 'general']).optional().describe('New thread category'),
+      room_id: z.number().min(1).max(5).optional().describe('Associated room ID')
+    },
+    async ({ thread_id, author, title, status, category, room_id }) => {
+      const res = await apiCall(`/api/threads/${encodeURIComponent(thread_id)}`, 'PUT', {
+        author,
+        title,
+        status,
+        category,
+        roomId: room_id
+      });
+      const t = res.thread;
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Thread [${t.id}] updated by @${author}.\nTitle: "${t.title}" | Status: ${t.status} | Category: ${t.category.toUpperCase()}`
+        }]
+      };
+    }
+  );
+
+  // 31. DELETE THREAD
+  server.tool(
+    'office_delete_thread',
+    'Delete an entire discussion thread. Only the thread creator or human lead can delete.',
+    {
+      thread_id: z.string().describe('The thread ID to delete'),
+      author: z.string().describe('Your agent name (must be thread creator or human)')
+    },
+    async ({ thread_id, author }) => {
+      await apiCall(`/api/threads/${encodeURIComponent(thread_id)}`, 'DELETE', { author });
+      return {
+        content: [{
+          type: 'text',
+          text: `🗑️ Thread [${thread_id}] successfully deleted by @${author}.`
+        }]
+      };
+    }
+  );
+
+  // 32. UPDATE THREAD MESSAGE
+  server.tool(
+    'office_update_thread_message',
+    'Edit an existing message in a thread. Enforces Smart Brevity formatting. Only the original author or human lead can edit.',
+    {
+      thread_id: z.string().describe('The thread ID containing the message'),
+      message_id: z.string().describe('The message ID to update'),
+      author: z.string().describe('Your agent name (must be message author or human)'),
+      topic: z.string().optional().describe('Updated topic'),
+      intent: z.string().optional().describe('Updated Why It Matters'),
+      point: z.string().optional().describe('Updated The Point'),
+      next_steps: z.string().optional().describe('Updated Next Steps / Ask'),
+      mentions: z.array(z.string()).optional().describe('Updated mentions')
+    },
+    async ({ thread_id, message_id, author, topic, intent, point, next_steps, mentions }) => {
+      const res = await apiCall(`/api/threads/${encodeURIComponent(thread_id)}/messages/${encodeURIComponent(message_id)}`, 'PUT', {
+        author,
+        topic,
+        intent,
+        point,
+        nextSteps: next_steps,
+        mentions
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: `✏️ Message [${message_id}] in thread [${thread_id}] updated by @${author}.\n${res.message?.content}`
+        }]
+      };
+    }
+  );
+
+  // 33. DELETE THREAD MESSAGE
+  server.tool(
+    'office_delete_thread_message',
+    'Delete a specific message from a thread. Only the original author or human lead can delete.',
+    {
+      thread_id: z.string().describe('The thread ID containing the message'),
+      message_id: z.string().describe('The message ID to delete'),
+      author: z.string().describe('Your agent name (must be message author or human)')
+    },
+    async ({ thread_id, message_id, author }) => {
+      await apiCall(`/api/threads/${encodeURIComponent(thread_id)}/messages/${encodeURIComponent(message_id)}`, 'DELETE', { author });
+      return {
+        content: [{
+          type: 'text',
+          text: `🗑️ Message [${message_id}] in thread [${thread_id}] deleted by @${author}.`
+        }]
+      };
+    }
+  );
+
   return server;
 }
 
