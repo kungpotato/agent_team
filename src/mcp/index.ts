@@ -380,16 +380,23 @@ STRICT RULES:
     },
     async ({ roles }) => {
       const POTATO_ROLES = [
+        // 1. PRODUCT
         { name: 'product-manager', title: 'PM', color: '#8a2be2', bench: 0, task: 'Drafting PRD & Criteria' },
         { name: 'project-planner', title: 'PLANNER', color: '#2e8b57', bench: 0, task: 'Decomposing task DAG waves' },
-        { name: 'system-architect', title: 'ARCHITECT', color: '#1e90ff', bench: 0, task: 'Designing OpenAPI specs' },
+        // 2. DESIGNER
         { name: 'ui-ux-designer', title: 'UI/UX', color: '#ff1493', bench: 1, task: 'Building IA & wireframe screen flow' },
         { name: 'design-to-code', title: 'UI DEV', color: '#00ced1', bench: 1, task: 'Decomposing tokens to components' },
+        // 3. TECH (FRONTEND + BACKEND + QA)
+        { name: 'system-architect', title: 'ARCHITECT', color: '#1e90ff', bench: 2, task: 'Designing OpenAPI specs' },
         { name: 'coder', title: 'CODER', color: '#ff8c00', bench: 2, task: 'Implementing production code' },
         { name: 'code-reviewer', title: 'REVIEWER', color: '#dc143c', bench: 2, task: 'Verifying AST & security rules' },
-        { name: 'qa-tester', title: 'QA', color: '#ffd700', bench: 3, task: 'Synthesizing fuzz tests' },
+        { name: 'qa-tester', title: 'QA', color: '#ffd700', bench: 2, task: 'Synthesizing fuzz tests' },
+        // 4. DEVOPS
+        { name: 'devops-release', title: 'DEVOPS', color: '#00ffff', bench: 3, task: 'Canary rollout & deployment' },
         { name: 'runtime-sre', title: 'SRE', color: '#ff69b4', bench: 3, task: 'Analyzing SLO telemetry' },
-        { name: 'devops-release', title: 'DEVOPS', color: '#00ffff', bench: 4, task: 'Canary rollout & deployment' }
+        // 5. AI & DATA
+        { name: 'ai-engineer', title: 'AI ENG', color: '#9333ea', bench: 4, task: 'Training & fine-tuning RAG models' },
+        { name: 'data-engineer', title: 'DATA ENG', color: '#06b6d4', bench: 4, task: 'ETL pipeline & vector store indexing' }
       ];
 
       const targets = roles && roles.length > 0
@@ -409,7 +416,48 @@ STRICT RULES:
       return {
         content: [{
           type: 'text',
-          text: `🥔 Spawned ${spawned.length} Potato-Skill agent(s): [${spawned.join(', ')}]`
+          text: `🥔 Spawned ${spawned.length} agent(s) across the 5 Departments (Product, Designer, Tech, DevOps, AI & Data): [${spawned.join(', ')}]`
+        }]
+      };
+    }
+  );
+
+  // 11b. GET DEPARTMENTS STATUS
+  server.tool(
+    'office_get_departments',
+    'Get real-time bench occupancy and seated agents across all 5 Startup Departments: 1.product | 2.designer | 3.tech (fe+be+qa) | 4.devops | 5.ai_data',
+    {},
+    async () => {
+      const res = await apiCall('/api/departments', 'GET');
+      const lines = [
+        `🏢 TECH STARTUP DEPARTMENTS & BENCH ALLOCATION (40 workstations):`,
+        ...res.departments.map((d: any) => {
+          const occ = `[${d.occupancy}/8]`;
+          const agentList = d.agents.length > 0 ? d.agents.map((a: any) => `${a.name}(${a.roleTitle || a.role})`).join(', ') : '(Empty bench)';
+          return `  - Bench ${d.benchNumber} // ${d.name.padEnd(30)} ${occ} -> ${agentList}`;
+        })
+      ];
+      return {
+        content: [{ type: 'text', text: lines.join('\n') }]
+      };
+    }
+  );
+
+  // 11c. SPAWN DEPARTMENT
+  server.tool(
+    'office_spawn_department',
+    'Spawn agents directly into one of the 5 Startup Departments: product, designer, tech, devops, or ai_data',
+    {
+      department: z.enum(['product', 'designer', 'tech', 'devops', 'ai_data']).describe('Target department name'),
+      count: z.number().min(1).max(8).optional().describe('Number of agents to spawn (1 to 8, default: 1)')
+    },
+    async ({ department, count }) => {
+      const res = await apiCall('/api/departments/spawn', 'POST', { department, count: count ?? 1 });
+      const names = res.agents.map((a: any) => `${a.name} (${a.roleTitle})`);
+      return {
+        content: [{
+          type: 'text',
+          text: `🏢 Spawned ${res.count} agent(s) into Department [${res.department}]: ${names.join(', ')}`
         }]
       };
     }

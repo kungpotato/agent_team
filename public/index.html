@@ -193,7 +193,15 @@
       </div>
       <div class="quick-actions">
         <button class="action-btn" onclick="quickAction('spawn', 'dev')">+ Dev</button>
-        <button class="action-btn" onclick="quickAction('spawn-potato')">🥔 Potato Squad (10)</button>
+        <button class="action-btn" onclick="quickAction('spawn-potato')">🥔 Potato Squad (12)</button>
+        <select id="dept-select" class="retro-select" onchange="quickSpawnDept(this.value); this.selectedIndex=0;" title="Spawn agent in department">
+          <option value="" disabled selected>🏢 Dept...</option>
+          <option value="product">📋 Product</option>
+          <option value="designer">🎨 Designer</option>
+          <option value="tech">💻 Tech (FE+BE+QA)</option>
+          <option value="devops">🚀 DevOps</option>
+          <option value="ai_data">🧠 AI & Data</option>
+        </select>
         <button class="action-btn" onclick="quickAction('work-all')">💻 Work All</button>
         <button class="action-btn" onclick="quickAction('sleep-all')">💤 Sleep All</button>
         <select id="room-select" class="retro-select">

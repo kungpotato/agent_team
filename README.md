@@ -10,12 +10,12 @@
 
 ### 1. 🏢 Tech Startup Open-Plan Office & 5 Conference Rooms
 - **Open-Space Workspace (Left Canvas)**:
-  - **5 Long Workbenches**: Each workbench seats **8 agents** (accommodating up to 40 agents simultaneously):
-    - `Bench 1`: Core Tech & Product
-    - `Bench 2`: Frontend & UI
-    - `Bench 3`: Backend & API
-    - `Bench 4`: AI & Data / QA
-    - `Bench 5`: DevOps & Infra / SRE
+  - **5 Department Workbenches**: Each workbench seats **8 agents** (accommodating up to 40 agents simultaneously), organized into 5 dedicated departments:
+    - `Bench 1` — **Product** (`product`): Product Manager, Project Planner
+    - `Bench 2` — **Designer** (`designer`): UI/UX Designer, Design-to-Code Specialist
+    - `Bench 3` — **Tech (Frontend + Backend + QA)** (`tech`): System Architect, Coder, Code Reviewer, QA Tester
+    - `Bench 4` — **DevOps** (`devops`): DevOps Release Engineer, Runtime SRE
+    - `Bench 5` — **AI & DATA** (`ai_data`): AI Engineer, Data Engineer
   - **Desk Equipment**: Laptops with animated code displays, color-coded office chairs, hot coffee mugs, and energy drink cans.
   - **Desk Nameplates**: Every agent's name is rendered cleanly in front of their workspace.
   - **Startup Decor**: Kanban whiteboard (TODO, DOING, PROD), coffee & beverage bar, glowing neon `MOVE FAST & BREAK THINGS` sign, retro arcade cabinet, Monstera plants, and blinking server racks.
@@ -125,7 +125,7 @@ node bin/agent-team.js start --open
 agent_team/
 ├── .claude-plugin/
 │   └── plugin.json            # Plugin manifest (name, version, metadata, components)
-├── .mcp.json                  # MCP Server declaration (19 office & sprint tools)
+├── .mcp.json                  # MCP Server declaration (21 office, department & sprint tools)
 ├── skills/
 │   ├── sprint/SKILL.md        # /agent-team:sprint (8-phase Agile sprint ceremony governance)
 │   ├── backlog/SKILL.md       # /agent-team:backlog (Taskwarrior default & Jira cards)
@@ -156,7 +156,7 @@ claude plugin validate /Users/kittisak/workspace/agent_team
 Once loaded:
 - **Skills** become available as `/agent-team:sprint`, `/agent-team:backlog`, `/agent-team:office`, `/agent-team:governance`
 - **Subagents** become available as `@agent-team:scrum-master`, `@agent-team:product-owner`, etc.
-- **MCP Server** (`plugin:agent-team:agent-team`) automatically connects all 19 office simulation tools.
+- **MCP Server** (`plugin:agent-team:agent-team`) automatically connects all 21 office simulation tools.
 
 ---
 
@@ -198,10 +198,12 @@ Whenever Claude or any AI agent uses this project or its MCP tools, **it is stri
 
 ---
 
-### MCP Tools Reference (19 Tools)
+### MCP Tools Reference (21 Tools)
 
 | Tool Name | Description | Key Parameters |
 |---|---|---|
+| `office_get_departments` | Inspect all 5 departments (bench #, roles, occupancy, members) | `{}` |
+| `office_spawn_department` | Batch spawn agents into a specific department (`product`, `designer`, `tech`, `devops`, `ai_data`) | `department`, `count` (1-8) |
 | `office_get_cards` | List story cards from the backlog (Taskwarrior default, or Jira) | `source` (`taskwarrior` default, or `jira`) |
 | `office_add_card` | Add a new story card into the backlog (Taskwarrior default) | `title`, `points`, `tags`, `priority`, `source` |
 | `office_sprint_start` | Start a new Sprint cycle with card from Taskwarrior (default), Jira, or manual story | `sprint_number`, `card_id`, `source`, `story`, `points` |
@@ -265,6 +267,43 @@ RM 5   | Main Boardroom       | 🟢 AVAILABLE   | [0/8]   | (None)
 List all active agents, their desk locations, and progress:
 ```bash
 agent-team list
+```
+
+#### `agent-team departments`
+> **Aliases:** `depts`
+
+Inspect the 5 department workbenches, their capacities, and currently seated agents:
+```bash
+agent-team departments
+```
+
+**Example Output:**
+```text
+🏢 DEPARTMENT WORKBENCH STATUS (5 Departments, 8 seats each = 40 total desks)
+════════════════════════════════════════════════════════════════════════════════════════
+DEPT ID    | DEPARTMENT NAME                | BENCH   | SEATS | PRIMARY ROLES
+────────────────────────────────────────────────────────────────────────────────────────
+product    | Product                        | Bench 1 | [2/8] | product-manager, project-planner
+designer   | Designer                       | Bench 2 | [2/8] | ui-ux-designer, design-to-code
+tech       | Tech (Frontend+Backend+QA)     | Bench 3 | [4/8] | system-architect, coder, code-reviewer, qa-tester
+devops     | DevOps                         | Bench 4 | [2/8] | devops-release, runtime-sre
+ai_data    | AI & DATA                      | Bench 5 | [2/8] | ai-engineer, data-engineer
+════════════════════════════════════════════════════════════════════════════════════════
+```
+
+#### `agent-team spawn-dept <department> [count]`
+> **Aliases:** `spawn-department`, `dept`
+
+Spawn agents directly into their designated department workbench:
+```bash
+# Spawn 2 agents to the Tech department (Bench 3)
+agent-team spawn-dept tech 2
+
+# Spawn agents into Product, Designer, DevOps, or AI & DATA
+agent-team spawn-dept product
+agent-team spawn-dept designer 2
+agent-team spawn-dept devops 2
+agent-team spawn-dept ai_data 2
 ```
 
 ---
@@ -510,30 +549,28 @@ agent-team reset
 
 ---
 
-### 8. 🥔 Potato-Skill Agents Squad
+### 8. 🏢 Five Specialized Departments & Potato Squad
 
-Native integration for the 10 Potato-Skill agent roles from `/Users/kittisak/workspace/potato-skill/agents`:
+Workstations are strictly mapped into **5 Specialized Departments** corresponding directly to the 5 office workbenches (each with 8 seats, 40 total desks):
 
-| Agent Name | Role Title | Signature Color | Designated Workbench | Primary Responsibility |
-|---|---|---|---|---|
-| `product-manager` | `PM` | 🟣 Purple | Bench 1 (Core Tech & Product) | Drafting PRD & Acceptance Criteria |
-| `project-planner` | `PLANNER` | 🟢 Green | Bench 1 (Core Tech & Product) | Decomposing task DAG waves |
-| `system-architect` | `ARCHITECT` | 🔵 Blue | Bench 1 (Core Tech & Product) | Designing contracts & OpenAPI specs |
-| `ui-ux-designer` | `UI/UX` | 🌸 Magenta | Bench 2 (Frontend & UI) | Building IA & wireframe screen flow |
-| `design-to-code` | `UI DEV` | 🩵 Teal | Bench 2 (Frontend & UI) | Decomposing tokens to components |
-| `coder` | `CODER` | 🟠 Orange | Bench 3 (Backend & API) | Implementing production code & tests |
-| `code-reviewer` | `REVIEWER` | 🔴 Red | Bench 3 (Backend & API) | Verifying AST & security rules |
-| `qa-tester` | `QA` | 🟡 Yellow | Bench 4 (QA & SRE) | Synthesizing fuzz & property tests |
-| `runtime-sre` | `SRE` | 🩷 Pink | Bench 4 (QA & SRE) | Analyzing SLO telemetry & RCA |
-| `devops-release` | `DEVOPS` | 🌐 Cyan | Bench 5 (DevOps & Infra) | Canary rollout & CI/CD deployment |
+| Department | ID | Workbench | Agent Role | Title | Color | Primary Responsibility |
+|---|---|---|---|---|---|---|
+| **Product** | `product` | `Bench 1` | `product-manager`<br>`project-planner` | `PM`<br>`PLANNER` | 🟣 Purple<br>🟢 Green | Product Requirements (PRD), Acceptance Criteria, and task DAG decomposition |
+| **Designer** | `designer` | `Bench 2` | `ui-ux-designer`<br>`design-to-code` | `UI/UX`<br>`UI DEV` | 🌸 Magenta<br>🩵 Teal | Information Architecture, wireframes, Design System tokens, and component breakdown |
+| **Tech**<br>*(Frontend + Backend + QA)* | `tech` | `Bench 3` | `system-architect`<br>`coder`<br>`code-reviewer`<br>`qa-tester` | `ARCHITECT`<br>`CODER`<br>`REVIEWER`<br>`QA` | 🔵 Blue<br>🟠 Orange<br>🔴 Red<br>🟡 Yellow | System architecture, frontend/backend implementation, AST security review, and fuzz testing |
+| **DevOps** | `devops` | `Bench 4` | `devops-release`<br>`runtime-sre` | `DEVOPS`<br>`SRE` | 🌐 Cyan<br>🩷 Pink | CI/CD pipelines, container orchestration, canary rollout, and SLO telemetry |
+| **AI & DATA** | `ai_data` | `Bench 5` | `ai-engineer`<br>`data-engineer` | `AI ENG`<br>`DATA ENG` | 🟣 Violet<br>🟢 Emerald | LLM prompt engineering, embeddings, vector search, ETL pipelines, and data analytics |
 
-#### Potato Squad CLI Commands:
+#### Department & Potato Squad CLI Commands:
 ```bash
-# List all 10 Potato roles
-agent-team potato-list
+# List all 5 departments, bench numbers, and occupancy
+agent-team departments
 
-# Spawn the complete 10-role squad to their designated workbenches
-agent-team spawn-potato
+# Spawn agents directly into a department (e.g. Tech Bench 3)
+agent-team spawn-dept tech 4
+
+# List all 12 Potato agent roles
+agent-team potato-list
 
 # Spawn selected roles (supports auto-numbering, e.g. coder1, coder2)
 agent-team spawn-potato coder system-architect qa-tester
@@ -571,6 +608,8 @@ The server operates on port `3333` by default:
 |---|---|---|---|
 | `GET` | `/api/health` | - | Server health check |
 | `GET` | `/api/agents` | - | Retrieve all active agents and meeting rooms |
+| `GET` | `/api/departments` | - | Retrieve status and occupancy for all 5 departments |
+| `POST` | `/api/departments/spawn` | `{"department": "tech", "count": 2}` | Batch spawn agents into a department workbench |
 | `GET` | `/api/sprint` | - | Retrieve current sprint cycle, phase, and ceremony history |
 | `POST` | `/api/sprint/start` | `{"sprintNumber": 1, "story": "OAuth2", "points": 8}` | Initialize a new sprint cycle with story card |
 | `POST` | `/api/sprint/ceremony`| `{"phase": "validation", "points": 8}` | Execute a ceremony (`validation`, `grooming`, `planning`, etc.) |

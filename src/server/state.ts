@@ -1,4 +1,4 @@
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
 
@@ -237,7 +237,9 @@ export class StateManager {
       return agent;
     }
 
-    const slot = potatoDef ? this.findAvailableBenchSlot(potatoDef.targetBench) : this.findAvailableWorkSlot();
+    const dept = resolveDepartmentByRole(role);
+    const targetBench = potatoDef ? potatoDef.targetBench : dept.benchIndex;
+    const slot = this.findAvailableBenchSlot(targetBench);
     const colorIndex = potatoDef ? potatoDef.colorIndex : (this.agents.size + 1) % 10;
     const roleTitle = potatoDef ? potatoDef.roleTitle : role.toUpperCase();
     const defaultMsg = message || (potatoDef ? potatoDef.defaultTask : (initialStatus === 'working' ? 'Coding...' : undefined));
@@ -247,12 +249,13 @@ export class StateManager {
       name,
       role,
       roleTitle,
+      department: dept.id,
       status: initialStatus,
       room: 'work',
       slot,
       message: defaultMsg,
       progress: initialStatus === 'working' ? 20 : undefined,
-      color: potatoDef ? potatoDef.color : undefined,
+      color: potatoDef ? potatoDef.color : dept.color,
       colorIndex,
       updatedAt: Date.now()
     };

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { stateManager } from './state.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
-import { WSMessage } from './types.js';
+import { WSMessage, DEPARTMENTS, DepartmentId, Agent } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -194,6 +194,37 @@ export function createServer() {
 
   app.get('/api/potato-agents', (req, res) => {
     res.json(Array.from(potatoAgentRegistry.values()));
+  });
+
+  app.get('/api/departments', (req, res) => {
+    const state = stateManager.getState();
+    const depts = Object.values(DEPARTMENTS).map(d => {
+      const benchAgents = state.agents.filter(a => a.room === 'work' && a.slot >= d.benchIndex * 8 && a.slot < (d.benchIndex + 1) * 8);
+      return {
+        ...d,
+        benchNumber: d.benchIndex + 1,
+        occupancy: benchAgents.length,
+        capacity: 8,
+        agents: benchAgents
+      };
+    });
+    res.json({ success: true, departments: depts });
+  });
+
+  app.post('/api/departments/spawn', (req, res) => {
+    const { department, count } = req.body || {};
+    if (!department) return res.status(400).json({ error: 'department is required (product, designer, tech, devops, ai_data)' });
+    const dept = DEPARTMENTS[department as DepartmentId];
+    if (!dept) return res.status(400).json({ error: `Unknown department "${department}". Available: product, designer, tech, devops, ai_data` });
+
+    const num = Math.min(Math.max(parseInt(count, 10) || 1, 1), 8);
+    const spawned: Agent[] = [];
+    for (let i = 0; i < num; i++) {
+      const role = dept.roles[i % dept.roles.length];
+      const agent = stateManager.spawn(role);
+      spawned.push(agent);
+    }
+    res.json({ success: true, department: dept.name, count: spawned.length, agents: spawned });
   });
 
   app.get('/api/sprint', (req, res) => {

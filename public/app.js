@@ -21,14 +21,14 @@ let particles = [];
 
 
 
-// BENCH CONFIGURATION (5 Long Desks x 8 seats = 40 workstations)
-// Generous vertical spacing & zero collision with wall decor or rows above
+// BENCH CONFIGURATION (5 Departments x 8 seats = 40 workstations)
+// 1. PRODUCT | 2. DESIGNER | 3. TECH (FE+BE+QA) | 4. DEVOPS | 5. AI & DATA
 const BENCHES = [
-  { name: 'BENCH 1 // CORE TECH',     y: 195 },
-  { name: 'BENCH 2 // FRONTEND & UI', y: 325 },
-  { name: 'BENCH 3 // BACKEND & API', y: 455 },
-  { name: 'BENCH 4 // AI & DATA',     y: 585 },
-  { name: 'BENCH 5 // DEVOPS & INFRA',y: 725 }
+  { name: 'BENCH 1 // PRODUCT',                       y: 195, tag: 'PROD', dept: 'PRODUCT',   color: '#8a2be2' },
+  { name: 'BENCH 2 // DESIGNER',                      y: 325, tag: 'DSGN', dept: 'DESIGNER',  color: '#ff1493' },
+  { name: 'BENCH 3 // TECH (FRONTEND + BACKEND + QA)', y: 455, tag: 'TECH', dept: 'TECH',      color: '#38bdf8' },
+  { name: 'BENCH 4 // DEVOPS',                        y: 585, tag: 'OPS',  dept: 'DEVOPS',    color: '#00ffff' },
+  { name: 'BENCH 5 // AI & DATA',                     y: 725, tag: 'DATA', dept: 'AI & DATA', color: '#a855f7' }
 ];
 
 // Calculate 8 seat X coordinates per bench (spaced 80px apart)
@@ -402,24 +402,24 @@ function drawWorkRoomBenches() {
     const bench = benches[b];
     const deskY = bench.y;
 
-    // 1. Bench Name Sign in the open walkway margin to the left (x: 8..31, clear of all seats & chairs!)
+    // 1. Bench Name Sign in the open walkway margin to the left (x: 4..32, clear of all seats & chairs!)
     ctx.save();
     ctx.fillStyle = '#090d16';
-    ctx.fillRect(8, deskY - 12, 23, 22);
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(8, deskY - 12, 23, 22);
+    ctx.fillRect(4, deskY - 14, 28, 26);
+    ctx.strokeStyle = bench.color || '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(4, deskY - 14, 28, 26);
 
     ctx.font = '6px "Press Start 2P", monospace';
-    ctx.fillStyle = '#38bdf8';
+    ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`B${b + 1}`, 19, deskY - 8);
+    ctx.fillText(`B${b + 1}`, 18, deskY - 10);
 
-    const tagShort = ['TECH', 'UI', 'API', 'DATA', 'SRE'][b];
+    const tagShort = bench.tag || ['PROD', 'DSGN', 'TECH', 'OPS', 'DATA'][b];
     ctx.font = '5px "Silkscreen", monospace';
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText(tagShort, 19, deskY + 3);
+    ctx.fillStyle = bench.color || '#38bdf8';
+    ctx.fillText(tagShort, 18, deskY + 2);
     ctx.restore();
 
     // 2. LAYER 1: Draw Chairs for all 8 seats
@@ -1302,6 +1302,23 @@ async function quickAction(type, arg) {
     console.error('Quick action failed:', err);
   }
 }
+
+window.quickSpawnDept = async function(dept) {
+  if (!dept) return;
+  try {
+    const res = await fetch('/api/departments/spawn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ department: dept, count: 1 })
+    });
+    const data = await res.json();
+    if (data.success && window.soundSystem) {
+      window.soundSystem.playSpawn();
+    }
+  } catch (err) {
+    console.error('Failed to spawn department agent:', err);
+  }
+};
 
 async function quickMeetSelected() {
   if (agents.length === 0) return;

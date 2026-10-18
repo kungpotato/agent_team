@@ -24,8 +24,11 @@
   "agents": [
     "./agents/scrum-master.md",
     "./agents/product-owner.md",
+    "./agents/ui-ux-designer.md",
     "./agents/system-architect.md",
-    "./agents/qa-tester.md"
+    "./agents/qa-tester.md",
+    "./agents/devops-engineer.md",
+    "./agents/ai-engineer.md"
   ],
   "hooks": "./hooks/hooks.json"
 }

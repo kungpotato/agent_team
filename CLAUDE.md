@@ -16,7 +16,7 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
 | **1** | `validation` | 🚪 Room 2 (Suite 2) | `product-manager`, `system-architect`, `coder` | PO presents story card; Architect & Dev validate feasibility and refine Acceptance Criteria (AC). |
 | **2** | `grooming` | 🚪 Room 1 (Suite 1) | `coder`, `qa-tester`, `code-reviewer`, `product-manager`, `system-architect` | Team analyzes edge cases, test vectors, and estimates Story Points (Fibonacci: 1, 2, 3, 5, 8, 13). |
 | **3** | `planning` | 🏛️ Room 5 (Boardroom) | All 8 Leads & Specialists | Decompose task DAG waves, define dependencies, and commit to sprint backlog distribution. |
-| **4** | `working` | 💻 Open Space Desks | All 10 Potato Squad Agents | Agents seated at designated desks actively implementing features, unit tests, and UI tokens with live progress HUDs. |
+| **4** | `working` | 💻 Open Space Desks | All Agents across 5 Departments | Agents seated at their designated department workbenches (Product, Designer, Tech, DevOps, AI & DATA) implementing features, UI, tests, infra, and models with live progress HUDs. |
 | **5** | `demo` | 🚪 Room 3 (Suite 3) | `coder`, `ui-ux-designer`, `qa-tester`, `product-manager` | Dev team demonstrates working software live to PO and stakeholders for initial validation. |
 | **6** | `uat` | 🚪 Room 2 (Suite 2) | `product-manager`, `qa-tester`, `coder`, `system-architect` | **Formal UAT Verification & Sign-Off**. PO and QA execute acceptance tests. Formal sign-off is MANDATORY before release. |
 | **7** | `release` | 🚪 Room 4 (Suite 4) | `devops-release`, `runtime-sre`, `coder`, `system-architect` | Production deployment, CI/CD pipeline execution, and automated canary SLO telemetry verification. |

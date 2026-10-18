@@ -21,6 +21,7 @@ export interface Agent {
   room: RoomType;
   meetingRoomId?: number; // 1 to 5 for meeting rooms
   slot: number; // desk slot index in work room or chair index in meeting room
+  department?: DepartmentId; // 'product' | 'designer' | 'tech' | 'devops' | 'ai_data'
   message?: string; // speech bubble message or task description
   progress?: number; // 0 to 100 percentage for working tasks
   color?: string; // color name e.g. "orange", "blue"
@@ -32,6 +33,78 @@ export interface Agent {
     question: string;
     reply?: string;
   };
+}
+
+export type DepartmentId = 'product' | 'designer' | 'tech' | 'devops' | 'ai_data';
+
+export interface DepartmentInfo {
+  id: DepartmentId;
+  name: string;
+  benchIndex: number; // 0 to 4 (Bench 1 to 5)
+  color: string;
+  description: string;
+  roles: string[];
+}
+
+export const DEPARTMENTS: Record<DepartmentId, DepartmentInfo> = {
+  product: {
+    id: 'product',
+    name: 'PRODUCT',
+    benchIndex: 0,
+    color: '#8a2be2',
+    description: 'Product Managers, Project Planners, and Business Analysts',
+    roles: ['product-manager', 'project-planner', 'product', 'pm', 'planner', 'po', 'scrum-master', 'ba']
+  },
+  designer: {
+    id: 'designer',
+    name: 'DESIGNER',
+    benchIndex: 1,
+    color: '#ff1493',
+    description: 'UI/UX Designers, Design Systems, and Design-to-Code Specialists',
+    roles: ['ui-ux-designer', 'design-to-code', 'designer', 'ui', 'ux', 'ux-designer']
+  },
+  tech: {
+    id: 'tech',
+    name: 'TECH (FRONTEND + BACKEND + QA)',
+    benchIndex: 2,
+    color: '#38bdf8',
+    description: 'Software Engineers (Frontend & Backend), System Architects, and QA Testers',
+    roles: ['coder', 'code-reviewer', 'system-architect', 'qa-tester', 'dev', 'frontend', 'backend', 'qa', 'tech']
+  },
+  devops: {
+    id: 'devops',
+    name: 'DEVOPS',
+    benchIndex: 3,
+    color: '#00ffff',
+    description: 'Release Engineers, Runtime SRE, Platform and Cloud Infrastructure',
+    roles: ['devops-release', 'runtime-sre', 'devops', 'sre', 'infra', 'platform']
+  },
+  ai_data: {
+    id: 'ai_data',
+    name: 'AI & DATA',
+    benchIndex: 4,
+    color: '#a855f7',
+    description: 'AI/ML Engineers, Data Engineers, and Data Scientists',
+    roles: ['ai-engineer', 'data-engineer', 'data-scientist', 'data-analyst', 'ai', 'data', 'ml', 'mle']
+  }
+};
+
+export function resolveDepartmentByRole(role: string): DepartmentInfo {
+  const r = role.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (r.includes('product') || r.includes('plan') || r === 'pm' || r === 'po' || r.includes('scrum') || r === 'ba') {
+    return DEPARTMENTS.product;
+  }
+  if (r.includes('design') || r.includes('ui') || r.includes('ux') || r.includes('art')) {
+    return DEPARTMENTS.designer;
+  }
+  if (r.includes('devops') || r.includes('sre') || r.includes('infra') || r.includes('platform') || r.includes('release') || r.includes('cloud')) {
+    return DEPARTMENTS.devops;
+  }
+  if (r.includes('ai') || r.includes('data') || r.includes('ml') || r.includes('model') || r.includes('analyst')) {
+    return DEPARTMENTS.ai_data;
+  }
+  // Default to tech (coder, backend, frontend, qa, dev, architect, reviewer)
+  return DEPARTMENTS.tech;
 }
 
 export interface MeetingQueueItem {

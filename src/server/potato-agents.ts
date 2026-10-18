@@ -63,46 +63,54 @@ export function loadPotatoAgents(dirPath: string = DEFAULT_POTATO_DIR): Map<stri
     let defaultTask = 'Executing task...';
     let targetBench = 0; // Bench 1 default
 
-    if (name === 'coder') {
-      roleTitle = 'CODER';
-      defaultTask = 'Implementing production code & tests';
-      targetBench = 2; // Bench 3 (Backend & API)
-    } else if (name === 'code-reviewer') {
-      roleTitle = 'REVIEWER';
-      defaultTask = 'Verifying AST & security rules';
-      targetBench = 2; // Bench 3 (Backend & API)
-    } else if (name === 'system-architect') {
-      roleTitle = 'ARCHITECT';
-      defaultTask = 'Designing contracts & OpenAPI specs';
-      targetBench = 0; // Bench 1 (Core Tech)
+    if (name === 'product-manager') {
+      roleTitle = 'PM';
+      defaultTask = 'Drafting PRD & Acceptance Criteria';
+      targetBench = 0; // Bench 1 (PRODUCT)
     } else if (name === 'project-planner') {
       roleTitle = 'PLANNER';
       defaultTask = 'Decomposing task DAG waves';
-      targetBench = 0; // Bench 1 (Core Tech)
-    } else if (name === 'product-manager') {
-      roleTitle = 'PM';
-      defaultTask = 'Drafting PRD & Acceptance Criteria';
-      targetBench = 0; // Bench 1 (Core Tech)
+      targetBench = 0; // Bench 1 (PRODUCT)
     } else if (name === 'ui-ux-designer') {
       roleTitle = 'UI/UX';
       defaultTask = 'Building IA & wireframe screen flow';
-      targetBench = 1; // Bench 2 (Frontend & UI)
+      targetBench = 1; // Bench 2 (DESIGNER)
     } else if (name === 'design-to-code') {
       roleTitle = 'UI DEV';
       defaultTask = 'Decomposing tokens to components';
-      targetBench = 1; // Bench 2 (Frontend & UI)
+      targetBench = 1; // Bench 2 (DESIGNER)
+    } else if (name === 'system-architect') {
+      roleTitle = 'ARCHITECT';
+      defaultTask = 'Designing contracts & OpenAPI specs';
+      targetBench = 2; // Bench 3 (TECH: Frontend + Backend + QA)
+    } else if (name === 'coder') {
+      roleTitle = 'CODER';
+      defaultTask = 'Implementing production code & tests';
+      targetBench = 2; // Bench 3 (TECH: Frontend + Backend + QA)
+    } else if (name === 'code-reviewer') {
+      roleTitle = 'REVIEWER';
+      defaultTask = 'Verifying AST & security rules';
+      targetBench = 2; // Bench 3 (TECH: Frontend + Backend + QA)
     } else if (name === 'qa-tester') {
       roleTitle = 'QA';
       defaultTask = 'Synthesizing fuzz & property tests';
-      targetBench = 3; // Bench 4 (AI & QA)
-    } else if (name === 'runtime-sre') {
-      roleTitle = 'SRE';
-      defaultTask = 'Analyzing SLO telemetry & RCA';
-      targetBench = 3; // Bench 4 (AI & QA)
+      targetBench = 2; // Bench 3 (TECH: Frontend + Backend + QA)
     } else if (name === 'devops-release') {
       roleTitle = 'DEVOPS';
       defaultTask = 'Canary rollout & CI/CD deployment';
-      targetBench = 4; // Bench 5 (DevOps & Infra)
+      targetBench = 3; // Bench 4 (DEVOPS)
+    } else if (name === 'runtime-sre') {
+      roleTitle = 'SRE';
+      defaultTask = 'Analyzing SLO telemetry & RCA';
+      targetBench = 3; // Bench 4 (DEVOPS)
+    } else if (name === 'ai-engineer' || name === 'ai') {
+      roleTitle = 'AI ENG';
+      defaultTask = 'Training & fine-tuning RAG models';
+      targetBench = 4; // Bench 5 (AI & DATA)
+    } else if (name === 'data-engineer' || name === 'data') {
+      roleTitle = 'DATA ENG';
+      defaultTask = 'ETL pipeline & vector store indexing';
+      targetBench = 4; // Bench 5 (AI & DATA)
     }
 
     const colorIndex = POTATO_PALETTE_MAP[color] ?? 0;
@@ -117,6 +125,35 @@ export function loadPotatoAgents(dirPath: string = DEFAULT_POTATO_DIR): Map<stri
       defaultTask,
       targetBench,
       tools
+    });
+  }
+
+  // Ensure AI & DATA department agents are always populated
+  if (!agentMap.has('ai-engineer')) {
+    agentMap.set('ai-engineer', {
+      name: 'ai-engineer',
+      role: 'ai-engineer',
+      roleTitle: 'AI ENG',
+      color: 'purple',
+      colorIndex: 3,
+      description: 'AI / ML Engineer specializing in LLMs, prompts, embeddings, and autonomous agent loops',
+      defaultTask: 'Training & fine-tuning RAG models',
+      targetBench: 4, // Bench 5 (AI & DATA)
+      tools: ['bash', 'editor', 'evaluator']
+    });
+  }
+
+  if (!agentMap.has('data-engineer')) {
+    agentMap.set('data-engineer', {
+      name: 'data-engineer',
+      role: 'data-engineer',
+      roleTitle: 'DATA ENG',
+      color: 'teal',
+      colorIndex: 7,
+      description: 'Data Engineer managing pipeline streaming, parquet, vector databases, and telemetry ETL',
+      defaultTask: 'ETL pipeline & vector store indexing',
+      targetBench: 4, // Bench 5 (AI & DATA)
+      tools: ['bash', 'sql', 'python']
     });
   }
 

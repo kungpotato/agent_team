@@ -538,6 +538,58 @@ program
     }
   });
 
+// DEPARTMENTS COMMAND
+program
+  .command('departments')
+  .alias('depts')
+  .description('Display status and occupancy for all 5 Startup Departments (Product, Designer, Tech, DevOps, AI & Data)')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/departments', 'GET', undefined, port);
+
+      console.log('\n🏢 TECH STARTUP DEPARTMENTS & BENCH ALLOCATION (5 Benches x 8 Seats = 40 Seats)');
+      console.log('═'.repeat(96));
+      console.log(`${'BENCH'.padEnd(8)} | ${'DEPARTMENT'.padEnd(30)} | ${'SEATS'.padEnd(8)} | ACTIVE SEATED AGENTS`);
+      console.log('─'.repeat(96));
+      for (const d of res.departments) {
+        const benchLabel = `Bench ${d.benchNumber}`;
+        const occStr = `[${d.occupancy}/8]`;
+        const agentNames = d.agents.length > 0 ? d.agents.map((a: any) => `${a.name}(${a.roleTitle || a.role})`).join(', ') : '(Empty bench)';
+        console.log(`${benchLabel.padEnd(8)} | ${d.name.padEnd(30)} | ${occStr.padEnd(8)} | ${agentNames}`);
+      }
+      console.log('═'.repeat(96));
+      console.log('💡 Spawn agents by department: "agent-team spawn-dept <product|designer|tech|devops|ai_data>"\n');
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+// SPAWN-DEPT COMMAND
+program
+  .command('spawn-dept <department> [count]')
+  .alias('spawn-department')
+  .alias('dept')
+  .description('Spawn agents into a specific department: product | designer | tech | devops | ai_data')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (department, countArg, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const count = parseInt(countArg, 10) || 1;
+      const res = await apiCall('/api/departments/spawn', 'POST', { department, count }, port);
+      console.log(`\n🏢 Spawned ${res.count} agent(s) into Department [${res.department}]:`);
+      for (const a of res.agents) {
+        const benchNum = Math.floor(a.slot / 8) + 1;
+        const seatNum = (a.slot % 8) + 1;
+        console.log(`  ✨ [${a.name}] (${a.roleTitle}) -> Desk ${benchNum} (Seat ${seatNum}) [${a.color || 'default'}]`);
+      }
+      console.log('');
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
 // SPAWN-POTATO COMMAND
 program
   .command('spawn-potato [roles...]')
