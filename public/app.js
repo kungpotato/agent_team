@@ -15,6 +15,7 @@ let meetingTopics = {};
 let meetingQueue = [];
 let visits = [];
 const visitAnims = new Map();
+let currentSprint = null;
 let animationFrame = 0;
 let particles = [];
 
@@ -281,6 +282,16 @@ function drawStartupDecor() {
   ctx.fillStyle = '#38bdf8'; ctx.fillRect(92, 58, 16, 12);
   ctx.fillStyle = '#4ade80'; ctx.fillRect(144, 58, 16, 12);
   ctx.fillStyle = '#fef08a'; ctx.fillRect(144, 74, 16, 12);
+
+  if (currentSprint && currentSprint.activeCeremony) {
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(27, 92, 156, 11);
+    ctx.font = '5px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${currentSprint.activeCeremony.shortName}`, 105, 100);
+    ctx.textAlign = 'left';
+  }
 
   // Startup Coffee & Energy Drink Bar
   const barX = 210;
@@ -883,7 +894,11 @@ function connectWS() {
         meetingTopics = data.payload.meetingTopics || {};
         meetingQueue = data.payload.meetingQueue || [];
         visits = data.payload.visits || [];
+        if (data.payload.sprint) {
+          currentSprint = data.payload.sprint;
+        }
         updateHUD();
+        updateSprintHUD();
 
         // Check if any agent disappeared -> spawn poof particle at chair position!
         for (const oldA of prevAgents) {
@@ -966,6 +981,47 @@ function updateHUD() {
     }
   }
 }
+
+function updateSprintHUD() {
+  if (!currentSprint) return;
+  const badge = document.getElementById('sprint-badge');
+  const story = document.getElementById('sprint-story');
+  const pts = document.getElementById('sprint-pts');
+
+  if (badge) badge.textContent = `🏃 SPRINT #${currentSprint.sprintNumber}`;
+  if (story) story.textContent = currentSprint.story;
+  if (pts) pts.textContent = `${currentSprint.storyPoints || 5} PTS`;
+
+  const steps = document.querySelectorAll('.c-step');
+  steps.forEach(step => {
+    const sIndex = parseInt(step.getAttribute('data-step'), 10);
+    if (sIndex < currentSprint.phaseIndex) {
+      step.className = 'c-step completed';
+    } else if (sIndex === currentSprint.phaseIndex) {
+      step.className = 'c-step active';
+    } else {
+      step.className = 'c-step';
+    }
+  });
+}
+
+window.quickSprintNext = async function() {
+  try {
+    const res = await fetch('/api/sprint/next', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.sprint) {
+      currentSprint = data.sprint;
+      updateSprintHUD();
+      if (window.soundSystem) window.soundSystem.playSpawn();
+    }
+  } catch (e) {
+    console.error('Failed to advance sprint:', e);
+  }
+};
+
 
 /**
  * QUICK ACTION BUTTONS

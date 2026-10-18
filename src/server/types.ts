@@ -53,16 +53,47 @@ export interface RoomStatusInfo {
   attendees: string[];
 }
 
+export type SprintPhase = 'idle' | 'validation' | 'grooming' | 'planning' | 'working' | 'demo' | 'retro' | 'completed';
+
+export interface SprintCeremonyInfo {
+  phase: SprintPhase;
+  phaseIndex: number; // 1 to 6
+  name: string;
+  shortName: string;
+  description: string;
+  room?: number;
+  attendees: string[];
+  topic: string;
+  startedAt: number;
+}
+
+export interface SprintState {
+  sprintNumber: number;
+  story: string;
+  storyPoints?: number;
+  phase: SprintPhase;
+  phaseIndex: number; // 0 to 6 (0 = idle)
+  startedAt: number;
+  activeCeremony?: SprintCeremonyInfo;
+  history: {
+    phase: SprintPhase;
+    timestamp: number;
+    summary: string;
+  }[];
+}
+
 export interface ServerState {
   agents: Agent[];
   meetingTopics: Record<number, string>; // room 1..5 -> topic
   meetingQueue: MeetingQueueItem[];
   visits: VisitSession[];
+  sprint: SprintState;
 }
 
 export type WSMessage =
   | { type: 'INIT'; payload: ServerState }
   | { type: 'STATE_UPDATE'; payload: ServerState }
-  | { type: 'AGENT_EVENT'; payload: { event: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent } };
+  | { type: 'AGENT_EVENT'; payload: { event: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent } }
+  | { type: 'SPRINT_UPDATE'; payload: SprintState };
 
 

@@ -401,6 +401,113 @@ export function createOfficeMcpServer(): McpServer {
     }
   );
 
+  // 13. SPRINT START
+  server.tool(
+    'office_sprint_start',
+    'Start a new Sprint cycle with a story card and optional story points estimation.',
+    {
+      sprint_number: z.number().optional().describe('Sprint number (e.g. 1, 2)'),
+      story: z.string().describe('User story / feature ticket title (e.g. "AUTH-101: Implement OAuth2 & JWT Security")'),
+      points: z.number().optional().describe('Story points estimation (default: 5)')
+    },
+    async ({ sprint_number, story, points }) => {
+      const res = await apiCall('/api/sprint/start', 'POST', { sprintNumber: sprint_number, story, points });
+      return {
+        content: [{
+          type: 'text',
+          text: `🏃 SPRINT #${res.sprint.sprintNumber} INITIALIZED!\n📋 Story: "${res.sprint.story}" (${res.sprint.storyPoints} pts)\n📍 Phase: ${res.sprint.phase.toUpperCase()}\n💡 Next: Run office_sprint_ceremony with phase: "validation" or run office_sprint_next.`
+        }]
+      };
+    }
+  );
+
+  // 14. SPRINT CEREMONY
+  server.tool(
+    'office_sprint_ceremony',
+    'Execute a specific Agile Sprint Ceremony: 1.validation (PO & Dev AC validation) | 2.grooming (Dev & QA point estimation) | 3.planning (Boardroom task distribution) | 4.working (All agents actively coding at desks) | 5.demo (Feature Demo & UAT acceptance) | 6.retro (Retrospective & lessons learned)',
+    {
+      phase: z.enum(['validation', 'grooming', 'planning', 'working', 'demo', 'retro']).describe('Ceremony phase to execute'),
+      points: z.number().optional().describe('Story points (for grooming phase)'),
+      topic: z.string().optional().describe('Custom meeting topic')
+    },
+    async ({ phase, points, topic }) => {
+      const res = await apiCall('/api/sprint/ceremony', 'POST', { phase, points, topic });
+      const c = res.ceremony;
+      let text = `🎉 SPRINT CEREMONY #${c.phaseIndex}: ${c.name.toUpperCase()}\n📝 Description: ${c.description}\n🏷️ Topic: "${c.topic}"`;
+      if (c.room) {
+        text += `\n🏢 Location: Meeting Room ${c.room}\n👥 Attendees: [${c.attendees.join(', ')}]`;
+      } else {
+        text += `\n💻 Location: Open-Space Workbenches (All agents actively coding at desks)`;
+      }
+      return {
+        content: [{ type: 'text', text }]
+      };
+    }
+  );
+
+  // 15. SPRINT NEXT
+  server.tool(
+    'office_sprint_next',
+    'Advance to the next Sprint Ceremony in sequence (1.validation -> 2.grooming -> 3.planning -> 4.working -> 5.demo -> 6.retro).',
+    {},
+    async () => {
+      const res = await apiCall('/api/sprint/next', 'POST');
+      const c = res.ceremony;
+      let text = `⏩ ADVANCED TO SPRINT CEREMONY #${c.phaseIndex}: ${c.name.toUpperCase()}\n📝 Description: ${c.description}\n🏷️ Topic: "${c.topic}"`;
+      if (c.room) {
+        text += `\n🏢 Location: Meeting Room ${c.room}\n👥 Attendees: [${c.attendees.join(', ')}]`;
+      } else {
+        text += `\n💻 Location: Open-Space Workbenches (All agents coding at desks)`;
+      }
+      return {
+        content: [{ type: 'text', text }]
+      };
+    }
+  );
+
+  // 16. SPRINT STATUS
+  server.tool(
+    'office_sprint_status',
+    'Get current Sprint details, active ceremony, story points, and ceremony pipeline progress.',
+    {},
+    async () => {
+      const res = await apiCall('/api/sprint', 'GET');
+      const s = res.sprint;
+      const CEREMONIES = [
+        { idx: 1, name: '1. Validation' },
+        { idx: 2, name: '2. Grooming' },
+        { idx: 3, name: '3. Planning' },
+        { idx: 4, name: '4. Work' },
+        { idx: 5, name: '5. Demo+UAT' },
+        { idx: 6, name: '6. Retro' }
+      ];
+      const badges = CEREMONIES.map(c => {
+        if (c.idx < s.phaseIndex) return `[✅ ${c.name}]`;
+        if (c.idx === s.phaseIndex) return `[▶️ ${c.name.toUpperCase()}]`;
+        return `[⬜ ${c.name}]`;
+      });
+
+      const lines = [
+        `🏃 SPRINT #${s.sprintNumber} STATUS REPORT:`,
+        `📋 Story Card:   "${s.story}"`,
+        `🎯 Story Points:  ${s.storyPoints || 'Not estimated'} pts`,
+        `📍 Current Phase: ${s.phase.toUpperCase()} (${s.phaseIndex}/6)`,
+        `📈 Pipeline:      ${badges.join(' ➔ ')}`
+      ];
+
+      if (s.activeCeremony) {
+        lines.push(`🔔 Active Ceremony: "${s.activeCeremony.topic}"`);
+        if (s.activeCeremony.room) {
+          lines.push(`   Room: ${s.activeCeremony.room} | Attendees: [${s.activeCeremony.attendees.join(', ')}]`);
+        }
+      }
+
+      return {
+        content: [{ type: 'text', text: lines.join('\n') }]
+      };
+    }
+  );
+
   return server;
 }
 

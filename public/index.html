@@ -39,6 +39,31 @@
       </div>
     </header>
 
+    <!-- SPRINT CEREMONIES HUD PIPELINE -->
+    <div class="sprint-pipeline-bar" id="sprint-pipeline-bar">
+      <div class="sprint-meta">
+        <span class="sprint-tag" id="sprint-badge">🏃 SPRINT #1</span>
+        <span class="sprint-story" id="sprint-story">AUTH-101: Implement OAuth2 & JWT Security</span>
+        <span class="sprint-pts" id="sprint-pts">5 PTS</span>
+      </div>
+      <div class="ceremony-steps" id="ceremony-steps">
+        <span class="c-step" data-step="1">1. VALIDATION</span>
+        <span class="c-arrow">➔</span>
+        <span class="c-step" data-step="2">2. GROOMING</span>
+        <span class="c-arrow">➔</span>
+        <span class="c-step" data-step="3">3. PLANNING</span>
+        <span class="c-arrow">➔</span>
+        <span class="c-step" data-step="4">4. SPRINT WORK</span>
+        <span class="c-arrow">➔</span>
+        <span class="c-step" data-step="5">5. DEMO + UAT</span>
+        <span class="c-arrow">➔</span>
+        <span class="c-step" data-step="6">6. RETRO</span>
+      </div>
+      <button class="sprint-next-btn" onclick="quickSprintNext()" title="Advance to Next Sprint Ceremony">
+        ⏩ NEXT CEREMONY
+      </button>
+    </div>
+
     <!-- LIVE TASK & PROGRESS TICKER -->
     <div class="task-ticker">
       <span class="ticker-label">📊 LIVE AGENT TASKS:</span>

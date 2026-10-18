@@ -434,3 +434,106 @@ body {
   color: var(--amber);
   font-weight: bold;
 }
+
+/* SPRINT CEREMONIES HUD PIPELINE */
+.sprint-pipeline-bar {
+  background: #0c111e;
+  border-bottom: 2px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  gap: 12px;
+  font-size: 8px;
+  z-index: 10;
+  overflow-x: auto;
+}
+
+.sprint-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sprint-tag {
+  background: #2563eb;
+  color: #fff;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.sprint-story {
+  color: #f1f5f9;
+  font-weight: bold;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sprint-pts {
+  background: #f59e0b;
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+.ceremony-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.c-step {
+  padding: 3px 7px;
+  border-radius: 3px;
+  border: 1px solid #334155;
+  background: #151b2e;
+  color: #94a3b8;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.c-step.active {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: #f59e0b;
+  color: #fbbf24;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+  font-weight: bold;
+}
+
+.c-step.completed {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.c-arrow {
+  color: #475569;
+  font-size: 7px;
+}
+
+.sprint-next-btn {
+  background: #1e293b;
+  color: #38bdf8;
+  border: 1px solid #0284c7;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sprint-next-btn:hover {
+  background: #0284c7;
+  color: #fff;
+  box-shadow: 0 0 8px #38bdf8;
+}

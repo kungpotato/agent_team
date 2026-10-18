@@ -195,9 +195,43 @@ export function createServer() {
     res.json(Array.from(potatoAgentRegistry.values()));
   });
 
-  app.post('/api/potato-agents/spawn-squad', (req, res) => {
-    const agents = stateManager.spawnPotatoSquad();
-    res.json({ success: true, count: agents.length, agents });
+  app.get('/api/sprint', (req, res) => {
+    res.json({ success: true, sprint: stateManager.getSprint() });
+  });
+
+  app.post('/api/sprint/start', (req, res) => {
+    const { sprintNumber, story, points } = req.body || {};
+    const sprint = stateManager.startSprint(
+      sprintNumber ? Number(sprintNumber) : undefined,
+      story,
+      points ? Number(points) : undefined
+    );
+    res.json({ success: true, sprint });
+  });
+
+  app.post('/api/sprint/ceremony', (req, res) => {
+    try {
+      const { phase, points, topic } = req.body || {};
+      if (!phase) {
+        return res.status(400).json({ error: 'phase is required (validation, grooming, planning, working, demo, retro or 1..6)' });
+      }
+      const result = stateManager.runCeremony(phase, {
+        points: points ? Number(points) : undefined,
+        topic
+      });
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/sprint/next', (req, res) => {
+    try {
+      const result = stateManager.nextCeremony();
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   return { app, server };

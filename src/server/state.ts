@@ -1,11 +1,91 @@
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
+
+export const SPRINT_CEREMONIES: {
+  phase: SprintPhase;
+  phaseIndex: number;
+  name: string;
+  shortName: string;
+  description: string;
+  room?: number;
+  roles: string[];
+  defaultTopic: string;
+}[] = [
+  {
+    phase: 'validation',
+    phaseIndex: 1,
+    name: 'Story Refinement & Validation',
+    shortName: '1. VALIDATION',
+    description: 'PO brings story cards to dev/architect for refinement and validation.',
+    room: 2,
+    roles: ['product-manager', 'system-architect', 'coder'],
+    defaultTopic: 'Story Validation & AC Refinement'
+  },
+  {
+    phase: 'grooming',
+    phaseIndex: 2,
+    name: 'Backlog Grooming & Point Estimation',
+    shortName: '2. GROOMING',
+    description: 'Dev, QA, and PO discuss story cards and estimate story points.',
+    room: 1,
+    roles: ['product-manager', 'coder', 'qa-tester', 'code-reviewer', 'system-architect'],
+    defaultTopic: 'Backlog Grooming & Point Estimation'
+  },
+  {
+    phase: 'planning',
+    phaseIndex: 3,
+    name: 'Sprint Planning & Task Distribution',
+    shortName: '3. PLANNING',
+    description: 'All relevant agents gather in Boardroom to distribute and commit to sprint tasks.',
+    room: 5,
+    roles: ['project-planner', 'product-manager', 'system-architect', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release'],
+    defaultTopic: 'Sprint Planning: Task Distribution'
+  },
+  {
+    phase: 'working',
+    phaseIndex: 4,
+    name: 'Sprint Execution (Active Work)',
+    shortName: '4. SPRINT WORK',
+    description: 'All agents work at their desks with typing animations and task HUDs.',
+    roles: ['product-manager', 'project-planner', 'system-architect', 'ui-ux-designer', 'design-to-code', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release'],
+    defaultTopic: 'Sprint Execution in Progress'
+  },
+  {
+    phase: 'demo',
+    phaseIndex: 5,
+    name: 'Sprint Demo & UAT Acceptance',
+    shortName: '5. DEMO + UAT',
+    description: 'All relevant agents gather for feature demo and UAT sign-off.',
+    room: 3,
+    roles: ['product-manager', 'coder', 'qa-tester', 'devops-release'],
+    defaultTopic: 'Sprint Demo & UAT Sign-Off'
+  },
+  {
+    phase: 'retro',
+    phaseIndex: 6,
+    name: 'Sprint Retrospective',
+    shortName: '6. RETRO',
+    description: 'All agents gather to review lessons learned from issues to improve.',
+    room: 5,
+    roles: ['product-manager', 'project-planner', 'system-architect', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release'],
+    defaultTopic: 'Sprint Retrospective: Lessons Learned'
+  }
+];
 
 export class StateManager {
   private agents: Map<string, Agent> = new Map();
   private meetingTopics: Map<number, string> = new Map();
   private meetingQueue: MeetingQueueItem[] = [];
   private visits: Map<string, VisitSession> = new Map();
+  private sprint: SprintState = {
+    sprintNumber: 1,
+    story: 'AUTH-101: Implement OAuth2 & JWT Security',
+    storyPoints: 5,
+    phase: 'idle',
+    phaseIndex: 0,
+    startedAt: Date.now(),
+    history: []
+  };
   private listeners: ((state: ServerState, event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) => void)[] = [];
 
   constructor() {}
@@ -34,7 +114,8 @@ export class StateManager {
       agents: Array.from(this.agents.values()).sort((a, b) => a.updatedAt - b.updatedAt),
       meetingTopics: topicsObj,
       meetingQueue: [...this.meetingQueue],
-      visits: Array.from(this.visits.values())
+      visits: Array.from(this.visits.values()),
+      sprint: { ...this.sprint }
     };
   }
 
@@ -419,9 +500,17 @@ export class StateManager {
     );
 
     for (const rawName of names) {
-      let agent = this.agents.get(rawName.toLowerCase());
+      const lower = rawName.toLowerCase();
+      let agent = this.agents.get(lower);
       if (!agent) {
-        agent = this.spawn(rawName, 'talking', topic || 'Discussing...');
+        agent = Array.from(this.agents.values()).find(a =>
+          a.name.toLowerCase() === lower ||
+          a.role.toLowerCase() === lower ||
+          a.name.toLowerCase().startsWith(lower)
+        );
+        if (!agent) {
+          agent = this.spawn(rawName, 'talking', topic || 'Discussing...');
+        }
       }
 
       agent.room = 'meeting';
@@ -692,6 +781,15 @@ export class StateManager {
     this.meetingTopics.clear();
     this.meetingQueue = [];
     this.visits.clear();
+    this.sprint = {
+      sprintNumber: this.sprint.sprintNumber || 1,
+      story: this.sprint.story || 'AUTH-101: Implement OAuth2 & JWT Security',
+      storyPoints: this.sprint.storyPoints || 5,
+      phase: 'idle',
+      phaseIndex: 0,
+      startedAt: Date.now(),
+      history: []
+    };
     const dummyAgent: Agent = {
       id: '_all',
       name: 'all',
@@ -704,6 +802,169 @@ export class StateManager {
     };
     this.notify({ type: 'disappear', agent: dummyAgent });
     return { count };
+  }
+
+  /**
+   * Start or initialize a sprint
+   */
+  public startSprint(sprintNumber?: number, story?: string, points?: number): SprintState {
+    const num = sprintNumber || (this.sprint.sprintNumber ? this.sprint.sprintNumber + 1 : 1);
+    const storyTitle = story || this.sprint.story || 'AUTH-101: Implement OAuth2 & JWT Security';
+    const pts = points !== undefined ? points : (this.sprint.storyPoints || 5);
+
+    this.sprint = {
+      sprintNumber: num,
+      story: storyTitle,
+      storyPoints: pts,
+      phase: 'idle',
+      phaseIndex: 0,
+      startedAt: Date.now(),
+      history: []
+    };
+
+    const dummyAgent: Agent = {
+      id: '_sprint',
+      name: 'sprint',
+      role: 'sprint',
+      status: 'working',
+      room: 'work',
+      slot: 0,
+      colorIndex: 0,
+      updatedAt: Date.now()
+    };
+    this.notify({ type: 'spawn', agent: dummyAgent });
+    return { ...this.sprint };
+  }
+
+  /**
+   * Run a specific sprint ceremony (1: validation, 2: grooming, 3: planning, 4: working, 5: demo, 6: retro)
+   */
+  public runCeremony(phaseOrIndex: string | number, options?: { points?: number; topic?: string }): { ceremony: SprintCeremonyInfo; sprint: SprintState } {
+    let target = SPRINT_CEREMONIES.find(c =>
+      (typeof phaseOrIndex === 'number' && c.phaseIndex === phaseOrIndex) ||
+      (typeof phaseOrIndex === 'string' && (c.phase.toLowerCase() === phaseOrIndex.toLowerCase() || String(c.phaseIndex) === phaseOrIndex))
+    );
+
+    if (!target) {
+      const lower = String(phaseOrIndex).toLowerCase();
+      if (lower.includes('val')) target = SPRINT_CEREMONIES[0];
+      else if (lower.includes('groom') || lower.includes('refine')) target = SPRINT_CEREMONIES[1];
+      else if (lower.includes('plan')) target = SPRINT_CEREMONIES[2];
+      else if (lower.includes('work') || lower.includes('exec')) target = SPRINT_CEREMONIES[3];
+      else if (lower.includes('demo') || lower.includes('uat') || lower.includes('review')) target = SPRINT_CEREMONIES[4];
+      else if (lower.includes('retro')) target = SPRINT_CEREMONIES[5];
+    }
+
+    if (!target) {
+      throw new Error(`Unknown ceremony phase "${phaseOrIndex}". Supported: validation, grooming, planning, working, demo, retro (or 1..6)`);
+    }
+
+    if (options?.points !== undefined) {
+      this.sprint.storyPoints = options.points;
+    }
+
+    const topic = options?.topic || `${target.shortName}: ${this.sprint.story} ${this.sprint.storyPoints ? `(${this.sprint.storyPoints} pts)` : ''}`;
+
+    // Execute ceremony flow
+    if (target.room !== undefined) {
+      // Free the room first so attendees can cleanly enter
+      this.endMeeting({ roomId: target.room });
+
+      // 1. Gather attendees for meeting
+      const attendeeNames: string[] = [];
+      for (const role of target.roles) {
+        const lower = role.toLowerCase();
+        let agent = Array.from(this.agents.values()).find(a =>
+          a.name.toLowerCase() === lower ||
+          a.role.toLowerCase() === lower ||
+          a.name.toLowerCase().startsWith(lower)
+        );
+        if (!agent) {
+          agent = this.spawn(role, 'working', 'Joining ceremony');
+        }
+        attendeeNames.push(agent.name);
+      }
+
+      this.startMeeting(attendeeNames, topic, target.room);
+    } else {
+      // Phase 4: SPRINT WORK (everyone back to desks)
+      this.endMeeting(); // Free meeting rooms
+
+      const SPRINT_TASKS: Record<string, { task: string; progress: number }> = {
+        'product-manager': { task: 'Tracking acceptance criteria', progress: 40 },
+        'project-planner': { task: 'Monitoring DAG wave execution', progress: 50 },
+        'system-architect': { task: 'Verifying OpenAPI specs', progress: 60 },
+        'ui-ux-designer': { task: 'Polishing interactive UI design', progress: 55 },
+        'design-to-code': { task: 'Translating tokens to components', progress: 65 },
+        'coder': { task: 'Implementing core logic & unit tests', progress: 75 },
+        'code-reviewer': { task: 'AST security rules verification', progress: 70 },
+        'qa-tester': { task: 'Synthesizing fuzz test suite', progress: 65 },
+        'runtime-sre': { task: 'Analyzing latency telemetry SLO', progress: 80 },
+        'devops-release': { task: 'Configuring Canary rollout pipeline', progress: 60 }
+      };
+
+      for (const role of target.roles) {
+        const lower = role.toLowerCase();
+        let agent = Array.from(this.agents.values()).find(a =>
+          a.name.toLowerCase() === lower ||
+          a.role.toLowerCase() === lower ||
+          a.name.toLowerCase().startsWith(lower)
+        );
+        if (!agent) {
+          agent = this.spawn(role, 'working', 'Coding...');
+        }
+        const taskInfo = SPRINT_TASKS[role] || { task: 'Sprint Task Execution', progress: 50 };
+        this.setWorking(agent.name, taskInfo.task, taskInfo.progress);
+      }
+    }
+
+    const ceremonyInfo: SprintCeremonyInfo = {
+      phase: target.phase,
+      phaseIndex: target.phaseIndex,
+      name: target.name,
+      shortName: target.shortName,
+      description: target.description,
+      room: target.room,
+      attendees: [...target.roles],
+      topic,
+      startedAt: Date.now()
+    };
+
+    this.sprint.phase = target.phase;
+    this.sprint.phaseIndex = target.phaseIndex;
+    this.sprint.activeCeremony = ceremonyInfo;
+    this.sprint.history.push({
+      phase: target.phase,
+      timestamp: Date.now(),
+      summary: topic
+    });
+
+    const dummyAgent: Agent = {
+      id: '_ceremony',
+      name: 'ceremony',
+      role: 'ceremony',
+      status: 'working',
+      room: 'work',
+      slot: 0,
+      colorIndex: 0,
+      updatedAt: Date.now()
+    };
+    this.notify({ type: 'spawn', agent: dummyAgent });
+
+    return { ceremony: ceremonyInfo, sprint: { ...this.sprint } };
+  }
+
+  /**
+   * Advance to the next sprint ceremony in sequence (1 -> 2 -> 3 -> 4 -> 5 -> 6)
+   */
+  public nextCeremony(): { ceremony: SprintCeremonyInfo; sprint: SprintState } {
+    let nextIndex = this.sprint.phaseIndex + 1;
+    if (nextIndex > 6) nextIndex = 1;
+    return this.runCeremony(nextIndex);
+  }
+
+  public getSprint(): SprintState {
+    return { ...this.sprint };
   }
 
   public getAgent(name: string): Agent | undefined {
