@@ -41,7 +41,11 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
 ### Rule 4: Retrospective Is Non-Negotiable (Phase 8 Mandatory)
 - After every production release, Claude must assemble the team in the Boardroom (Room 5) for Phase 8 (`retro`) to document lessons learned before concluding the sprint cycle.
 
-### Rule 5: Continuous Sprint Lifecycle (Start ➔ Complete ➔ Start Next)
+### Rule 5: Continuous Sprint Lifecycle & Story Card Backlog (Taskwarrior Default & Jira)
+- **Default Card Backlog Provider**: Sprints and ceremonies work with story cards sourced from **Taskwarrior (Kanban)** by default, or optionally from **Jira**.
+- When calling `office_sprint_start` without a story or card ID, it automatically selects the top pending card from Taskwarrior.
+- Starting a sprint with a card marks it in-progress (`task <id> start`).
+- Completing a sprint via `office_sprint_complete` automatically marks the card as completed (`task <id> done` or transitions Jira issue to Done).
 - Once the sprint retrospective is complete, Claude MUST call `office_sprint_complete` (or `agent-team sprint complete`) to formally close and archive the sprint.
 - To take on new work, Claude immediately launches the next sprint with `office_sprint_start` (auto-incrementing to Sprint #N+1). This allows continuous agile delivery across infinite milestones.
 
@@ -53,7 +57,9 @@ When Claude operates via MCP or terminal CLI:
 
 | Sprint Step | MCP Tool Call | CLI Command Shortcut |
 |---|---|---|
-| Initialize Sprint | `office_sprint_start({ sprint_number, story, points })` | `agent-team sprint start [num] [story] -p [pts]` |
+| View Card Backlog | `office_get_cards({ source: "taskwarrior" })` | `agent-team cards` or `agent-team backlog` |
+| Add Story Card | `office_add_card({ title, points, tags, priority })` | `agent-team card-add <title> -p <pts>` |
+| Initialize Sprint | `office_sprint_start({ card_id, source: "taskwarrior", sprint_number, story, points })` | `agent-team sprint start [-c id] [-s tw]` |
 | 1. Validation | `office_sprint_ceremony({ phase: "validation" })` | `agent-team validate` |
 | 2. Grooming | `office_sprint_ceremony({ phase: "grooming", points: N })`| `agent-team groom [pts]` |
 | 3. Planning | `office_sprint_ceremony({ phase: "planning" })` | `agent-team plan` |

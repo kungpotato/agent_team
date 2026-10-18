@@ -1,5 +1,6 @@
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
+import { cardManager } from './cards.js';
 
 export const SPRINT_CEREMONIES: {
   phase: SprintPhase;
@@ -829,12 +830,47 @@ export class StateManager {
 
   /**
    * Start or initialize a sprint (starts new cycle e.g. Sprint #1 -> #2 -> #3)
+   * Cards can be sourced from Taskwarrior (default) or Jira
    */
-  public startSprint(sprintNumber?: number, story?: string, points?: number): SprintState {
+  public async startSprint(
+    sprintNumberOrOptions?: number | { sprintNumber?: number; story?: string; points?: number; cardId?: string; source?: CardSourceProvider },
+    storyArg?: string,
+    pointsArg?: number
+  ): Promise<SprintState> {
+    const opts = typeof sprintNumberOrOptions === 'object' && sprintNumberOrOptions !== null
+      ? sprintNumberOrOptions
+      : {
+          sprintNumber: typeof sprintNumberOrOptions === 'number' ? sprintNumberOrOptions : undefined,
+          story: storyArg,
+          points: pointsArg
+        };
+
     const isCompleted = this.sprint.phase === 'completed';
-    const num = sprintNumber || (isCompleted ? (this.sprint.sprintNumber || 0) + 1 : (this.sprint.sprintNumber || 1));
-    const storyTitle = story || (isCompleted ? `FEATURE-${num}01: Continuous Delivery Increment #${num}` : (this.sprint.story || 'AUTH-101: Implement OAuth2 & JWT Security'));
-    const pts = points !== undefined ? points : (this.sprint.storyPoints || 5);
+    const num = opts.sprintNumber || (isCompleted ? (this.sprint.sprintNumber || 0) + 1 : (this.sprint.sprintNumber || 1));
+    const cardSrc = opts.source || 'taskwarrior';
+
+    let card: StoryCard | undefined;
+    if (opts.cardId) {
+      card = await cardManager.getCard(opts.cardId, cardSrc);
+    } else if (!opts.story) {
+      // Default to Taskwarrior Kanban: pick the first pending card
+      try {
+        const pendingCards = await cardManager.getCards(cardSrc);
+        const todoCard = pendingCards.find(c => c.status === 'todo');
+        if (todoCard) {
+          card = todoCard;
+        }
+      } catch {
+        // Fall back gracefully
+      }
+    }
+
+    if (card) {
+      await cardManager.startCard(card).catch(() => {});
+    }
+
+    const storyTitle = opts.story || (card ? card.title : (isCompleted ? `FEATURE-${num}01: Continuous Delivery Increment #${num}` : (this.sprint.story || 'AUTH-101: Implement OAuth2 & JWT Security')));
+    const pts = opts.points !== undefined ? opts.points : (card?.points || this.sprint.storyPoints || 5);
 
     // Free any active meeting rooms
     this.endMeeting();
@@ -846,6 +882,7 @@ export class StateManager {
       phase: 'idle',
       phaseIndex: 0,
       startedAt: Date.now(),
+      sourceCard: card,
       history: [],
       completedSprints: [...this.completedSprints]
     };
@@ -1062,8 +1099,13 @@ export class StateManager {
       startedAt: this.sprint.startedAt,
       completedAt,
       ceremoniesCount: this.sprint.history.length,
-      summary: summary || `Sprint #${this.sprint.sprintNumber} ("${this.sprint.story}") completed successfully (${this.sprint.storyPoints || 5} pts).`
+      summary: summary || `Sprint #${this.sprint.sprintNumber} ("${this.sprint.story}") completed successfully (${this.sprint.storyPoints || 5} pts).`,
+      sourceCard: this.sprint.sourceCard
     };
+
+    if (this.sprint.sourceCard) {
+      cardManager.completeCard(this.sprint.sourceCard).catch(() => {});
+    }
 
     this.completedSprints.push(record);
 

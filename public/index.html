@@ -29,6 +29,9 @@
         </div>
       </div>
       <div class="header-right">
+        <button id="cards-toggle" class="retro-btn" onclick="toggleCardsModal()" title="View Taskwarrior & Jira Cards Backlog">
+          📋 CARDS (KANBAN)
+        </button>
         <button id="gallery-toggle" class="retro-btn" onclick="toggleGallery()" title="View Generated 8-Bit GIFs & Sprites">
           🖼️ SPRITES & GIFS
         </button>
@@ -43,6 +46,7 @@
     <div class="sprint-pipeline-bar" id="sprint-pipeline-bar">
       <div class="sprint-meta">
         <span class="sprint-tag" id="sprint-badge">🏃 SPRINT #1</span>
+        <span class="sprint-card-source" id="sprint-card-source" style="display:none; background:#10b981; color:#fff; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:3px; margin-right:4px;">[TW]</span>
         <span class="sprint-story" id="sprint-story">AUTH-101: Implement OAuth2 & JWT Security</span>
         <span class="sprint-pts" id="sprint-pts">5 PTS</span>
       </div>
@@ -125,6 +129,43 @@
             <div class="modal-links">
               <a href="assets/spritesheet.png" download class="retro-btn">⬇️ Download Spritesheet PNG</a>
               <a href="assets/spritesheet.json" target="_blank" class="retro-btn">📄 View LibreSprite/Aseprite JSON</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STORY CARDS (KANBAN) BACKLOG MODAL -->
+    <div id="cards-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-content" style="max-width: 760px;">
+        <div class="modal-header">
+          <h3>📋 STORY CARDS BACKLOG (Taskwarrior default & Jira)</h3>
+          <button class="close-btn" onclick="toggleCardsModal()">✖</button>
+        </div>
+        <div class="modal-body">
+          <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+            <button class="retro-btn active" id="tab-tw" onclick="switchCardSource('taskwarrior')">📌 Taskwarrior (Kanban)</button>
+            <button class="retro-btn" id="tab-jira" onclick="switchCardSource('jira')">🔷 Jira</button>
+            <span style="font-size: 11px; color: #94a3b8; margin-left: auto;">Default: <b>Taskwarrior</b></span>
+          </div>
+
+          <!-- Cards Table / List -->
+          <div id="cards-list-container" style="max-height: 280px; overflow-y: auto; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 8px; margin-bottom: 14px;">
+            <div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 20px;">Loading backlog cards...</div>
+          </div>
+
+          <!-- Quick Add Card to Taskwarrior Form -->
+          <div style="background: #1e293b; padding: 10px; border-radius: 4px; border: 1px solid #334155;">
+            <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #38bdf8;">➕ Quick Add Story Card to Taskwarrior Backlog</h4>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <input type="text" id="new-card-title" placeholder="Story title (e.g. AUTH-102: Add 2FA SMS code)" style="flex: 1; min-width: 220px; padding: 4px 8px; background: #0f172a; border: 1px solid #475569; color: #fff; font-size: 12px; border-radius: 3px;" />
+              <input type="number" id="new-card-pts" placeholder="Pts (5)" value="5" min="1" max="21" style="width: 60px; padding: 4px 8px; background: #0f172a; border: 1px solid #475569; color: #fff; font-size: 12px; border-radius: 3px;" />
+              <select id="new-card-pri" style="padding: 4px 8px; background: #0f172a; border: 1px solid #475569; color: #fff; font-size: 12px; border-radius: 3px;">
+                <option value="H">High (H)</option>
+                <option value="M" selected>Med (M)</option>
+                <option value="L">Low (L)</option>
+              </select>
+              <button class="retro-btn" onclick="submitNewCard()" style="background: #10b981; color: #fff;">+ Add Card</button>
             </div>
           </div>
         </div>

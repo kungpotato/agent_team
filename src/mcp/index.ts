@@ -434,18 +434,27 @@ STRICT RULES:
   // 13. SPRINT START
   server.tool(
     'office_sprint_start',
-    'Start a new Sprint cycle with a story card and optional story points estimation.',
+    'Start a new Sprint cycle. Story cards can be picked from Taskwarrior (default kanban backlog) or Jira, or provided manually. Defaults to Taskwarrior top pending card if no story or card_id is provided.',
     {
       sprint_number: z.number().optional().describe('Sprint number (e.g. 1, 2)'),
-      story: z.string().describe('User story / feature ticket title (e.g. "AUTH-101: Implement OAuth2 & JWT Security")'),
-      points: z.number().optional().describe('Story points estimation (default: 5)')
+      card_id: z.string().optional().describe('Story card ID from Taskwarrior (e.g. "1") or Jira (e.g. "JIRA-101")'),
+      source: z.enum(['taskwarrior', 'jira']).optional().describe('Story card source provider (default: taskwarrior)'),
+      story: z.string().optional().describe('User story title (optional if card_id or Taskwarrior backlog is used)'),
+      points: z.number().optional().describe('Story points estimation (default: card points or 5)')
     },
-    async ({ sprint_number, story, points }) => {
-      const res = await apiCall('/api/sprint/start', 'POST', { sprintNumber: sprint_number, story, points });
+    async ({ sprint_number, card_id, source, story, points }) => {
+      const res = await apiCall('/api/sprint/start', 'POST', {
+        sprintNumber: sprint_number,
+        cardId: card_id,
+        source: source || 'taskwarrior',
+        story,
+        points
+      });
+      const cardBadge = res.sprint.sourceCard ? ` [${res.sprint.sourceCard.source.toUpperCase()}: ${res.sprint.sourceCard.id}]` : '';
       return {
         content: [{
           type: 'text',
-          text: `🏃 SPRINT #${res.sprint.sprintNumber} INITIALIZED!\n📋 Story: "${res.sprint.story}" (${res.sprint.storyPoints} pts)\n📍 Phase: ${res.sprint.phase.toUpperCase()}\n💡 Next: Run office_sprint_ceremony with phase: "validation" or run office_sprint_next.`
+          text: `🏃 SPRINT #${res.sprint.sprintNumber} INITIALIZED!\n📋 Story Card:${cardBadge} "${res.sprint.story}" (${res.sprint.storyPoints} pts)\n📍 Phase: ${res.sprint.phase.toUpperCase()}\n💡 Next: Run office_sprint_ceremony with phase: "validation" or run office_sprint_next.`
         }]
       };
     }
@@ -519,9 +528,10 @@ STRICT RULES:
         return `[⬜ ${c.name}]`;
       });
 
+      const cardBadge = s.sourceCard ? ` [${s.sourceCard.source.toUpperCase()}: ${s.sourceCard.id}]` : '';
       const lines = [
         `🏃 SPRINT #${s.sprintNumber} STATUS REPORT:`,
-        `📋 Story Card:   "${s.story}"`,
+        `📋 Story Card:  ${cardBadge} "${s.story}"`,
         `🎯 Story Points:  ${s.storyPoints || 'Not estimated'} pts`,
         `📍 Current Phase: ${s.phase.toUpperCase()} (${s.phaseIndex}/8)`,
         `📈 Pipeline:      ${badges.join(' ➔ ')}`
@@ -565,6 +575,63 @@ STRICT RULES:
         content: [{
           type: 'text',
           text: `🏆 SPRINT #${r.sprintNumber} COMPLETED & ARCHIVED!\n📋 Story: "${r.story}" (${r.storyPoints} pts)\n⏱️ Ceremonies: ${r.ceremoniesCount} phases executed\n📝 Summary: "${r.summary}"\n\n💡 Ready for the next sprint! Call "office_sprint_start" to begin Sprint #${r.sprintNumber + 1}.`
+        }]
+      };
+    }
+  );
+
+  // 18. GET STORY CARDS (Taskwarrior default, or Jira)
+  server.tool(
+    'office_get_cards',
+    'List story cards from the backlog. Defaults to Taskwarrior (local kanban), or Jira. Use these cards to feed into sprint ceremonies.',
+    {
+      source: z.enum(['taskwarrior', 'jira']).optional().describe('Backlog source provider: taskwarrior (default) or jira')
+    },
+    async ({ source }) => {
+      const src = source || 'taskwarrior';
+      const res = await apiCall(`/api/cards?source=${src}`, 'GET');
+      const lines = [
+        `📋 STORY CARDS BACKLOG [${src.toUpperCase()}] (${res.cards.length} cards):`,
+        ...res.cards.map((c: any) => {
+          const stat = c.status === 'done' ? '✅ DONE' : c.status === 'in_progress' ? '▶️ IN_PROG' : '⬜ TODO';
+          const pts = c.points !== undefined ? `${c.points} pts` : '-';
+          const pri = c.priority ? `[Pri: ${c.priority}]` : '';
+          const tags = c.tags && c.tags.length > 0 ? `(${c.tags.join(', ')})` : '';
+          return `  - #${c.id} | ${stat} | ${pts} ${pri} | "${c.title}" ${tags}`;
+        }),
+        ``,
+        `💡 To start a sprint with a card: call office_sprint_start with card_id: "<id>" and source: "${src}"`
+      ];
+      return {
+        content: [{ type: 'text', text: lines.join('\n') }]
+      };
+    }
+  );
+
+  // 19. ADD STORY CARD
+  server.tool(
+    'office_add_card',
+    'Add a new story card into the backlog (Taskwarrior kanban by default, or Jira).',
+    {
+      title: z.string().describe('Title of the user story card'),
+      points: z.number().optional().describe('Story points estimation (default: 5)'),
+      tags: z.array(z.string()).optional().describe('Tags/labels for the story card'),
+      priority: z.enum(['H', 'M', 'L']).optional().describe('Priority level: H, M, or L'),
+      source: z.enum(['taskwarrior', 'jira']).optional().describe('Target backlog provider (default: taskwarrior)')
+    },
+    async ({ title, points, tags, priority, source }) => {
+      const src = source || 'taskwarrior';
+      const res = await apiCall('/api/cards/add', 'POST', {
+        title,
+        points: points ?? 5,
+        tags,
+        priority,
+        source: src
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: `✨ CREATED STORY CARD [${src.toUpperCase()}] #${res.card.id}:\n📋 Title: "${res.card.title}"\n🎯 Points: ${res.card.points || '-'} pts | Priority: ${res.card.priority || '-'}\n💡 Ready to start sprint: call office_sprint_start with card_id: "${res.card.id}"`
         }]
       };
     }

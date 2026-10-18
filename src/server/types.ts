@@ -67,6 +67,20 @@ export interface SprintCeremonyInfo {
   startedAt: number;
 }
 
+export type CardSourceProvider = 'taskwarrior' | 'jira';
+
+export interface StoryCard {
+  id: string; // e.g. "1" or "AUTH-101"
+  title: string;
+  description?: string;
+  points?: number;
+  status: 'todo' | 'in_progress' | 'done';
+  source: CardSourceProvider;
+  project?: string;
+  priority?: string;
+  tags?: string[];
+}
+
 export interface SprintRecord {
   sprintNumber: number;
   story: string;
@@ -75,6 +89,7 @@ export interface SprintRecord {
   completedAt: number;
   ceremoniesCount: number;
   summary?: string;
+  sourceCard?: StoryCard;
 }
 
 export interface SprintState {
@@ -86,6 +101,7 @@ export interface SprintState {
   startedAt: number;
   completedAt?: number;
   activeCeremony?: SprintCeremonyInfo;
+  sourceCard?: StoryCard;
   history: {
     phase: SprintPhase;
     timestamp: number;

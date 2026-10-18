@@ -607,19 +607,28 @@ const sprintCmd = program
 
 sprintCmd
   .command('start [sprintNumber] [storyParts...]')
-  .description('Start a new Sprint with story ticket and story points')
-  .option('-p, --points <number>', 'Story points estimation (default: 5)', '5')
+  .description('Start a new Sprint with story ticket from Taskwarrior (default), Jira, or manual')
+  .option('-c, --card <id>', 'Card ID to pick from Taskwarrior or Jira')
+  .option('-s, --source <source>', 'Card source provider: taskwarrior (default) | jira', 'taskwarrior')
+  .option('-p, --points <number>', 'Story points estimation (default: 5 or card points)')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (sprintNumber, storyParts, options) => {
     try {
       const port = parseInt(options.port, 10);
       const num = sprintNumber && /^\d+$/.test(sprintNumber) ? parseInt(sprintNumber, 10) : undefined;
       const story = Array.isArray(storyParts) && storyParts.length > 0 ? storyParts.join(' ') : (!num && sprintNumber ? sprintNumber : undefined);
-      const points = parseInt(options.points, 10) || 5;
+      const points = options.points ? parseInt(options.points, 10) : undefined;
 
-      const res = await apiCall('/api/sprint/start', 'POST', { sprintNumber: num, story, points }, port);
+      const res = await apiCall('/api/sprint/start', 'POST', {
+        sprintNumber: num,
+        story,
+        points,
+        cardId: options.card,
+        source: options.source
+      }, port);
       console.log(`\n🏃 SPRINT #${res.sprint.sprintNumber} STARTED!`);
-      console.log(`📋 Story Card: "${res.sprint.story}" (${res.sprint.storyPoints} pts)`);
+      const srcBadge = res.sprint.sourceCard ? `[${res.sprint.sourceCard.source.toUpperCase()}: ${res.sprint.sourceCard.id}] ` : '';
+      console.log(`📋 Story Card: ${srcBadge}"${res.sprint.story}" (${res.sprint.storyPoints} pts)`);
       console.log(`📊 Phase: ${res.sprint.phase.toUpperCase()}`);
       console.log(`\n💡 Next step: Run "agent-team sprint ceremony validation" or "agent-team sprint next"\n`);
     } catch (err: any) {
@@ -724,7 +733,8 @@ sprintCmd
       console.log(`\n══════════════════════════════════════════════════════════════════════`);
       console.log(`🏃 SPRINT #${s.sprintNumber} STATUS REPORT ${s.phase === 'completed' ? '🏆 [COMPLETED]' : ''}`);
       console.log(`══════════════════════════════════════════════════════════════════════`);
-      console.log(`📋 Story Card:   "${s.story}"`);
+      const srcBadge = s.sourceCard ? `[${s.sourceCard.source.toUpperCase()}: ${s.sourceCard.id}] ` : '';
+      console.log(`📋 Story Card:   ${srcBadge}"${s.story}"`);
       console.log(`🎯 Story Points:  ${s.storyPoints || 'Not estimated'} pts`);
       console.log(`📍 Current Phase: ${s.phase.toUpperCase()} (${s.phaseIndex}/8)`);
       console.log(`\n📈 SPRINT PIPELINE:`);
@@ -892,19 +902,95 @@ program
 
 program
   .command('start-sprint [sprintNumber] [storyParts...]')
-  .description('Shortcut: Start a new sprint cycle')
-  .option('-p, --points <number>', 'Story points estimation (default: 5)', '5')
+  .description('Shortcut: Start a new sprint cycle with card from Taskwarrior (default) or Jira')
+  .option('-c, --card <id>', 'Card ID to pick from Taskwarrior or Jira')
+  .option('-s, --source <source>', 'Card source provider: taskwarrior (default) | jira', 'taskwarrior')
+  .option('-p, --points <number>', 'Story points estimation')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (sprintNumber, storyParts, options) => {
     try {
       const port = parseInt(options.port, 10);
       const num = sprintNumber && /^\d+$/.test(sprintNumber) ? parseInt(sprintNumber, 10) : undefined;
       const story = Array.isArray(storyParts) && storyParts.length > 0 ? storyParts.join(' ') : (!num && sprintNumber ? sprintNumber : undefined);
-      const points = parseInt(options.points, 10) || 5;
-      const res = await apiCall('/api/sprint/start', 'POST', { sprintNumber: num, story, points }, port);
+      const points = options.points ? parseInt(options.points, 10) : undefined;
+      const res = await apiCall('/api/sprint/start', 'POST', {
+        sprintNumber: num,
+        story,
+        points,
+        cardId: options.card,
+        source: options.source
+      }, port);
       console.log(`\n🏃 SPRINT #${res.sprint.sprintNumber} STARTED!`);
-      console.log(`📋 Story Card: "${res.sprint.story}" (${res.sprint.storyPoints} pts)`);
+      const srcBadge = res.sprint.sourceCard ? `[${res.sprint.sourceCard.source.toUpperCase()}: ${res.sprint.sourceCard.id}] ` : '';
+      console.log(`📋 Story Card: ${srcBadge}"${res.sprint.story}" (${res.sprint.storyPoints} pts)`);
       console.log(`💡 Next step: Run "agent-team validate" or "agent-team sprint next"\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+// CARDS / BACKLOG COMMAND (Taskwarrior default, or Jira)
+program
+  .command('cards [source]')
+  .alias('backlog')
+  .alias('kanban')
+  .description('List backlog story cards from Taskwarrior (default) or Jira')
+  .option('-s, --source <source>', 'Card source: taskwarrior (default) | jira', 'taskwarrior')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (sourceArg, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const source = (sourceArg || options.source || 'taskwarrior').toLowerCase();
+      const res = await apiCall(`/api/cards?source=${source}`, 'GET', undefined, port);
+      console.log(`\n📋 STORY CARDS BACKLOG [${source.toUpperCase()}] (${res.cards.length} cards):`);
+      console.log('═'.repeat(90));
+      console.log(`${'ID'.padEnd(8)} | ${'STATUS'.padEnd(12)} | ${'PTS'.padEnd(5)} | ${'PRI'.padEnd(5)} | TITLE & TAGS`);
+      console.log('─'.repeat(90));
+      for (const c of res.cards) {
+        const statIcon = c.status === 'done' ? '✅ DONE' : c.status === 'in_progress' ? '▶️ IN_PROG' : '⬜ TODO';
+        const pts = c.points !== undefined ? `${c.points} pt` : '-';
+        const pri = c.priority || '-';
+        const tags = c.tags && c.tags.length > 0 ? ` [${c.tags.join(', ')}]` : '';
+        console.log(`${String(c.id).padEnd(8)} | ${statIcon.padEnd(12)} | ${pts.padEnd(5)} | ${pri.padEnd(5)} | ${c.title}${tags}`);
+      }
+      console.log('═'.repeat(90));
+      console.log(`💡 Start sprint with card: "agent-team sprint start -c <id> -s ${source}"`);
+      console.log(`💡 Add new card: "agent-team card-add <title> -p <points>"\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+// CARD-ADD COMMAND
+program
+  .command('card-add <titleParts...>')
+  .alias('add-card')
+  .description('Add a new story card to Taskwarrior (default kanban backlog)')
+  .option('-p, --points <number>', 'Story points estimation (e.g. 3, 5, 8)', '5')
+  .option('-t, --tags <tags>', 'Comma-separated tags (e.g. auth,backend)')
+  .option('--priority <pri>', 'Priority (H, M, L)', 'M')
+  .option('-s, --source <source>', 'Card source provider (default: taskwarrior)', 'taskwarrior')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (titleParts, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const title = titleParts.join(' ');
+      const points = parseInt(options.points, 10) || 5;
+      const tags = options.tags ? options.tags.split(',').map((t: string) => t.trim()) : undefined;
+      const res = await apiCall('/api/cards/add', 'POST', {
+        title,
+        points,
+        tags,
+        priority: options.priority,
+        source: options.source || 'taskwarrior'
+      }, port);
+      console.log(`\n✨ CREATED STORY CARD [${res.card.source.toUpperCase()}] #${res.card.id}:`);
+      console.log(`📋 Title:  "${res.card.title}"`);
+      console.log(`🎯 Points: ${res.card.points || '-'} pts | Priority: ${res.card.priority || '-'}`);
+      if (res.card.tags && res.card.tags.length > 0) {
+        console.log(`🏷️ Tags:   [${res.card.tags.join(', ')}]`);
+      }
+      console.log(`\n💡 To start sprint with this card: "agent-team sprint start -c ${res.card.id}"\n`);
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
     }

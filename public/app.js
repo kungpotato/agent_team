@@ -1012,6 +1012,23 @@ function updateSprintHUD() {
     nextBtn.style.display = isCompleted ? 'none' : 'inline-block';
   }
 
+  const cardSrcBadge = document.getElementById('sprint-card-source');
+  if (cardSrcBadge) {
+    if (currentSprint.sourceCard) {
+      const src = currentSprint.sourceCard.source || 'tw';
+      cardSrcBadge.style.display = 'inline-block';
+      if (src === 'jira') {
+        cardSrcBadge.textContent = `[JIRA: ${currentSprint.sourceCard.id}]`;
+        cardSrcBadge.style.background = '#0284c7';
+      } else {
+        cardSrcBadge.textContent = `[TW: #${currentSprint.sourceCard.id}]`;
+        cardSrcBadge.style.background = '#10b981';
+      }
+    } else {
+      cardSrcBadge.style.display = 'none';
+    }
+  }
+
   const steps = document.querySelectorAll('.c-step');
   steps.forEach(step => {
     const sIndex = parseInt(step.getAttribute('data-step'), 10);
@@ -1024,6 +1041,146 @@ function updateSprintHUD() {
     }
   });
 }
+
+let activeCardSource = 'taskwarrior';
+
+window.toggleCardsModal = function() {
+  const modal = document.getElementById('cards-modal');
+  if (modal) {
+    const isHidden = (modal.style.display === 'none' || !modal.style.display);
+    modal.style.display = isHidden ? 'flex' : 'none';
+    if (isHidden) {
+      loadCards(activeCardSource);
+    }
+  }
+};
+
+window.switchCardSource = function(src) {
+  activeCardSource = src;
+  const tabTw = document.getElementById('tab-tw');
+  const tabJira = document.getElementById('tab-jira');
+  if (tabTw && tabJira) {
+    if (src === 'jira') {
+      tabJira.classList.add('active');
+      tabTw.classList.remove('active');
+    } else {
+      tabTw.classList.add('active');
+      tabJira.classList.remove('active');
+    }
+  }
+  loadCards(src);
+};
+
+window.loadCards = async function(src) {
+  const container = document.getElementById('cards-list-container');
+  if (!container) return;
+  container.innerHTML = `<div style="color:#94a3b8; font-size:12px; text-align:center; padding:15px;">Loading ${src.toUpperCase()} backlog...</div>`;
+
+  try {
+    const res = await fetch(`/api/cards?source=${src}`);
+    const data = await res.json();
+    if (!data.success || !data.cards || data.cards.length === 0) {
+      container.innerHTML = `<div style="color:#94a3b8; font-size:12px; text-align:center; padding:15px;">No cards found in ${src.toUpperCase()} backlog.</div>`;
+      return;
+    }
+
+    container.innerHTML = data.cards.map(c => {
+      const isDone = c.status === 'done';
+      const isProg = c.status === 'in_progress';
+      const statusBadge = isDone
+        ? `<span style="background:#22c55e; color:#000; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:bold;">DONE</span>`
+        : isProg
+        ? `<span style="background:#38bdf8; color:#000; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:bold;">IN PROG</span>`
+        : `<span style="background:#64748b; color:#fff; padding:2px 6px; border-radius:3px; font-size:10px;">TODO</span>`;
+
+      const tagsHtml = (c.tags && c.tags.length > 0)
+        ? c.tags.map(t => `<span style="background:#334155; color:#93c5fd; padding:1px 5px; border-radius:2px; font-size:10px; margin-right:3px;">#${t}</span>`).join('')
+        : '';
+
+      const priHtml = c.priority
+        ? `<span style="color:#f59e0b; font-size:11px; margin-right:6px;">[Pri: ${c.priority}]</span>`
+        : '';
+
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 8px; border-bottom:1px solid #1e293b; font-size:12px;">
+          <div style="flex:1; margin-right:10px;">
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+              <span style="color:#38bdf8; font-family:monospace; font-weight:bold;">#${c.id}</span>
+              ${statusBadge}
+              <span style="color:#e2e8f0; font-weight:500;">${c.title}</span>
+            </div>
+            <div style="display:flex; align-items:center; font-size:11px; color:#94a3b8;">
+              <span style="margin-right:8px; color:#cbd5e1;">🎯 ${c.points !== undefined ? c.points : 5} pts</span>
+              ${priHtml}
+              ${tagsHtml}
+            </div>
+          </div>
+          <div>
+            <button class="retro-btn" onclick="startSprintWithCard('${c.id}', '${src}')" style="font-size:11px; padding:3px 8px; background:#2563eb; color:#fff;" ${isDone ? 'disabled style="opacity:0.5;"' : ''}>
+              ▶️ Start Sprint
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<div style="color:#ef4444; font-size:12px; text-align:center; padding:15px;">Failed to load cards: ${err.message}</div>`;
+  }
+};
+
+window.startSprintWithCard = async function(cardId, source) {
+  try {
+    const res = await fetch('/api/sprint/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cardId, source })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    if (data.sprint) {
+      currentSprint = data.sprint;
+      updateSprintHUD();
+      toggleCardsModal();
+      if (window.soundSystem) window.soundSystem.playSpawn();
+    }
+  } catch (err) {
+    alert(`Failed to start sprint: ${err.message}`);
+  }
+};
+
+window.submitNewCard = async function() {
+  const titleInput = document.getElementById('new-card-title');
+  const ptsInput = document.getElementById('new-card-pts');
+  const priSelect = document.getElementById('new-card-pri');
+  if (!titleInput || !titleInput.value.trim()) {
+    alert('Please enter a story card title');
+    return;
+  }
+
+  const title = titleInput.value.trim();
+  const points = parseInt(ptsInput.value, 10) || 5;
+  const priority = priSelect.value || 'M';
+
+  try {
+    const res = await fetch('/api/cards/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, points, priority, source: 'taskwarrior' })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    titleInput.value = '';
+    loadCards(activeCardSource);
+  } catch (err) {
+    alert(`Failed to add card: ${err.message}`);
+  }
+};
 
 window.quickSprintNext = async function() {
   try {

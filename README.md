@@ -155,15 +155,17 @@ Whenever Claude or any AI agent uses this project or its MCP tools, **it is stri
 
 ---
 
-### MCP Tools Reference (17 Tools)
+### MCP Tools Reference (19 Tools)
 
 | Tool Name | Description | Key Parameters |
 |---|---|---|
-| `office_sprint_start` | Start a new Sprint cycle with story card and story points | `sprint_number`, `story`, `points` |
+| `office_get_cards` | List story cards from the backlog (Taskwarrior default, or Jira) | `source` (`taskwarrior` default, or `jira`) |
+| `office_add_card` | Add a new story card into the backlog (Taskwarrior default) | `title`, `points`, `tags`, `priority`, `source` |
+| `office_sprint_start` | Start a new Sprint cycle with card from Taskwarrior (default), Jira, or manual story | `sprint_number`, `card_id`, `source`, `story`, `points` |
 | `office_sprint_ceremony` | Execute a ceremony: `validation`, `grooming`, `planning`, `working`, `demo`, `uat`, `release`, `retro` | `phase`, `points`, `topic` |
 | `office_sprint_next` | Advance to the next sprint ceremony in sequence (1 -> 8 -> complete) | `{}` |
-| `office_sprint_complete` | Complete and archive the current sprint cycle after Retrospective | `summary` (Optional) |
-| `office_sprint_status` | Retrieve current sprint details, pipeline progress, and history | `{}` |
+| `office_sprint_complete` | Complete and archive the current sprint cycle after Retrospective (syncs card to done) | `summary` (Optional) |
+| `office_sprint_status` | Retrieve current sprint details, card source badge, pipeline progress, and history | `{}` |
 | `office_set_work` | Assign an agent to work on a task with progress % (Auto-spawns agent if absent) | `agent_name`, `task`, `progress` (0-100) |
 | `office_update_progress` | Update completion percentage and task description | `agent_name`, `progress`, `task` |
 | `office_desk_visit` | Send an agent walking over to another desk to ask questions | `from_agent`, `to_agent`, `question`, `reply`, `duration`, `stay` |
@@ -320,13 +322,43 @@ agent-team end-meeting
 
 ---
 
-### 5. 🏃 Agile Sprint Ceremonies Commands
+### 5. 🏃 Agile Sprint Ceremonies & Story Cards (Taskwarrior Default & Jira)
 
-Manage the full 8-phase sprint lifecycle directly via CLI:
+Manage the full 8-phase sprint lifecycle directly via CLI. Story cards can be sourced from **Taskwarrior (Kanban)** by default or **Jira**.
 
-#### `agent-team sprint start [sprintNumber] [story...] [-p <points>]`
-Initialize a new sprint cycle with a story card and optional story points:
+#### `agent-team cards [source]`
+> **Aliases:** `backlog`, `kanban`
+
+Inspect the story cards backlog from Taskwarrior (default) or Jira:
 ```bash
+# View Taskwarrior kanban backlog (Default)
+agent-team cards
+
+# View Jira backlog
+agent-team cards jira
+```
+
+#### `agent-team card-add <title...> [-p <points>] [-t <tags>] [--priority <H|M|L>]`
+> **Aliases:** `add-card`
+
+Add a new user story card directly into the Taskwarrior backlog:
+```bash
+agent-team card-add "NOTIF-401: Implement WebPush Notifications" -p 5 -t notif,frontend --priority M
+```
+
+#### `agent-team sprint start [sprintNumber] [story...] [-c <cardId>] [-s <source>] [-p <points>]`
+Initialize a new sprint cycle. When neither story nor card ID is provided, it **automatically selects the top pending card from Taskwarrior** and transitions it to `in_progress` (`task <id> start`).
+```bash
+# Automatically pick top pending card from Taskwarrior kanban backlog (Default)
+agent-team sprint start
+
+# Start sprint with a specific Taskwarrior card ID
+agent-team sprint start -c 2
+
+# Start sprint with a Jira card
+agent-team sprint start -c JIRA-101 -s jira
+
+# Start sprint with manual custom story
 agent-team sprint start 1 "AUTH-101: Implement OAuth2 & JWT Security" -p 8
 ```
 

@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { stateManager } from './state.js';
 import { potatoAgentRegistry } from './potato-agents.js';
+import { cardManager } from './cards.js';
 import { WSMessage } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -199,14 +200,20 @@ export function createServer() {
     res.json({ success: true, sprint: stateManager.getSprint() });
   });
 
-  app.post('/api/sprint/start', (req, res) => {
-    const { sprintNumber, story, points } = req.body || {};
-    const sprint = stateManager.startSprint(
-      sprintNumber ? Number(sprintNumber) : undefined,
-      story,
-      points ? Number(points) : undefined
-    );
-    res.json({ success: true, sprint });
+  app.post('/api/sprint/start', async (req, res) => {
+    try {
+      const { sprintNumber, story, points, cardId, source } = req.body || {};
+      const sprint = await stateManager.startSprint({
+        sprintNumber: sprintNumber ? Number(sprintNumber) : undefined,
+        story,
+        points: points ? Number(points) : undefined,
+        cardId,
+        source
+      });
+      res.json({ success: true, sprint });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   app.post('/api/sprint/ceremony', (req, res) => {
@@ -246,6 +253,42 @@ export function createServer() {
 
   app.get('/api/sprint/history', (req, res) => {
     res.json({ success: true, completedSprints: stateManager.getCompletedSprints() });
+  });
+
+  // Story Cards API (Taskwarrior default, or Jira)
+  app.get('/api/cards', async (req, res) => {
+    try {
+      const source = (req.query.source as any) || 'taskwarrior';
+      const cards = await cardManager.getCards(source);
+      res.json({ success: true, source, count: cards.length, cards });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/cards/:id', async (req, res) => {
+    try {
+      const source = (req.query.source as any) || 'taskwarrior';
+      const card = await cardManager.getCard(req.params.id, source);
+      if (!card) return res.status(404).json({ error: `Card ${req.params.id} not found in ${source}` });
+      res.json({ success: true, card });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/cards/add', async (req, res) => {
+    try {
+      const { title, points, tags, priority, source } = req.body || {};
+      const card = await cardManager.addCard(title, {
+        points: points ? Number(points) : undefined,
+        tags: Array.isArray(tags) ? tags : (tags ? [tags] : undefined),
+        source: source || 'taskwarrior'
+      });
+      res.json({ success: true, card });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   return { app, server };
