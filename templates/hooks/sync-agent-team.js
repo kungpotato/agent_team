@@ -13,7 +13,13 @@
  * — bounded growth, no persistent ever-incrementing counter needed.
  *
  * Never blocks or fails the real tool call: all errors are swallowed and this always exits 0.
+ *
+ * Also records the assigned desk name into real-desks-state.js's shared set, so
+ * ceremony-cleanup.js (PostToolUse on office_sprint_ceremony/etc.) can tell a genuinely
+ * in-flight dispatch apart from a ceremony's decorative "attendee" desk and never sweep it.
  */
+
+import { addRealDesk } from './real-desks-state.js';
 
 const BASE_NAME = {
   coder: 'coder',
@@ -81,6 +87,12 @@ async function main() {
   const slot = await lowestFreeSlot(baseName);
   const officeName = `${baseName}${slot}`;
   const task = String(input.description || input.prompt || 'working').slice(0, 160);
+
+  try {
+    addRealDesk(officeName);
+  } catch {
+    // best-effort — never block the real dispatch over this.
+  }
 
   try {
     const controller = new AbortController();

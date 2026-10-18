@@ -1464,7 +1464,7 @@ program
 
     fs.mkdirSync(hooksDestDir, { recursive: true });
 
-    const filesToCopy = ['sync-agent-team.js', 'subagent-stop-sync.js', 'office-stale-cleanup.js'];
+    const filesToCopy = ['sync-agent-team.js', 'subagent-stop-sync.js', 'office-stale-cleanup.js', 'real-desks-state.js', 'ceremony-cleanup.js'];
     if (!options.skipStopHook) filesToCopy.push('story-continue-guard.cjs');
 
     for (const file of filesToCopy) {
@@ -1512,6 +1512,10 @@ function buildHookEntries(skipStopHook?: boolean) {
       {
         matcher: 'Agent',
         hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/sync-agent-team.js'], timeout: 5 }],
+      },
+      {
+        matcher: 'mcp__agent-team__office_sprint_ceremony|mcp__agent-team__office_sprint_start|mcp__agent-team__office_sprint_next|mcp__agent-team__office_sprint_complete',
+        hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/ceremony-cleanup.js'], timeout: 5 }],
       },
     ],
     SubagentStop: [

@@ -19,7 +19,12 @@
  * would silently clobber one of several concurrent desks' status.
  *
  * Never blocks or fails the real session: all errors are swallowed, always exits 0.
+ *
+ * Also clears the finished desk from real-desks-state.js's shared set (see sync-agent-team.js)
+ * so ceremony-cleanup.js no longer treats it as a genuinely in-flight dispatch once it's done.
  */
+
+import { removeRealDesk } from './real-desks-state.js';
 
 const BASE_NAME = {
   coder: 'coder',
@@ -84,6 +89,12 @@ async function main() {
   const lastMessage = String(payload.last_assistant_message || '').trim();
   const snippet = lastMessage.slice(0, 140) || 'done';
   const task = `✅ done: ${snippet}`;
+
+  try {
+    removeRealDesk(officeName);
+  } catch {
+    // best-effort — never block the real session over this.
+  }
 
   try {
     const controller = new AbortController();

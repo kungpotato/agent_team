@@ -274,6 +274,51 @@ denial here (e.g. via `sed`/sudo-style tricks through Bash) if it recurs; surfac
 and let them add the 6-line settings.json entry themselves instead. This is specific to the
 `Stop`-hook step — the `PostToolUse`/`SubagentStop` hooks above have not hit this restriction.
 
+## 4th hook: `ceremony-cleanup.js` — the real fix for "dashboard full of agents that aren't real"
+
+**Root cause, found and fixed in T-CAMPFolio after it recurred many times across a long
+session:** `office_sprint_ceremony` (and `office_sprint_start`/`office_sprint_next`/
+`office_sprint_complete`) seat "attendee" desks for a ceremony room (e.g. the `planning` phase
+seats `product-manager1`, `coder1`, `qa-tester1`, ... in the boardroom) — but nothing ever
+cleared those desks once the ceremony call returned. In this project's actual workflow,
+ceremonies are instant structured tool calls, not real multi-minute meetings, so those desks
+just sat there as "working" indefinitely (or until `office-stale-cleanup.js`'s 10-minute TTL
+caught them), making the dashboard look like a room full of busy agents between real dispatches
+— the exact complaint that kept recurring.
+
+The fix has two parts:
+
+1. **`real-desks-state.js`** — a tiny shared on-disk set (`.claude/hooks/.real-desks.json`,
+   gitignore it) of desk names that correspond to a REAL, currently in-flight `Agent` tool
+   dispatch. `sync-agent-team.js` adds to it on dispatch; `subagent-stop-sync.js` removes from
+   it on completion.
+2. **`ceremony-cleanup.js`** (PostToolUse, matcher covers all 4 ceremony/sprint-lifecycle
+   tools) — right after every such call, diff the live "working" roster against that real-desk
+   set and remove everything that isn't a real dispatch. No 10-minute wait, no manual
+   `office_dismiss` call — the dashboard is correct again before the next tool result even
+   renders.
+
+This keeps the intended signal honest in both directions: **a ceremony call shows its
+attendees seated while it's happening** (that part was already accurate — the office system's
+own ceremony logic does that correctly), **and clears them the instant the "meeting" is over**,
+while a **real dispatch's desk is never touched** by this sweep because it's tracked
+separately and protected.
+
+Add `real-desks-state.js` and `ceremony-cleanup.js` to the files copied into
+`.claude/hooks/`, and register the extra `PostToolUse` matcher:
+
+```json
+{
+  "matcher": "mcp__agent-team__office_sprint_ceremony|mcp__agent-team__office_sprint_start|mcp__agent-team__office_sprint_next|mcp__agent-team__office_sprint_complete",
+  "hooks": [
+    { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/ceremony-cleanup.js"], "timeout": 5 }
+  ]
+}
+```
+
+(`agent-team install-hooks` already does all of this automatically as of this fix — re-run it
+on an existing host project to pick up the new hook pair.)
+
 ## Known limitations
 
 - A *resumed* agent (via `SendMessage`, e.g. to fix a stale-worktree issue mid-task) does not
