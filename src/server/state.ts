@@ -120,6 +120,7 @@ export class StateManager {
 
   constructor(sessionId: string = 'default') {
     this.sessionId = sessionId;
+    this.seedDefaultThreadsIfEmpty();
   }
 
   public subscribe(listener: (state: ServerState, event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) => void) {
@@ -240,6 +241,299 @@ export class StateManager {
         if (th && th.id) {
           this.threads.set(th.id, th);
         }
+      }
+    }
+    if (this.threads.size === 0) {
+      this.seedDefaultThreadsIfEmpty();
+    }
+  }
+
+  /**
+   * Automatically generate rich, multi-agent dialogue following Smart Brevity for sprint ceremonies
+   */
+  public generateCeremonyDialogue(phase: SprintPhase, story?: string, points: number = 5, roomId?: number): Thread {
+    const ceremonyInfo = SPRINT_CEREMONIES.find(c => c.phase === phase);
+    const resolvedRoom = roomId || ceremonyInfo?.room;
+    const roomInfo = resolvedRoom ? MEETING_ROOMS[resolvedRoom] : undefined;
+    const roomPrefix = roomInfo ? `[Room ${roomInfo.id}: ${roomInfo.symbol}] ` : '';
+    const ceremonyIdx = ceremonyInfo?.phaseIndex || 1;
+    const ceremonyTitle = `${roomPrefix}[Sprint #${this.sprint.sprintNumber}] Ceremony ${ceremonyIdx}: ${ceremonyInfo?.shortName || phase.toUpperCase()}`;
+    const threadId = `th-ceremony-s${this.sprint.sprintNumber}-${phase}`;
+
+    const existing = this.threads.get(threadId);
+    if (existing && existing.messages.length >= 2) {
+      return existing;
+    }
+
+    const pStory = story || this.sprint.story || 'Continuous Delivery Milestone';
+
+    let dialogues: { author: string; topic?: string; intent: string; point: string; nextSteps: string; mentions: string[] }[] = [];
+
+    switch (phase) {
+      case 'validation':
+        dialogues = [
+          {
+            author: 'product-manager1',
+            topic: `Acceptance Criteria for "${pStory}"`,
+            intent: 'Establish business value and scope boundaries before technical design.',
+            point: `Story "${pStory}" requires robust validation, zero-trust auth token lifecycle, and intuitive UX feedback.`,
+            nextSteps: '@system-architect1 please confirm system feasibility and data model fit.',
+            mentions: ['@system-architect1']
+          },
+          {
+            author: 'system-architect1',
+            topic: 'System Architecture & Non-Functional Requirements',
+            intent: 'Prevent architectural bottlenecks, race conditions, and latency spikes.',
+            point: 'Architecture validated. Schema supports token refresh rotation with sub-20ms lookup latency. Zero architectural blockers.',
+            nextSteps: '@coder1 technical scope confirmed feasible. Ready for backlog grooming.',
+            mentions: ['@coder1']
+          },
+          {
+            author: 'coder1',
+            topic: 'Engineering Feasibility Sign-off',
+            intent: 'Confirm developer capacity and library compatibility.',
+            point: 'Integration vectors verified with existing service middleware. All dependencies satisfied.',
+            nextSteps: 'Validation ceremony complete with PO and Architect sign-off. Advancing to Grooming.',
+            mentions: ['@product-manager1', '@system-architect1']
+          }
+        ];
+        break;
+
+      case 'grooming':
+        dialogues = [
+          {
+            author: 'coder1',
+            topic: 'Technical Deep-Dive & Edge Cases',
+            intent: 'Surface concurrency traps and error handling scenarios before point estimation.',
+            point: 'Identified 3 edge cases: concurrent refresh race conditions, token revocation on logout, and clock skew tolerances.',
+            nextSteps: '@qa-tester1 please review test matrix for edge case coverage.',
+            mentions: ['@qa-tester1']
+          },
+          {
+            author: 'qa-tester1',
+            topic: 'Test Matrix & Acceptance Criteria Verification',
+            intent: 'Ensure comprehensive automated test coverage across happy and failure paths.',
+            point: 'Prepared 24 automated unit tests and 12 integration vectors covering token tampering and expiry scenarios.',
+            nextSteps: '@code-reviewer1 please evaluate complexity and estimate story points.',
+            mentions: ['@code-reviewer1']
+          },
+          {
+            author: 'code-reviewer1',
+            topic: `Story Point Estimation: ${points} PTS`,
+            intent: 'Achieve team consensus on story points using Fibonacci scale.',
+            point: `Given moderate complexity and high test coverage requirements, team consensus estimates ${points} Story Points.`,
+            nextSteps: 'Grooming complete. Story points locked in. Ready for Sprint Planning.',
+            mentions: ['@product-manager1', '@project-planner1']
+          }
+        ];
+        break;
+
+      case 'planning':
+        dialogues = [
+          {
+            author: 'project-planner1',
+            topic: 'Sprint Wave Decomposition & Work Allocation',
+            intent: 'Structure parallel execution waves across Tech, QA, and DevOps departments.',
+            point: 'Wave 1: Data schemas & unit tests. Wave 2: Business logic & API endpoints. Wave 3: Canary CI/CD pipeline.',
+            nextSteps: '@coder1 and @qa-tester1 please commit to sprint backlog distribution.',
+            mentions: ['@coder1', '@qa-tester1']
+          },
+          {
+            author: 'coder1',
+            topic: 'Engineering Capacity Commitment',
+            intent: 'Commit engineering effort to deliver milestone within sprint boundary.',
+            point: 'Accepted Wave 1 and Wave 2 engineering deliverables. Core implementation starts immediately.',
+            nextSteps: '@devops-release1 please ensure staging testbed is provisioned.',
+            mentions: ['@devops-release1']
+          },
+          {
+            author: 'devops-release1',
+            topic: 'Staging Environment & CI Pipeline Readiness',
+            intent: 'Ensure zero infrastructure blockers during active coding.',
+            point: 'Staging Kubernetes cluster provisioned with isolated database replicas and hot-reloading enabled.',
+            nextSteps: 'Sprint backlog locked. Team moving to open-space workbenches for Sprint Work!',
+            mentions: ['@project-planner1', '@coder1']
+          }
+        ];
+        break;
+
+      case 'working':
+        dialogues = [
+          {
+            author: 'coder1',
+            topic: 'Active Implementation Status',
+            intent: 'Keep stakeholders informed of implementation milestone velocity.',
+            point: `Core handlers and middleware for "${pStory}" implemented. Unit test suites passing at 100%.`,
+            nextSteps: '@qa-tester1 staging endpoints deployed for automated regression runs.',
+            mentions: ['@qa-tester1']
+          },
+          {
+            author: 'qa-tester1',
+            topic: 'Continuous Test Execution in Staging',
+            intent: 'Validate builds incrementally to catch regressions early.',
+            point: 'Automated test suite ran 36 tests against staging build. All passed with sub-40ms latency.',
+            nextSteps: '@coder1 ready for live feature demonstration in Lambda Room.',
+            mentions: ['@coder1']
+          }
+        ];
+        break;
+
+      case 'demo':
+        dialogues = [
+          {
+            author: 'coder1',
+            topic: 'Live Working Feature Demonstration',
+            intent: 'Showcase functional deliverables to Product Owner and Design Lead.',
+            point: `Demonstrating end-to-end functionality of "${pStory}" live in staging environment.`,
+            nextSteps: '@ui-ux-designer1 and @product-manager1 please provide feedback on UX and criteria.',
+            mentions: ['@ui-ux-designer1', '@product-manager1']
+          },
+          {
+            author: 'ui-ux-designer1',
+            topic: 'Design System & Usability Audit',
+            intent: 'Ensure pixel-perfect fidelity with design guidelines and error states.',
+            point: 'Visual hierarchy, typography, and responsive toast feedback verified. User interaction flow approved.',
+            nextSteps: '@product-manager1 ready for formal UAT sign-off in Delta Room.',
+            mentions: ['@product-manager1']
+          },
+          {
+            author: 'product-manager1',
+            topic: 'Feature Demo Acceptance',
+            intent: 'Validate that the feature matches user requirements.',
+            point: 'Feature walkthrough demonstrates all acceptance criteria in action. Outstanding quality.',
+            nextSteps: 'Proceeding to Phase 6: Formal UAT Sign-Off in Delta Room.',
+            mentions: ['@qa-tester1', '@coder1']
+          }
+        ];
+        break;
+
+      case 'uat':
+        dialogues = [
+          {
+            author: 'qa-tester1',
+            topic: 'UAT Acceptance Test Execution Report',
+            intent: 'Final quality gatekeeper before authorizing production release.',
+            point: '54/54 end-to-end acceptance tests passed. 100% criteria coverage, 0 open defects, zero security vulnerabilities.',
+            nextSteps: '@product-manager1 please provide formal sign-off signature.',
+            mentions: ['@product-manager1']
+          },
+          {
+            author: 'product-manager1',
+            topic: 'Formal UAT Sign-Off Approval',
+            intent: 'Authorize deployment of milestone to production.',
+            point: `Formal UAT Sign-Off APPROVED for "${pStory}". Product quality meets all business criteria.`,
+            nextSteps: '@devops-release1 and @runtime-sre1 authorized to proceed with Phase 7 Production Release.',
+            mentions: ['@devops-release1', '@runtime-sre1']
+          }
+        ];
+        break;
+
+      case 'release':
+        dialogues = [
+          {
+            author: 'devops-release1',
+            topic: 'Production Canary Rollout Status',
+            intent: 'Execute zero-downtime deployment with progressive traffic shifting.',
+            point: 'Canary deployment deployed at 10% -> 50% -> 100%. Database schema migrations executed with zero downtime.',
+            nextSteps: '@runtime-sre1 please monitor post-deploy telemetry and error budgets.',
+            mentions: ['@runtime-sre1']
+          },
+          {
+            author: 'runtime-sre1',
+            topic: 'Post-Release Telemetry & SLO Verification',
+            intent: 'Confirm system stability and performance under real production traffic.',
+            point: 'Production metrics verified: HTTP 5xx errors at 0.00%, CPU at 22%, p99 latency at 16ms. Release stable.',
+            nextSteps: 'Release complete. Team convening in Boardroom for Phase 8 Retrospective.',
+            mentions: ['@coder1', '@project-planner1']
+          }
+        ];
+        break;
+
+      case 'retro':
+        dialogues = [
+          {
+            author: 'coder1',
+            topic: 'Sprint Retrospective: What Went Well',
+            intent: 'Celebrate team successes and reinforce effective agile habits.',
+            point: 'Clear acceptance criteria from Delta Room prevented scope creep. Early test suite execution in grooming prevented blockers.',
+            nextSteps: '@runtime-sre1 please share operational takeaways.',
+            mentions: ['@runtime-sre1']
+          },
+          {
+            author: 'runtime-sre1',
+            topic: 'Continuous Improvement Action Item',
+            intent: 'Log concrete process improvements for subsequent sprint cycles.',
+            point: 'Added automated canary verification alerts to CI/CD pipeline to reduce manual monitoring time by 15 minutes.',
+            nextSteps: `Sprint #${this.sprint.sprintNumber} governance complete. Milestone archived!`,
+            mentions: ['@project-planner1']
+          }
+        ];
+        break;
+
+      default:
+        dialogues = [
+          {
+            author: 'project-planner1',
+            topic: 'Sprint Governance Alignment',
+            intent: 'Ensure cross-departmental coordination across all 5 Startup benches.',
+            point: `Sprint #${this.sprint.sprintNumber} actively tracking story: "${pStory}".`,
+            nextSteps: '@all please document all sync items here with Smart Brevity.',
+            mentions: ['@all']
+          }
+        ];
+    }
+
+    const first = dialogues[0];
+    const initialThread = this.createThread({
+      id: threadId,
+      title: ceremonyTitle,
+      category: 'ceremony',
+      roomId: roomInfo?.id,
+      sprintNumber: this.sprint.sprintNumber,
+      ceremonyPhase: phase,
+      author: first.author,
+      topic: first.topic,
+      intent: first.intent,
+      point: first.point,
+      nextSteps: first.nextSteps,
+      mentions: first.mentions
+    });
+
+    for (let i = 1; i < dialogues.length; i++) {
+      const d = dialogues[i];
+      this.postThreadMessage(initialThread.id, {
+        author: d.author,
+        topic: d.topic,
+        intent: d.intent,
+        point: d.point,
+        nextSteps: d.nextSteps,
+        mentions: d.mentions
+      });
+    }
+
+    return initialThread;
+  }
+
+  /**
+   * Seed default threads so the Slack Feed is never an empty desert
+   */
+  public seedDefaultThreadsIfEmpty(): void {
+    if (this.threads.size > 0) return;
+
+    // 1. If sprint has a phase, generate ceremony thread
+    if (this.sprint.phase && this.sprint.phase !== 'idle' && this.sprint.phase !== 'completed') {
+      this.generateCeremonyDialogue(this.sprint.phase, this.sprint.story, this.sprint.storyPoints || 5);
+    } else {
+      this.generateCeremonyDialogue('validation', this.sprint.story, this.sprint.storyPoints || 5);
+    }
+
+    // 2. If any room has meeting topics or attendees, generate meeting thread
+    for (let rId = 1; rId <= 5; rId++) {
+      const topic = this.meetingTopics.get(rId);
+      const roomAgents = Array.from(this.agents.values()).filter(a => a.room === 'meeting' && a.meetingRoomId === rId);
+      if (roomAgents.length > 0 || topic) {
+        const attendeeNames = roomAgents.length > 0 ? roomAgents.map(a => a.name) : ['coder1', 'qa-tester1'];
+        this.startMeeting(attendeeNames, topic || `Room ${rId} Sync`, rId);
       }
     }
   }
@@ -976,20 +1270,44 @@ export class StateManager {
       this.notify({ type: 'talk', agent });
     }
 
-    // Auto-create / join meeting thread in Retro Slack feed
+    // Auto-create / join meeting thread in Retro Slack feed with dialogue between attendees
     const mentions = names.map(n => `@${n}`);
     const lead = names[0] || 'lead';
-    this.createThread({
-      title: `[Room ${roomId}: ${roomInfo ? roomInfo.symbol + ' ' + roomInfo.name : `Room ${roomId}`}] ${topic || 'Conference Sync'}`,
+    const meetTitle = `[Room ${roomId}: ${roomInfo ? roomInfo.symbol + ' ' + roomInfo.name : `Room ${roomId}`}] ${topic || 'Conference Sync'}`;
+    const meetThread = this.createThread({
+      id: `th-room-${roomId}`,
+      title: meetTitle,
       category: 'meeting',
       roomId,
       author: lead,
       topic: topic || `${roomDisplayName} Meeting`,
       intent: `Mandatory conference room discussion in ${roomDisplayName}.`,
-      point: `Meeting opened for attendees: ${names.join(', ')}. All meeting discussion must be captured here with Smart Brevity.`,
-      nextSteps: `${mentions.join(' ')} please discuss and post key findings/decisions here.`,
+      point: `Meeting opened with attendees: ${names.join(', ')}. Aligning on "${topic || roomDisplayName}".`,
+      nextSteps: names.length > 1 ? `@${names[1]} please share findings.` : `${mentions.join(' ')} please discuss deliverables.`,
       mentions
     });
+
+    if (names.length >= 2) {
+      const second = names[1];
+      this.postThreadMessage(meetThread.id, {
+        author: second,
+        intent: `Technical alignment on ${topic || 'meeting agenda'}.`,
+        point: `Reviewed requirements and verified service contracts. Ready to execute.`,
+        nextSteps: `@${lead} confirmed. Action items agreed upon.`,
+        mentions: [`@${lead}`]
+      });
+    }
+
+    if (names.length >= 3) {
+      const third = names[2];
+      this.postThreadMessage(meetThread.id, {
+        author: third,
+        intent: `Cross-departmental sign-off.`,
+        point: `Zero blockers from quality and operational perspective.`,
+        nextSteps: `Sync concluded. Team returning to desks with clear next steps.`,
+        mentions: [`@${lead}`]
+      });
+    }
 
     return {
       started: true,
@@ -1180,18 +1498,28 @@ export class StateManager {
     this.visits.set(visitor.name.toLowerCase(), session);
     this.notify({ type: 'walk', agent: visitor });
 
-    // Auto-create / log to Slack consult thread
+    // Auto-create / log to Slack consult thread with real dialogue from both visitor and target
     const consultTitle = `[Consult] @${visitor.name} ➔ @${target.name}: ${question.slice(0, 35)}`;
-    this.createThread({
+    const consultThread = this.createThread({
       title: consultTitle,
       category: 'consult',
       author: visitor.name,
       topic: `Desk Consultation: @${visitor.name} ➔ @${target.name}`,
       intent: `Real-time desk visit to resolve question/blocker.`,
       point: question,
-      nextSteps: reply ? `@${target.name} replied: "${reply}"` : `@${target.name} to follow up.`,
+      nextSteps: `@${target.name} please advise.`,
       mentions: [`@${visitor.name}`, `@${target.name}`]
     });
+
+    if (reply) {
+      this.postThreadMessage(consultThread.id, {
+        author: target.name,
+        intent: `Unblock colleague on task.`,
+        point: reply,
+        nextSteps: `@${visitor.name} confirmed. Proceed with implementation.`,
+        mentions: [`@${visitor.name}`]
+      });
+    }
 
     // Transition from walking to talking/visiting phase after walking arrival (~2.2s)
     setTimeout(() => {
@@ -1516,24 +1844,8 @@ export class StateManager {
     };
     this.notify({ type: 'spawn', agent: dummyAgent });
 
-    // Auto-create / join ceremony thread in Retro Slack feed
-    const ceremonyRoomInfo = target.room ? MEETING_ROOMS[target.room] : undefined;
-    const roomPrefix = ceremonyRoomInfo ? `[Room ${target.room}: ${ceremonyRoomInfo.symbol}] ` : '';
-    const ceremonyTitle = `${roomPrefix}[Sprint #${this.sprint.sprintNumber}] Ceremony ${target.phaseIndex}: ${target.shortName}`;
-    const ceremonyMentions = target.roles.map(r => `@${r}1`);
-    this.createThread({
-      title: ceremonyTitle,
-      category: 'ceremony',
-      roomId: target.room,
-      sprintNumber: this.sprint.sprintNumber,
-      ceremonyPhase: target.phase,
-      author: ceremonyMentions[0]?.replace('@', '') || 'scrum-master1',
-      topic: `${target.name} - ${topic}`,
-      intent: `Mandatory Phase ${target.phaseIndex} Agile Ceremony governance for story: "${this.sprint.story}".`,
-      point: `${target.description} (Story Points: ${this.sprint.storyPoints || 5} pts). All meeting discussion must be captured here with Smart Brevity.`,
-      nextSteps: `${ceremonyMentions.slice(0, 4).join(' ')} please discuss deliverables and document sign-off in this thread.`,
-      mentions: ceremonyMentions
-    });
+    // Auto-create / join ceremony thread with rich multi-agent discussion in Retro Slack feed
+    this.generateCeremonyDialogue(target.phase, this.sprint.story, this.sprint.storyPoints || 5, target.room);
 
     return { ceremony: ceremonyInfo, sprint: { ...this.sprint } };
   }
@@ -1791,6 +2103,7 @@ export class SessionManager {
           this.attachSessionListeners(cleanId, mgr);
         }
         mgr.deserialize(sData);
+        mgr.seedDefaultThreadsIfEmpty();
       }
       return true;
     } catch (err) {
@@ -1832,12 +2145,17 @@ export class SessionManager {
       this.notifySessionListChange();
       this.scheduleSave();
     }
+    manager.seedDefaultThreadsIfEmpty();
     return manager;
   }
 
   public getSession(rawId: string): StateManager | undefined {
     const id = this.sanitizeSessionName(rawId);
-    return this.sessions.get(id);
+    const mgr = this.sessions.get(id);
+    if (mgr) {
+      mgr.seedDefaultThreadsIfEmpty();
+    }
+    return mgr;
   }
 
   public hasSession(rawId: string): boolean {
