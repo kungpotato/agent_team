@@ -193,6 +193,30 @@ body {
   border: 1px solid #e74c3c;
 }
 
+.zoom-box {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #141829;
+  border: 1px solid #334155;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.zoom-label {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.zoom-dropdown {
+  max-width: 110px !important;
+  color: #38bdf8 !important;
+  padding: 3px 4px !important;
+  font-size: 10px !important;
+}
+
 /* CANVAS WRAPPER */
 .canvas-wrapper {
   flex: 1;
@@ -200,7 +224,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
   background-color: #08090f;
 }
 
@@ -212,6 +236,7 @@ body {
   object-fit: contain;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  transition: width 0.15s ease, height 0.15s ease;
 }
 
 /* CRT SCANLINE & VIGNETTE OVERLAY */

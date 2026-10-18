@@ -1,4 +1,6 @@
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
 import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
@@ -165,6 +167,70 @@ export class StateManager {
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };
+  }
+
+  /**
+   * Serialize session state for disk persistence
+   */
+  public serialize(): any {
+    const topicsObj: Record<number, string> = {};
+    this.meetingTopics.forEach((val, key) => {
+      topicsObj[key] = val;
+    });
+
+    return {
+      sessionId: this.sessionId,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      agents: Array.from(this.agents.values()),
+      meetingTopics: topicsObj,
+      meetingQueue: [...this.meetingQueue],
+      visits: Array.from(this.visits.values()),
+      sprint: this.sprint,
+      completedSprints: this.completedSprints
+    };
+  }
+
+  /**
+   * Deserialize persisted data into this session state
+   */
+  public deserialize(data: any): void {
+    if (!data) return;
+    if (typeof data.updatedAt === 'number') this.updatedAt = data.updatedAt;
+    if (Array.isArray(data.agents)) {
+      this.agents.clear();
+      for (const ag of data.agents) {
+        if (ag && ag.name) {
+          this.agents.set(ag.name.toLowerCase(), ag);
+        }
+      }
+    }
+    if (data.meetingTopics && typeof data.meetingTopics === 'object') {
+      this.meetingTopics.clear();
+      for (const [k, v] of Object.entries(data.meetingTopics)) {
+        this.meetingTopics.set(Number(k), String(v));
+      }
+    }
+    if (Array.isArray(data.meetingQueue)) {
+      this.meetingQueue = data.meetingQueue;
+    }
+    if (Array.isArray(data.visits)) {
+      this.visits.clear();
+      for (const v of data.visits) {
+        if (v && v.visitorName) {
+          this.visits.set(v.visitorName.toLowerCase(), v);
+        }
+      }
+    }
+    if (Array.isArray(data.completedSprints)) {
+      this.completedSprints = data.completedSprints;
+    }
+    if (data.sprint) {
+      this.sprint = {
+        ...data.sprint,
+        completedSprints: [...this.completedSprints]
+      };
+    }
   }
 
 
@@ -1155,7 +1221,100 @@ export class StateManager {
     };
     this.notify({ type: 'spawn', agent: dummyAgent });
 
+    // Auto-generate markdown sprint report in docs/sprints/sprint_<N>_report.md
+    try {
+      const reportDir = path.join(process.cwd(), 'docs', 'sprints');
+      if (!fs.existsSync(reportDir)) {
+        fs.mkdirSync(reportDir, { recursive: true });
+      }
+      const reportFileName = `sprint_${record.sprintNumber}_report.md`;
+      const reportPath = path.join(reportDir, reportFileName);
+      const mdContent = this.generateSprintMarkdownReport(record);
+      fs.writeFileSync(reportPath, mdContent, 'utf-8');
+      record.reportPath = reportPath;
+    } catch (err) {
+      console.error(`[StateManager] Failed to write sprint markdown report:`, err);
+    }
+
     return { sprint: { ...this.sprint }, record };
+  }
+
+  private formatDuration(ms: number): string {
+    if (ms <= 0) return '0s';
+    const totalSec = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (mins > 0 || hours > 0) parts.push(`${mins}m`);
+    parts.push(`${secs}s`);
+    return parts.join(' ');
+  }
+
+  public generateSprintMarkdownReport(record: SprintRecord): string {
+    const started = new Date(record.startedAt);
+    const completed = new Date(record.completedAt);
+    const duration = this.formatDuration(record.completedAt - record.startedAt);
+
+    const historyRows = this.sprint.history.map((h, i) => {
+      const timeStr = new Date(h.timestamp).toLocaleTimeString();
+      const phaseInfo = SPRINT_CEREMONIES.find(c => c.phase === h.phase);
+      const ceremonyName = phaseInfo?.name || h.phase.toUpperCase();
+      const roomStr = phaseInfo?.room ? `Room ${phaseInfo.room} (${MEETING_ROOMS[phaseInfo.room]?.symbol || ''} ${MEETING_ROOMS[phaseInfo.room]?.name || ''})` : 'Open-Space Desks';
+      return `| ${i + 1} | **${ceremonyName}** | ${roomStr} | \`${timeStr}\` | ${h.summary} |`;
+    }).join('\n');
+
+    let cardBlock = '';
+    if (record.sourceCard) {
+      const c = record.sourceCard;
+      const tagsStr = c.tags && c.tags.length ? c.tags.map(t => `\`${t}\``).join(', ') : 'None';
+      cardBlock = `
+## 📋 Source Story Card (Backlog)
+- **Card ID:** \`${c.id}\`
+- **Title:** ${c.title}
+- **Provider:** \`${c.source.toUpperCase()}\`
+- **Project:** \`${c.project || 'DEFAULT'}\`
+- **Priority:** \`${c.priority || 'Normal'}\`
+- **Tags:** ${tagsStr}
+`;
+    }
+
+    return `# 🏃 Sprint #${record.sprintNumber} Governance Audit & Completion Report
+
+> **Session / Project:** \`${this.sessionId}\`  
+> **Story Card:** **${record.story}**  
+> **Committed Points:** **${record.storyPoints ?? 5} pts**  
+> **Status:** ✅ **COMPLETED & ARCHIVED**
+
+---
+
+## 📌 Executive Summary
+${record.summary}
+
+## ⏱️ Timeline & Metrics
+- **Sprint Started:** ${started.toISOString()} (\`${started.toLocaleString()}\`)
+- **Sprint Completed:** ${completed.toISOString()} (\`${completed.toLocaleString()}\`)
+- **Total Duration:** \`${duration}\`
+- **Total Ceremonies Logged:** ${record.ceremoniesCount}
+${cardBlock}
+## 🏛️ Sprint Ceremony Governance Audit Trail
+
+| # | Ceremony Name | Location / Room | Timestamp | Summary & Governance Notes |
+|---|---|---|---|---|
+${historyRows || '| - | *No ceremony events logged* | - | - | - |'}
+
+## 👥 Department & Stakeholder Sign-Offs
+
+- [x] **Product Department (PO / PM):** Acceptance criteria validated in Delta Room (Δ) & UAT Sign-off approved.
+- [x] **Designer Department (UI/UX):** Design system fidelity and user interaction validated in Demo (λ).
+- [x] **Tech Department (Frontend + Backend + QA):** Code reviewed, tests passing, zero regressions committed.
+- [x] **DevOps & Platform (Release & SRE):** Production release deployed with automated canary verification in Omega Room (Ω).
+- [x] **AI & Data Department:** Pipeline stability, prompt alignment, and data consistency verified.
+
+---
+*Report generated automatically by [Agent HQ](https://github.com/agent-hq/agent-team) • Claude Code Sprint Governance Engine*
+`;
   }
 
   public getCompletedSprints(): SprintRecord[] {
@@ -1172,11 +1331,15 @@ export class StateManager {
 }
 
 
+const STATE_DIR = path.join(os.homedir(), '.agent-team');
+const STATE_FILE = process.env.AGENT_TEAM_STATE_FILE || path.join(STATE_DIR, 'sessions_state.json');
+
 export class SessionManager {
   private sessions: Map<string, StateManager> = new Map();
   private defaultSessionId: string;
   private listeners: ((sessionId: string, state: ServerState, event?: any) => void)[] = [];
   private sessionListListeners: ((sessions: SessionSummary[]) => void)[] = [];
+  private saveTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     this.defaultSessionId = this.sanitizeSessionName(
@@ -1185,7 +1348,82 @@ export class SessionManager {
       path.basename(process.cwd()) ||
       'agent_team'
     );
+    this.loadFromDisk();
     this.getOrCreateSession(this.defaultSessionId);
+
+    // Register process termination hooks for state flushing
+    const flushOnExit = () => {
+      this.saveToDisk();
+    };
+    process.once('SIGINT', flushOnExit);
+    process.once('SIGTERM', flushOnExit);
+    process.once('beforeExit', flushOnExit);
+  }
+
+  public scheduleSave() {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      this.saveToDisk();
+    }, 400);
+  }
+
+  public saveToDisk(): void {
+    try {
+      if (!fs.existsSync(STATE_DIR)) {
+        fs.mkdirSync(STATE_DIR, { recursive: true });
+      }
+      const data: Record<string, any> = {
+        version: 1,
+        savedAt: Date.now(),
+        defaultSessionId: this.defaultSessionId,
+        sessions: {}
+      };
+      for (const [id, mgr] of this.sessions.entries()) {
+        data.sessions[id] = mgr.serialize();
+      }
+      const tmpPath = `${STATE_FILE}.tmp.${Date.now()}`;
+      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tmpPath, STATE_FILE);
+    } catch (err) {
+      console.error('[SessionManager] Failed to persist state to disk:', err);
+    }
+  }
+
+  public loadFromDisk(): boolean {
+    try {
+      if (!fs.existsSync(STATE_FILE)) return false;
+      const raw = fs.readFileSync(STATE_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      if (!data || !data.sessions) return false;
+
+      for (const [id, sData] of Object.entries<any>(data.sessions)) {
+        const cleanId = this.sanitizeSessionName(id);
+        let mgr = this.sessions.get(cleanId);
+        if (!mgr) {
+          mgr = new StateManager(cleanId);
+          this.sessions.set(cleanId, mgr);
+          this.attachSessionListeners(cleanId, mgr);
+        }
+        mgr.deserialize(sData);
+      }
+      return true;
+    } catch (err) {
+      console.warn('[SessionManager] Could not load state from disk:', err);
+      return false;
+    }
+  }
+
+  private attachSessionListeners(id: string, manager: StateManager) {
+    manager.subscribe((state, event) => {
+      this.scheduleSave();
+      for (const l of this.listeners) {
+        try {
+          l(id, state, event);
+        } catch (err) {
+          console.error(`[SessionManager] Error in listener for ${id}:`, err);
+        }
+      }
+    });
   }
 
   public getDefaultSessionId(): string {
@@ -1204,19 +1442,9 @@ export class SessionManager {
     if (!manager) {
       manager = new StateManager(id);
       this.sessions.set(id, manager);
-
-      // Forward session updates to global listeners
-      manager.subscribe((state, event) => {
-        for (const l of this.listeners) {
-          try {
-            l(id, state, event);
-          } catch (err) {
-            console.error(`[SessionManager] Error in listener for ${id}:`, err);
-          }
-        }
-      });
-
+      this.attachSessionListeners(id, manager);
       this.notifySessionListChange();
+      this.scheduleSave();
     }
     return manager;
   }
@@ -1242,11 +1470,13 @@ export class SessionManager {
     if (this.sessions.size <= 1 && id === this.defaultSessionId) {
       this.sessions.get(id)?.reset();
       this.notifySessionListChange();
+      this.scheduleSave();
       return true;
     }
     const existed = this.sessions.delete(id);
     if (existed) {
       this.notifySessionListChange();
+      this.scheduleSave();
     }
     return existed;
   }

@@ -39,6 +39,16 @@
         </div>
       </div>
       <div class="header-right">
+        <!-- CANVAS ZOOM / FIT CONTROLS -->
+        <div class="zoom-box" title="Canvas Display Zoom & Responsive Viewport Fit">
+          <span class="zoom-label">🔍 ZOOM:</span>
+          <select id="zoom-select" class="session-dropdown zoom-dropdown" onchange="setCanvasZoom(this.value)">
+            <option value="fit" selected>FIT (AUTO)</option>
+            <option value="75">75%</option>
+            <option value="100">100%</option>
+            <option value="125">125%</option>
+          </select>
+        </div>
         <button id="cards-toggle" class="retro-btn" onclick="toggleCardsModal()" title="View Taskwarrior & Jira Cards Backlog">
           📋 CARDS (KANBAN)
         </button>

@@ -163,6 +163,7 @@ export interface SprintRecord {
   ceremoniesCount: number;
   summary?: string;
   sourceCard?: StoryCard;
+  reportPath?: string;
 }
 
 export interface SprintState {

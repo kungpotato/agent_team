@@ -1536,6 +1536,40 @@ function toggleGallery() {
   }
 }
 
+// Canvas Zoom & Responsive Fit
+function setCanvasZoom(mode) {
+  const canvasEl = document.getElementById('office-canvas');
+  if (!canvasEl) return;
+
+  if (mode === 'fit') {
+    canvasEl.style.width = '100%';
+    canvasEl.style.height = '100%';
+    canvasEl.style.maxWidth = '100%';
+    canvasEl.style.maxHeight = '100%';
+  } else {
+    const scale = parseInt(mode, 10) / 100;
+    canvasEl.style.width = Math.round(1440 * scale) + 'px';
+    canvasEl.style.height = Math.round(850 * scale) + 'px';
+    canvasEl.style.maxWidth = 'none';
+    canvasEl.style.maxHeight = 'none';
+  }
+  try {
+    localStorage.setItem('agent_hq_zoom', mode);
+  } catch (e) {}
+}
+
+// Restore saved zoom level
+try {
+  const savedZoom = localStorage.getItem('agent_hq_zoom');
+  if (savedZoom) {
+    const zoomSelect = document.getElementById('zoom-select');
+    if (zoomSelect) {
+      zoomSelect.value = savedZoom;
+      setCanvasZoom(savedZoom);
+    }
+  }
+} catch (e) {}
+
 // Sound toggle button
 const soundBtn = document.getElementById('sound-toggle');
 soundBtn.addEventListener('click', () => {
