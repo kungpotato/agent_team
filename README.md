@@ -146,6 +146,15 @@ Open your Claude Desktop configuration (macOS: `~/Library/Application Support/Cl
 }
 ```
 
+### 3. 🛡️ Mandatory Ceremony Enforcement for Claude (`CLAUDE.md`)
+Whenever Claude or any AI agent uses this project or its MCP tools, **it is strictly bound by the governance policy defined in [`CLAUDE.md`](CLAUDE.md)**:
+- **Strict Ceremony Sequence**: All agent collaboration must execute the 8 ceremonies sequentially (`validation` ➔ `grooming` ➔ `planning` ➔ `working` ➔ `demo` ➔ `uat` ➔ `release` ➔ `retro`).
+- **No Early Coding**: Agents are programmatically blocked from jumping straight to active coding before Story Validation, Backlog Grooming, and Sprint Planning have completed.
+- **No Release Without UAT**: Production release (Phase 7) is blocked and will throw a policy error if formal UAT Sign-Off (Phase 6) has not been granted.
+- **Mandatory Retrospective**: Retrospective (Phase 8) in the Main Boardroom is required to extract lessons learned after each release.
+
+---
+
 ### MCP Tools Reference (16 Tools)
 
 | Tool Name | Description | Key Parameters |

@@ -731,12 +731,16 @@ program
   .description('Shortcut: Run Ceremony 1 - PO & Dev Story Validation')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (storyParts, options) => {
-    const port = parseInt(options.port, 10);
-    const story = storyParts && storyParts.length > 0 ? storyParts.join(' ') : undefined;
-    if (story) await apiCall('/api/sprint/start', 'POST', { story }, port);
-    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'validation' }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #1: STORY VALIDATION & REFINEMENT`);
-    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    try {
+      const port = parseInt(options.port, 10);
+      const story = storyParts && storyParts.length > 0 ? storyParts.join(' ') : undefined;
+      if (story) await apiCall('/api/sprint/start', 'POST', { story }, port);
+      const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'validation' }, port);
+      console.log(`\n🎉 SPRINT CEREMONY #1: STORY VALIDATION & REFINEMENT`);
+      console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
   });
 
 program
@@ -744,12 +748,16 @@ program
   .description('Shortcut: Run Ceremony 2 - Backlog Grooming & Point Estimation')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (points, options) => {
-    const port = parseInt(options.port, 10);
-    const pts = points ? parseInt(points, 10) : undefined;
-    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'grooming', points: pts }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #2: BACKLOG GROOMING & POINT ESTIMATION`);
-    console.log(`🎯 Estimated: ${res.sprint.storyPoints} Story Points`);
-    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    try {
+      const port = parseInt(options.port, 10);
+      const pts = points ? parseInt(points, 10) : undefined;
+      const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'grooming', points: pts }, port);
+      console.log(`\n🎉 SPRINT CEREMONY #2: BACKLOG GROOMING & POINT ESTIMATION`);
+      console.log(`🎯 Estimated: ${res.sprint.storyPoints} Story Points`);
+      console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
   });
 
 program
@@ -757,10 +765,14 @@ program
   .description('Shortcut: Run Ceremony 3 - Sprint Planning & Task Distribution in Boardroom')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
-    const port = parseInt(options.port, 10);
-    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'planning' }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #3: SPRINT PLANNING & TASK DISTRIBUTION`);
-    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} (Boardroom) with [${res.ceremony.attendees.join(', ')}]`);
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'planning' }, port);
+      console.log(`\n🎉 SPRINT CEREMONY #3: SPRINT PLANNING & TASK DISTRIBUTION`);
+      console.log(`🏢 Location: Meeting Room ${res.ceremony.room} (Boardroom) with [${res.ceremony.attendees.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
   });
 
 program
@@ -768,10 +780,14 @@ program
   .description('Shortcut: Run Ceremony 5 - Sprint Feature Demo')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
-    const port = parseInt(options.port, 10);
-    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'demo' }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #5: SPRINT FEATURE DEMO`);
-    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'demo' }, port);
+      console.log(`\n🎉 SPRINT CEREMONY #5: SPRINT FEATURE DEMO`);
+      console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
   });
 
 program
@@ -781,10 +797,14 @@ program
   .description('Shortcut: Run Ceremony 6 - UAT Acceptance & Formal Sign-Off')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
-    const port = parseInt(options.port, 10);
-    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'uat' }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #6: UAT ACCEPTANCE & FORMAL SIGN-OFF`);
-    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'uat' }, port);
+      console.log(`\n🎉 SPRINT CEREMONY #6: UAT ACCEPTANCE & FORMAL SIGN-OFF`);
+      console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
   });
 
 program
@@ -794,10 +814,14 @@ program
   .description('Shortcut: Run Ceremony 7 - Production Release & Canary Rollout')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
-    const port = parseInt(options.port, 10);
-    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'release' }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #7: PRODUCTION RELEASE & CANARY ROLLOUT`);
-    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'release' }, port);
+      console.log(`\n🎉 SPRINT CEREMONY #7: PRODUCTION RELEASE & CANARY ROLLOUT`);
+      console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
   });
 
 program
@@ -805,10 +829,14 @@ program
   .description('Shortcut: Run Ceremony 8 - Sprint Retrospective in Boardroom')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
-    const port = parseInt(options.port, 10);
-    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'retro' }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #8: SPRINT RETROSPECTIVE (LESSONS LEARNED)`);
-    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} (Boardroom) with [${res.ceremony.attendees.join(', ')}]`);
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'retro' }, port);
+      console.log(`\n🎉 SPRINT CEREMONY #8: SPRINT RETROSPECTIVE (LESSONS LEARNED)`);
+      console.log(`🏢 Location: Meeting Room ${res.ceremony.room} (Boardroom) with [${res.ceremony.attendees.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
   });
 
 // RESET / CLOCK-OUT COMMAND (Everyone go home / End of day)

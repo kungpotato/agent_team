@@ -859,7 +859,7 @@ export class StateManager {
   /**
    * Run a specific sprint ceremony (1: validation, 2: grooming, 3: planning, 4: working, 5: demo, 6: uat, 7: release, 8: retro)
    */
-  public runCeremony(phaseOrIndex: string | number, options?: { points?: number; topic?: string }): { ceremony: SprintCeremonyInfo; sprint: SprintState } {
+  public runCeremony(phaseOrIndex: string | number, options?: { points?: number; topic?: string; force?: boolean }): { ceremony: SprintCeremonyInfo; sprint: SprintState } {
     let target = SPRINT_CEREMONIES.find(c =>
       (typeof phaseOrIndex === 'number' && c.phaseIndex === phaseOrIndex) ||
       (typeof phaseOrIndex === 'string' && (c.phase.toLowerCase() === phaseOrIndex.toLowerCase() || String(c.phaseIndex) === phaseOrIndex))
@@ -879,6 +879,46 @@ export class StateManager {
 
     if (!target) {
       throw new Error(`Unknown ceremony phase "${phaseOrIndex}". Supported: validation, grooming, planning, working, demo, uat, release, retro (or 1..8)`);
+    }
+
+    // MANDATORY SPRINT CEREMONY POLICY ENFORCEMENT
+    if (!options?.force) {
+      if (target.phase === 'grooming') {
+        const valDone = this.sprint.history.some(h => h.phase === 'validation') || this.sprint.phaseIndex >= 1;
+        if (!valDone) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Backlog Grooming (Phase 2) is BLOCKED! Agents must complete Phase 1 (Story Validation & Refinement) first.`);
+        }
+      } else if (target.phase === 'planning') {
+        const groomDone = this.sprint.history.some(h => h.phase === 'grooming') || this.sprint.phaseIndex >= 2;
+        if (!groomDone) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Planning (Phase 3) is BLOCKED! Agents must complete Phase 2 (Backlog Grooming & Point Estimation) first.`);
+        }
+      } else if (target.phase === 'working') {
+        const planDone = this.sprint.history.some(h => h.phase === 'planning') || this.sprint.phaseIndex >= 3;
+        if (!planDone) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Work (Phase 4) is BLOCKED! Agents must complete Phase 1 (Validation), Phase 2 (Grooming), and Phase 3 (Planning) before active work.`);
+        }
+      } else if (target.phase === 'demo') {
+        const workDone = this.sprint.history.some(h => h.phase === 'working') || this.sprint.phaseIndex >= 4;
+        if (!workDone) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Demo (Phase 5) is BLOCKED! Agents must complete Phase 4 (Sprint Execution / Active Work) first.`);
+        }
+      } else if (target.phase === 'uat') {
+        const demoDone = this.sprint.history.some(h => h.phase === 'demo') || this.sprint.phaseIndex >= 5;
+        if (!demoDone) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: UAT Sign-Off (Phase 6) is BLOCKED! Agents must complete Phase 5 (Sprint Demo) before formal UAT verification.`);
+        }
+      } else if (target.phase === 'release') {
+        const uatDone = this.sprint.history.some(h => h.phase === 'uat') || this.sprint.phaseIndex >= 6;
+        if (!uatDone) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Production Release (Phase 7) is BLOCKED! All agents must complete Phase 6 (UAT Verification & Formal Sign-Off) before releasing to production.`);
+        }
+      } else if (target.phase === 'retro') {
+        const relDone = this.sprint.history.some(h => h.phase === 'release') || this.sprint.phaseIndex >= 7;
+        if (!relDone) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Retrospective (Phase 8) is BLOCKED! Agents must complete Phase 7 (Production Release) before conducting the retrospective.`);
+        }
+      }
     }
 
     if (options?.points !== undefined) {

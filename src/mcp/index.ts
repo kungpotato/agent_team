@@ -84,10 +84,40 @@ export function createOfficeMcpServer(): McpServer {
     version: '1.0.0'
   });
 
+  // SPRINT CEREMONY GOVERNANCE PROMPT
+  server.prompt(
+    'sprint_ceremony_governance',
+    'Mandatory Sprint Ceremony Policy: Forces Claude and all agents to follow the 8-phase sprint workflow strictly.',
+    {},
+    () => ({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `MANDATORY SPRINT CEREMONY GOVERNANCE FOR ALL AGENTS:
+When coordinating agents or developing features, every agent MUST strictly follow the 8 Sprint Ceremonies in sequence:
+1. validation: PO brings story to Dev/Architect in Room 2 to validate feasibility and refine AC.
+2. grooming: Dev, QA, Reviewer, Architect, PO meet in Room 1 to examine edge cases and estimate story points.
+3. planning: All squad leads assemble in Room 5 Boardroom to decompose task DAG waves and distribute work.
+4. working: All agents code at their designated desks with typing animations and live progress updates.
+5. demo: Dev team conducts live feature demonstration in Room 3 to PO and stakeholders.
+6. uat: PO and QA conduct formal Acceptance Criteria verification in Room 2. Formal sign-off is MANDATORY.
+7. release: DevOps and SRE deploy release artifact to production in Room 4 with automated canary verification.
+8. retro: All agents assemble in Room 5 Boardroom to analyze issues and log continuous improvements.
+
+STRICT RULES:
+- Never write production code before Validation, Grooming, and Planning.
+- Never release to production without formal UAT Sign-Off.
+- Advance sequentially using "office_sprint_next" or "office_sprint_ceremony".`
+        }
+      }]
+    })
+  );
+
   // 1. SET WORK
   server.tool(
     'office_set_work',
-    'Set an agent to work on a task with optional progress percentage (0-100). Auto-spawns the agent at their designated desk if not yet present.',
+    'Set an agent to work on a task with optional progress percentage (0-100). Auto-spawns the agent at their designated desk if not yet present. (NOTE: Per sprint governance policy, active feature coding is conducted during Phase 4: working).',
     {
       agent_name: z.string().describe('Name of the agent (e.g. coder1, pm1, qa1, devops1)'),
       task: z.string().describe('Description of the task being performed'),
