@@ -189,7 +189,7 @@ program
     }
   });
 
-// ASK / VISIT COMMAND (เดินไปคุย / เดินไปหาที่โต๊ะ)
+// ASK / VISIT COMMAND (Walk to another desk for consultation)
 program
   .command('ask <from> <to> [question...]')
   .alias('visit')
@@ -236,7 +236,7 @@ program
     }
   });
 
-// RETURN COMMAND (เดินกลับโต๊ะทำงาน)
+// RETURN COMMAND (Walk back to home desk)
 program
   .command('return <visitorName>')
   .alias('back-to-desk')

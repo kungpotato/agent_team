@@ -1,136 +1,174 @@
-# 👾 Agent Team - 8-Bit Virtual Office CLI & Web Server
+# 👾 Agent Team - 8-Bit Virtual Office CLI, MCP & Web Server
 
-**Agent Team** คือ CLI และ Localhost Web Server จำลองออฟฟิศสไตล์ **8-bit Pixel Art Animation** แบบเรียลไทม์ สำหรับแสดงสถานะของ **AI Agents** (เช่น Claude Code, Autonomous Subagents, Dev Agents, Potato-Skill Agents) ขณะนั่งเขียนโค้ด ประชุม รอคิว หรือพักผ่อนบนเว็บเบราว์เซอร์ พร้อมระบบเสียง Retro Synth และระบบ Background Daemon ในตัว
+**Agent Team** is a real-time, interactive **8-bit Pixel Art Office Simulator** designed for AI Agents (including Claude Code, Autonomous Subagents, Dev Agents, and Potato-Skill Agents). It visualizes your AI agents coding at desks, walking across hallways to consult teammates, holding meetings in conference rooms, waiting in queues, and taking breaks on an animated web canvas, accompanied by retro synth audio and a built-in background daemon.
 
 ![8-bit Virtual Office Live Demo](public/assets/demo.gif)
 
 ---
 
-## 🌟 จุดเด่นและฟีเจอร์หลัก (Key Features)
+## 🌟 Key Features
 
 ### 1. 🏢 Tech Startup Open-Plan Office & 5 Conference Rooms
-- **ห้องทำงานแบบ Open Space (ซ้ายมือ)**:
-  - **โต๊ะยาว 5 ตัว (5 Long Benches)**: แต่ละโต๊ะนั่งได้ **8 คน** (รองรับทีมงานสูงสุด 40 ที่นั่ง)
+- **Open-Space Workspace (Left Canvas)**:
+  - **5 Long Workbenches**: Each workbench seats **8 agents** (accommodating up to 40 agents simultaneously):
     - `Bench 1`: Core Tech & Product
     - `Bench 2`: Frontend & UI
     - `Bench 3`: Backend & API
     - `Bench 4`: AI & Data / QA
     - `Bench 5`: DevOps & Infra / SRE
-  - **อุปกรณ์ประจำโต๊ะ**: แล็ปท็อปพร้อมหน้าจอโค้ดเคลื่อนไหว, เก้าอี้ทำงานตามสีธีม, แก้วกาแฟร้อน และกระป๋อง Energy Drink
-  - **ป้ายชื่อตั้งโต๊ะประจำตัว (Desk Nameplate)**: สลักชื่อ Agent ทุกตัวอย่างชัดเจนบริเวณหน้าโต๊ะทำงาน
-  - **ของตกแต่งออฟฟิศ Startup**: ไวท์บอร์ด Kanban Board (TODO, DOING, PROD), บาร์กาแฟ & ตู้แช่เครื่องดื่ม, ป้ายนีออนเรืองแสง `MOVE FAST & BREAK THINGS`, ตู้เกมเรโทร Arcade, ต้นไม้ Monstera และตู้เซิร์ฟเวอร์ไฟกะพริบ
-- **โซนห้องประชุม 5 ห้อง (ขวามือ)**:
-  - **ห้องประชุม 1 ถึง 5**: ทุกห้องรองรับได้สูงสุด **8 ที่นั่งต่อห้อง** (รวมรองรับประชุมพร้อมกันได้ถึง 40 ที่นั่ง)
+  - **Desk Equipment**: Laptops with animated code displays, color-coded office chairs, hot coffee mugs, and energy drink cans.
+  - **Desk Nameplates**: Every agent's name is rendered cleanly in front of their workspace.
+  - **Startup Decor**: Kanban whiteboard (TODO, DOING, PROD), coffee & beverage bar, glowing neon `MOVE FAST & BREAK THINGS` sign, retro arcade cabinet, Monstera plants, and blinking server racks.
+- **5 Executive Conference Rooms (Right Canvas)**:
+  - **Rooms 1 to 5**: Each room seats up to **8 agents** (supporting up to 40 concurrent meeting attendees):
     - `Room 1`: Executive Suite 1
     - `Room 2`: Executive Suite 2
     - `Room 3`: Executive Suite 3
     - `Room 4`: Executive Suite 4
-    - `Room 5`: Main Boardroom (ห้องประชุมใหญ่สำหรับ All-Hands)
-  - **อุปกรณ์ในห้องประชุม**: โต๊ะประชุมไม้หรูวงรี, คอนโซลไมโครโฟนตรงกลาง, เก้าอี้ประชุม 8 ตัว, ไฟสถานะ LED (เขียว = ว่าง, ส้ม = กำลังประชุม, แดงกะพริบ = ห้องเต็ม 8/8) และป้ายแสดงหัวข้อประชุม
-  - **ป้ายชื่อบนโต๊ะประชุม (Meeting Name Badges)**: วางระบุชื่อผู้เข้าร่วมประชุมชัดเจนทุกคนรอบโต๊ะ
+    - `Room 5`: Main Boardroom (Large all-hands boardroom)
+  - **Meeting Equipment**: Oval executive wooden table, central conference microphone, 8 chairs, status LED (Green = Available, Amber = In Session, Blinking Red = Full 8/8), and active meeting topic marquee.
+  - **Meeting Badges**: Name badges placed around the conference table for all attendees.
 
 ---
 
-### 2. 🪪 การแสดงชื่อ Agent ชัดเจน 100% (High-Legibility Identity)
-- ตัวหนังสือไม่โดนแล็ปท็อปหรือเฟอร์นิเจอร์ทับซ้อน
-- ใช้ฟอนต์ 8-bit คมชัดระดับพิกเซล `Silkscreen` อ่านง่าย ชัดเจน ไม่มีการตัดคำเป็น `...`
+### 2. 🪪 High-Legibility Pixel Identity
+- 100% unobstructed text: agent names and task HUDs never collide with laptops or furniture.
+- Rendered in sharp, pixel-perfect `Silkscreen` retro typography with high-contrast badge borders.
 
 ---
 
-### 3. 📊 กล่องข้อความ Task HUD & หลอด Progress Bar
-- เมื่อ Agent ทำงาน (`status: working`) จะมีกล่อง HUD ลอยเหนือศีรษะ:
-  - แสดง**ชื่อ Agent** ชัดเจน
-  - แสดง**เปอร์เซ็นต์ความคืบหน้า (0 - 100%)**
-  - หลอด **Progress Bar** 8-bit สีเหลือง/เขียวเมื่อเสร็จ
-  - คำอธิบายงาน (Task Description) ที่กำลังทำอยู่
+### 3. 📊 Task HUD & Progress Bars
+- When an agent is working (`status: working`), an overhead HUD box displays:
+  - **Agent Name & Role Color**
+  - **Completion Percentage (0 - 100%)**
+  - **8-Bit Progress Bar** (Yellow while working, vibrant green upon 100% completion)
+  - **Current Task Description**
 
 ---
 
-### 4. 🧍 ท่าทางตัวละครที่นุ่มนวล สมจริง (Polished Animations)
-- **💻 ทำงาน (Working)**: ตัวละครนั่งนิ่งเป็นธรรมชาติ **ขยับเฉพาะนิ้วมือพิมพ์คีย์บอร์ด** และหน้าจอแล็ปท็อปสว่างสะท้อนใบหน้า (ตัวคนไม่เด้งขึ้นลงเร็วผิดปกติ)
-- **💤 นอนหลับ (Sleeping)**: หลับสัปหงกพร้อมสัญลักษณ์ `Z` `z` `z` ลอยขึ้นเป็นคลื่น Sine Wave
-- **💬 สนทนา (Talking)**: ขยับปาก โบกมือสื่อสาร พร้อมกล่องคำพูด (Speech Bubble) เหนือศีรษะ โดยในห้องประชุมจะมีการสลับผู้พูดทีละคนอย่างเป็นธรรมชาติ
-- **⏳ รอคิวประชุม (Waiting)**: นั่งรอเรียบร้อยที่โต๊ะทำงาน พร้อมป้ายสีเหลืองอำพันและนาฬิกาทราย `⏳ QUEUE FOR RM X`
+### 4. 🚶 Desk Visit & Walk-to-Consultation System
+- Agents can **get up from their desk and walk along aisles and hallways** to another agent's desk using 8-bit walking animations (swinging arms, stepping legs, head bob).
+- **Consultation Stance**: The visitor stands beside the teammate's desk holding a clipboard/notepad.
+- **Staggered Dual Bubbles**:
+  - Visitor displays an overhead Question Bubble: `❓ [QUESTION]`
+  - Host seated at the desk displays an overhead Reply Bubble: `💡 [REPLY]`
+  - Horizontally staggered so dialogue remains completely legible without overlap.
+- **Smart Contextual Reply**: If no custom reply is provided, the host agent automatically replies with their active task context.
+- **Chair Lifecycle**: The visitor's home chair remains empty while visiting, and is re-occupied when they return.
+- **Auto-Return & Manual Return**: Automatically walks back to their home desk when the timer expires (default: 12s), or when `agent-team return <name>` is called.
 
 ---
 
-### 5. 👥 ระบบ Lifecycle 1:1 ตรงตาม Agent ที่ทำงานจริง
-- จำนวน Agent ที่ปรากฏในออฟฟิศจะตรงกับ Agent ที่กำลังรันงานจริงเท่านั้น
-- หากไม่ได้สั่งรันหรือยังไม่มีงาน ออฟฟิศจะโล่งสะอาด
-- เมื่อ Agent จบงาน หรือไม่ต้องการให้แสดงผล สามารถใช้คำสั่ง **Dismiss** เพื่อให้ตัวละครหายไปพร้อมเอฟเฟกต์กลุ่มควัน 8-bit Smoke Puff
+### 5. 🚦 Conference Rooms & Auto-Admit Waiting Queue
+- When a conference room reaches capacity (8/8 seats), any subsequent meeting request is automatically assigned to a **Waiting Queue** with a unique Queue ID (e.g. `Q-860`).
+- Queued agents wait patiently at their desks in `waiting` status with an amber `⏳ QUEUE FOR RM X` badge.
+- **Auto-Admit Engine**: As soon as the current meeting ends (`agent-team end-meeting -r <room>`), the next queued team is **automatically admitted into the conference room**!
 
 ---
 
-### 6. 🚦 ระบบตรวจสอบสถานะห้องประชุม และระบบรอคิว (Meeting Room Queue System)
-- **ห้องประชุมจุได้ห้องละ 8 คน** หากมีคำสั่งเรียกประชุมแล้วห้องนั้นเต็ม (ครบ 8 คน):
-  - ระบบจะนำ Agent เข้าสู่ **Waiting Queue** ให้อัตโนมัติ พร้อมแจ้ง Queue ID และลำดับคิว
-  - Agent จะนั่งรออยู่ที่โต๊ะทำงานในสถานะ `waiting`
-  - หน้าจอเว็บจะแสดงป้าย `⏳ QUEUE ACTIVE` สีเหลืองอำพันแบบ Cyber Retro
-- **ระบบ Auto-Admit**:
-  - เมื่อการประชุมในห้องเดิมสิ้นสุดลง (`agent-team end-meeting -r <room>`)
-  - **ระบบจะดึง Agent ในคิวที่รอห้องนั้นเข้าห้องประชุมทันทีโดยอัตโนมัติ!**
-- **คำสั่งจัดการคิว**:
-  - ตรวจสอบสถานะห้องและคิวทั้งหมด: `agent-team room-status` (หรือ `agent-team status`)
-  - จองคิวล่วงหน้าโดยตรง: `agent-team queue-meeting <names...> -r <room>`
-  - ขอยกเลิกคิว: `agent-team cancel-queue <queueIdOrAgent>`
+### 6. 👥 1:1 Real Agent Lifecycle & 8-Bit Smoke Puff Dismissal
+- The virtual office only renders agents that are currently active in your workflow.
+- When an agent finishes their job, the `dismiss` command removes them with an animated 8-bit smoke puff particle effect.
 
 ---
 
-### 7. 🚶 ระบบเดินไปคุย / ถามข้อมูลที่โต๊ะทำงาน (Desk Visit & Consultation)
-- Agent สามารถ**ลุกจากโต๊ะทำงาน แล้วเดินเลี้ยวไปตามช่องทางเดิน (Hallways & Aisles)** ด้วยแอนิเมชันก้าวขาแกว่งแขน 8-bit เดินไปหาเพื่อนร่วมทีมที่โต๊ะอื่นได้
-- **ท่าทางยืนปรึกษางาน (Visiting Pose)**: ยืนถือแผ่นชาร์ต/สมุดโน้ตข้างโต๊ะเพื่อน พร้อมบอลลูนคำถาม `❓ [question]` ลอยเด่นเหนือศีรษะ
-- **บอลลูนคำตอบโต้ตอบ (Reply Bubble)**: Agent เจ้าของโต๊ะที่นั่งอยู่จะตอบกลับด้วยบอลลูน `💡 [reply]` (วางตำแหน่งเยื้องซ้าย-ขวาอย่างลงตัว ไม่บังกัน)
-- **สถานะเก้าอี้และโต๊ะ**: ระหว่างที่ลุกไปคุย เก้าอี้ทำงานของตัวที่เดินจะว่างลงอย่างสมจริง
-- **การเดินกลับ (Auto-Return / Manual Return)**:
-  - เดินกลับเองอัตโนมัติเมื่อครบเวลา (ดีฟอลต์ 12 วินาที)
-  - หรือสั่งให้อยู่ค้างไว้ (`--stay`) แล้วสั่งเดินกลับเมื่อไหร่ก็ได้ด้วยคำสั่ง `agent-team return <visitor>`
-  - เมื่อกลับถึงโต๊ะจะนั่งลงทำงานพิมพ์โค้ดต่อทันที
+### 7. 🔌 Model Context Protocol (MCP) Server
+- Native stdio MCP server for **Claude Code**, **Claude Desktop**, **Cursor**, and other MCP-compatible IDEs.
+- Exposes 12 high-level tools with full parameter validation and typed JSON responses.
 
 ---
 
-## 🚀 การติดตั้งและเริ่มต้นใช้งาน (Getting Started)
+## 🚀 Getting Started
 
-### ความต้องการของระบบ (Prerequisites)
-- **Node.js**: เวอร์ชัน 18 ขึ้นไป
+### Prerequisites
+- **Node.js**: v18 or higher
 - **npm**
 
-### การติดตั้ง (Installation)
+### Installation
 ```bash
-git clone <repo-url>
+git clone https://github.com/kungpotato/agent_team.git
 cd agent_team
 npm install
 npm run build
 ```
 
-### เปิดหน้าจอ Virtual Office
+### Launch the Virtual Office
 ```bash
-# เปิดเซิร์ฟเวอร์และเปิดบราวเซอร์ให้อัตโนมัติ (localhost:3333)
+# Starts the server and opens http://localhost:3333 in your default browser
 node bin/agent-team.js open
-# หรือ
+# or
 node bin/agent-team.js start --open
 ```
 
-> **หมายเหตุ:** ระบบมี **Background Auto-Daemon** ในตัว หากเซิร์ฟเวอร์ยังไม่ได้เปิด เมื่อพิมพ์คำสั่ง CLI ใดๆ ระบบจะสตาร์ทเซิร์ฟเวอร์เบื้องหลังให้เองทันที!
+> **Note**: The CLI includes a **Background Auto-Daemon**. If the server is not running when you execute any CLI or MCP command, it will automatically launch the server in the background for you!
 
 ---
 
-## 📖 คู่มือคำสั่ง CLI ทั้งหมด (CLI Reference)
+## 🔌 Model Context Protocol (MCP) Integration for Claude
 
-### 1. 🏢 การตรวจสอบสถานะ (Status & Roster)
+The fastest and most reliable way for Claude to control the office is via MCP.
+
+### 1. Adding to Claude Code (Terminal CLI)
+Run this single command in your terminal:
+```bash
+claude mcp add agent-team node /Users/kittisak/workspace/agent_team/bin/agent-team-mcp.js
+```
+*Or run directly via project executable:*
+```bash
+claude mcp add agent-team node /Users/kittisak/workspace/agent_team/bin/agent-team.js mcp
+```
+
+### 2. Adding to Claude Desktop (`claude_desktop_config.json`)
+Open your Claude Desktop configuration (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "agent-team": {
+      "command": "node",
+      "args": [
+        "/Users/kittisak/workspace/agent_team/bin/agent-team-mcp.js"
+      ]
+    }
+  }
+}
+```
+
+### MCP Tools Reference (12 Tools)
+
+| Tool Name | Description | Key Parameters |
+|---|---|---|
+| `office_set_work` | Assign an agent to work on a task with progress % (Auto-spawns agent if absent) | `agent_name`, `task`, `progress` (0-100) |
+| `office_update_progress` | Update completion percentage and task description | `agent_name`, `progress`, `task` |
+| `office_desk_visit` | Send an agent walking over to another desk to ask questions | `from_agent`, `to_agent`, `question`, `reply`, `duration`, `stay` |
+| `office_return_to_desk`| Order a visiting agent to return to their home desk | `agent_name` |
+| `office_start_meeting` | Move agents into Room 1-5 (Auto-queues if 8/8 full) | `agents`, `room` (1-5), `topic` |
+| `office_end_meeting` | Conclude a meeting (Auto-admits next queued team) | `room` (Optional) |
+| `office_get_status` | Retrieve complete office roster, room status, queues, and visits | `{}` |
+| `office_dismiss` | Dismiss agents with an 8-bit smoke puff animation | `agents`, `idle`, `sleeping` |
+| `office_sleep` | Put an agent to sleep with floating Zzz animation | `agent_name` |
+| `office_talk` | Display an overhead speech bubble | `agent_name`, `message` |
+| `office_spawn_potato` | Spawn Potato Squad agents to their designated workbenches | `roles` (Optional) |
+| `office_reset` | Reset and clear the entire office | `{}` |
+
+---
+
+## 📖 CLI Command Reference
+
+### 1. 🏢 Status & Roster Inspection
 
 #### `agent-team room-status [roomNumber]`
 > **Aliases:** `status`, `meet-status`, `rooms`
 
-ตรวจสอบสถานะห้องประชุมทั้ง 5 ห้อง (ความจุ, จำนวนผู้เข้าร่วม, หัวข้อ) และรายการคิวที่รอใช้ห้อง (`Waiting Queue`):
+Inspect all 5 conference rooms and the meeting waiting queue:
 ```bash
-# ตรวจสอบสถานะทุกห้องประชุมและคิว
+# Check all rooms and waiting queues
 agent-team room-status
 
-# ตรวจสอบเฉพาะห้องที่ต้องการ (เช่น ห้อง 1)
+# Check a specific room (e.g. Room 1)
 agent-team room-status 1
 ```
 
-**ตัวอย่างผลลัพธ์:**
+**Example Output:**
 ```text
 🏢 MEETING ROOMS & RESERVATION STATUS (Capacity: 8 seats per room)
 ════════════════════════════════════════════════════════════════════════════════════════
@@ -152,60 +190,84 @@ RM 5   | Main Boardroom       | 🟢 AVAILABLE   | [0/8]   | (None)
 ```
 
 #### `agent-team list`
-แสดงรายชื่อ Agent ทั้งหมดที่กำลังทำงานอยู่ในออฟฟิศ พร้อมระบุโต๊ะทำงาน ห้องประชุม และความคืบหน้า:
+List all active agents, their desk locations, and progress:
 ```bash
 agent-team list
 ```
 
 ---
 
-### 2. 💻 การสั่งงานและอัปเดตความคืบหน้า (Work & Progress)
+### 2. 💻 Work & Progress Tracking
 
 #### `agent-team work <name> [task...] [-P <progress>]`
-สั่งให้ Agent นั่งทำงานหน้าแล็ปท็อป (หาก Agent ตัวนั้นยังไม่มีในระบบ จะทำ **Auto-Spawn** ให้ทันที ไม่ต้องสั่ง `spawn` ล่วงหน้า):
+Assign an agent to work at their desk (Auto-spawns the agent if not currently in the office):
 ```bash
-# สั่งให้ coder1 ทำงาน (ดีฟอลต์ความคืบหน้า 25%)
+# Assign coder1 to work (defaults to 25% progress)
 agent-team work coder1 "Refactoring auth module"
 
-# สั่งงานพร้อมระบุเปอร์เซ็นต์ความคืบหน้า 70%
+# Assign work with explicit 70% progress
 agent-team work coder1 "Writing unit tests" -P 70
 ```
 
 #### `agent-team progress <name> <percentage> [task...]`
-อัปเดตเปอร์เซ็นต์ความคืบหน้าของงาน (0 - 100%):
+Update completion percentage (0 - 100%):
 ```bash
-# อัปเดตความคืบหน้าเป็น 90%
 agent-team progress coder1 90
-
-# อัปเดตพร้อมเปลี่ยนคำอธิบายงาน
 agent-team progress coder1 100 "Auth module completed!"
 ```
 
 ---
 
-### 3. 📋 การประชุมและระบบเข้าคิว (Meetings & Queue)
+### 3. 🚶 Desk Visits & Walk-to-Consultation
+
+#### `agent-team ask <from> <to> [question...] [options]`
+> **Aliases:** `visit`, `consult`, `walk-to`, `talk-to`
+
+Order an agent to leave their desk, walk across the office, and consult a teammate:
+- **Options**:
+  - `-r, --reply <text>`: Custom reply from the host agent (defaults to their current task)
+  - `-d, --duration <seconds>`: Consultation duration in seconds before returning (default: 12)
+  - `-s, --stay`: Stay at the desk until manually returned via `agent-team return`
+
+```bash
+# pm1 walks to coder1's desk to ask a question
+agent-team ask pm1 coder1 "Is auth ready?"
+
+# Visit with custom reply and 20s consultation duration
+agent-team ask pm1 coder1 "When can we release?" -r "Sprint target is Friday!" -d 20
+
+# Visit and stay at the desk indefinitely
+agent-team ask system-architect1 coder1 "Review the API contract" --stay
+```
+
+#### `agent-team return <visitor>`
+> **Aliases:** `back-to-desk`, `return-to-desk`
+
+Order a visiting agent to walk back along the aisles to their own desk:
+```bash
+agent-team return pm1
+```
+
+---
+
+### 4. 📋 Conference Meetings & Queues
 
 #### `agent-team meet <names...> [-r <1-5>] [-t <topic>]`
-ย้าย Agent ไปยังห้องประชุม (1 - 5):
-- แต่ละห้องรองรับได้สูงสุด **8 คน**
-- หากห้องว่าง จะเข้าประชุมทันที
-- **หากห้องเต็ม (ครบ 8 คน) ระบบจะนำเข้า Waiting Queue ให้อัตโนมัติ!**
+Move agents into a conference room (1 - 5):
+- Maximum capacity is **8 agents per room**.
+- If the room is full, agents are automatically placed into the **Waiting Queue**.
 ```bash
-# ส่ง dev1, dev2 เข้าห้องประชุม 1
+# Move dev1 and dev2 into Room 1
 agent-team meet dev1 dev2 -r 1 -t "API Design Review"
 
-# ส่ง 8 คนเข้าห้องประชุม 5 (Boardroom)
+# Gather 8 agents into Room 5 (Boardroom)
 agent-team meet dev1 dev2 dev3 dev4 dev5 dev6 dev7 dev8 -r 5 -t "All-Hands Sync"
-
-# หากห้อง 1 เต็มอยู่แล้ว แล้วสั่งเรียกประชุม:
-agent-team meet qa1 devops1 -r 1 -t "Canary Verification"
-# -> ระบบจะแจ้งว่าห้องเต็ม และนำเข้าคิว #1 ให้ทันที
 ```
 
 #### `agent-team queue-meeting <names...> [-r <1-5>] [-t <topic>]`
 > **Alias:** `q-meet`
 
-สั่งจองคิวห้องประชุมโดยตรง:
+Explicitly queue a team for a conference room:
 ```bash
 agent-team queue-meeting coder1 reviewer1 -r 2 -t "Code Review RFC"
 ```
@@ -213,110 +275,70 @@ agent-team queue-meeting coder1 reviewer1 -r 2 -t "Code Review RFC"
 #### `agent-team cancel-queue <queueIdOrAgent>`
 > **Alias:** `dequeue`
 
-ขอยกเลิกคำขอเข้าคิวประชุม (ระบุ Queue ID เช่น `Q-860` หรือระบุชื่อ Agent ที่รอคิวอยู่):
+Cancel a meeting queue reservation:
 ```bash
-# ยกเลิกด้วย Queue ID
 agent-team cancel-queue Q-860
-
-# ยกเลิกด้วยชื่อ Agent
 agent-team cancel-queue coder1
 ```
 
 #### `agent-team end-meeting [args...] [-r <1-5>]`
-สั่งจบการประชุม:
-- Agent ในห้องประชุมจะหายไปทันทีพร้อมเอฟเฟกต์ควัน 8-bit Smoke Puff
-- **หากมีคิวรออยู่ ระบบจะดึง Agent ในคิวเข้าห้องประชุมทันที (Auto-Admit)!**
+End a meeting, releasing attendees with an 8-bit smoke puff and auto-admitting the next queued team:
 ```bash
-# สั่งจบการประชุมเฉพาะห้อง 1
+# End meeting in Room 1
 agent-team end-meeting -r 1
-# หรือ
-agent-team end-meeting 1
 
-# สั่งจบการประชุมทุกห้อง
+# End meetings in all rooms
 agent-team end-meeting
 ```
 
 ---
 
-### 4. 💤 การพักและการพูดคุย (Sleep & Talk)
+### 5. 💤 Sleep & Talk
 
 #### `agent-team sleep <name>`
-สั่งให้ Agent นั่งหลับพักผ่อน (มีตัวอักษร Zzz ลอย):
+Put an agent to sleep with animated floating Zzz particles:
 ```bash
 agent-team sleep dev1
 ```
 
 #### `agent-team talk <name> <message...>`
-ให้ Agent พูดคุยและแสดง Speech Bubble:
+Display a speech bubble above an agent:
 ```bash
 agent-team talk pm1 "Let's review the sprint goals!"
 ```
 
 ---
 
-### 5. 🚶 การเดินไปคุย / ปรึกษาที่โต๊ะทำงาน (Desk Visit & Consultation)
-
-#### `agent-team ask <from> <to> [question...] [options]`
-> **Aliases:** `visit`, `consult`, `walk-to`, `talk-to`
-
-สั่งให้ Agent ลุกจากโต๊ะ เดินไปหาเพื่อนร่วมทีมที่โต๊ะทำงาน เพื่อสอบถามข้อมูลหรือปรึกษางาน:
-- **Options**:
-  - `-r, --reply <text>`: ข้อความที่ Agent เจ้าของโต๊ะตอบกลับ (หากไม่ระบุ ระบบจะตอบกลับตามชิ้นงานที่กำลังทำอยู่ให้อัตโนมัติ)
-  - `-d, --duration <seconds>`: ระยะเวลาที่ยืนปรึกษาก่อนเดินกลับโต๊ะตัวเอง (ดีฟอลต์: 12 วินาที)
-  - `-s, --stay`: สั่งให้ยืนคุยค้างไว้ ไม่เดินกลับอัตโนมัติ (จนกว่าจะสั่ง `agent-team return`)
-
-```bash
-# pm1 ลุกจากโต๊ะเดินไปถาม coder1 ที่โต๊ะ
-agent-team ask pm1 coder1 "Is auth ready?"
-
-# เดินไปปรึกษาพร้อมระบุคำตอบ และตั้งเวลาคุย 20 วินาที
-agent-team ask pm1 coder1 "When can we release?" -r "Sprint target is Friday!" -d 20
-
-# เดินไปปรึกษาแบบยืนคุยค้างไว้ (ไม่เดินกลับจนกว่าจะสั่ง return)
-agent-team ask system-architect1 coder1 "Review the API contract" --stay
-```
-
-#### `agent-team return <visitor>`
-> **Aliases:** `back-to-desk`, `return-to-desk`
-
-สั่งให้ Agent ที่กำลังไปยืนคุย เดินกลับมานั่งทำงานที่โต๊ะของตัวเองทันที:
-```bash
-# สั่งให้ pm1 เดินกลับไปนั่งทำงานที่โต๊ะตัวเอง
-agent-team return pm1
-```
-
----
-
-### 6. 🚪 การคัดชื่อออกและเคลียร์ออฟฟิศ (Dismiss & Reset)
+### 6. 🚪 Dismiss & Reset
 
 #### `agent-team dismiss [names...] [--idle] [--sleeping]`
 > **Aliases:** `remove`, `leave`, `despawn`
 
-สั่งให้ Agent หายตัวไปพร้อมเอฟเฟกต์ควัน 8-bit:
+Dismiss agents with an 8-bit smoke puff animation:
 ```bash
-# สั่งลบเฉพาะ Agent ที่ระบุ
+# Dismiss specific agents
 agent-team dismiss dev1 dev2
 
-# สั่งลบ Agent ทั้งหมดที่ไม่ได้กำลังทำงาน (กำลังหลับหรือว่าง)
+# Dismiss all non-working agents
 agent-team dismiss --idle
 
-# สั่งลบ Agent ทั้งหมดที่กำลังนอนหลับ
+# Dismiss all sleeping agents
 agent-team dismiss --sleeping
 ```
 
 #### `agent-team reset`
-ล้างทำความสะอาดออฟฟิศทั้งหมด นำ Agent และหัวข้อประชุมออกทั้งหมด:
+Clear all agents, meetings, and queues:
 ```bash
 agent-team reset
 ```
 
 ---
 
-### 7. 🥔 การทำงานร่วมกับ Potato-Skill Agents
+### 7. 🥔 Potato-Skill Agents Squad
 
-ระบบรองรับ Potato-Skill Agents ทั้ง 10 บทบาทจาก `/Users/kittisak/workspace/potato-skill/agents`:
+Native integration for the 10 Potato-Skill agent roles from `/Users/kittisak/workspace/potato-skill/agents`:
 
-| Agent Name | Role Title | สีประจำตัว | โต๊ะทำงานเริ่มต้น | หน้าที่หลัก |
+| Agent Name | Role Title | Signature Color | Designated Workbench | Primary Responsibility |
 |---|---|---|---|---|
 | `product-manager` | `PM` | 🟣 Purple | Bench 1 (Core Tech & Product) | Drafting PRD & Acceptance Criteria |
 | `project-planner` | `PLANNER` | 🟢 Green | Bench 1 (Core Tech & Product) | Decomposing task DAG waves |
@@ -329,168 +351,103 @@ agent-team reset
 | `runtime-sre` | `SRE` | 🩷 Pink | Bench 4 (QA & SRE) | Analyzing SLO telemetry & RCA |
 | `devops-release` | `DEVOPS` | 🌐 Cyan | Bench 5 (DevOps & Infra) | Canary rollout & CI/CD deployment |
 
-#### คำสั่ง CLI สำหรับ Potato Squad:
+#### Potato Squad CLI Commands:
 ```bash
-# แสดงรายชื่อและคำอธิบายของ Potato Agents ทั้ง 10 ตัว
+# List all 10 Potato roles
 agent-team potato-list
 
-# เสกทั้งทีม 10 คนมานั่งประจำโต๊ะทำงานตามสายงานทันที
+# Spawn the complete 10-role squad to their designated workbenches
 agent-team spawn-potato
 
-# เสกเฉพาะตัวที่ต้องการ (รองรับ auto-numbering เช่น coder1, coder2)
+# Spawn selected roles (supports auto-numbering, e.g. coder1, coder2)
 agent-team spawn-potato coder system-architect qa-tester
 
-# รันขั้นตอนการประชุมอัตโนมัติตาม Flow ของ Potato-Skill:
-agent-team potato-workflow review     # coder1 & code-reviewer1 ประชุมห้อง 1 (Review AST)
-agent-team potato-workflow arch       # product-manager1 & system-architect1 ประชุมห้อง 2 (PRD Contract)
-agent-team potato-workflow qa         # qa-tester1 & devops-release1 ประชุมห้อง 3 (Canary Rollout)
-agent-team potato-workflow triage     # runtime-sre1 & coder1 ประชุมห้อง 4 (Incident Hotfix)
-agent-team potato-workflow all-hands  # รวมทีม 8 คนเข้าห้อง 5 Boardroom (DAG Wave Planning)
+# Run preset multi-agent workflows matching potato-skill DAG waves:
+agent-team potato-workflow review     # coder1 & code-reviewer1 meet in Room 1 (Review AST)
+agent-team potato-workflow arch       # product-manager1 & system-architect1 meet in Room 2 (PRD Contract)
+agent-team potato-workflow qa         # qa-tester1 & devops-release1 meet in Room 3 (Canary Rollout)
+agent-team potato-workflow triage     # runtime-sre1 & coder1 meet in Room 4 (Incident Hotfix)
+agent-team potato-workflow all-hands  # All 8 team leads meet in Room 5 Boardroom (DAG Wave Planning)
 ```
 
 ---
 
-### 8. 🎨 การสร้าง Pixel Art Assets ด้วย Pyxel & ImageMagick
+### 8. 🎨 Pixel Art Asset Pipeline (Pyxel & ImageMagick)
 
-โปรเจกต์นี้มี Toolchain อัตโนมัติสำหรับ Generate ตัวละครและ Spritesheet:
+Generate custom 8-bit spritesheets and animated GIFs:
 ```bash
-# รัน Toolchain สร้าง Spritesheet, GIFs และ Metadata
+# Run automated asset generation pipeline
 agent-team generate-assets
 
-# เปิดโปรแกรมแก้ไข Pixel Art Retro GUI (Pyxel)
+# Launch Pyxel GUI sprite and sound editor
 agent-team pyxel-edit
 ```
-- Assets ที่ถูกสร้างจะอยู่ที่ `public/assets/`
-- สามารถกดปุ่ม **🖼️ SPRITES & GIFS** ที่หน้าเว็บเพื่อดูแกลเลอรีภาพเคลื่อนไหวได้
+- Assets are saved to `public/assets/`
+- Click the **🖼️ SPRITES & GIFS** button on the web dashboard to inspect the asset gallery.
 
 ---
 
-## 🤖 การเชื่อมต่อกับ Claude Code / AI Agents (Integration)
+## 🌐 REST API Reference
 
-สามารถสั่งการ Virtual Office ได้ **3 รูปแบบ**:
+The server operates on port `3333` by default:
 
-### รูปแบบที่ 1: ผ่าน Model Context Protocol (MCP Server) ⭐ แนะนำที่สุดสำหรับ Claude
-ระบบมี MCP Stdio Server ในตัว ทำให้ Claude Code, Claude Desktop, Cursor หรือ IDE ต่างๆ เรียกใช้ Tools ควบคุมออฟฟิศได้โดยตรง ไม่ต้องพิมพ์คำสั่ง shell เอง
-
-#### 1. การติดตั้งใน Claude Code (Terminal CLI):
-```bash
-claude mcp add agent-team node /Users/kittisak/workspace/agent_team/bin/agent-team-mcp.js
-```
-*หรือหากรันผ่าน CLI ของโปรเจกต์:*
-```bash
-claude mcp add agent-team node /Users/kittisak/workspace/agent_team/bin/agent-team.js mcp
-```
-
-#### 2. การติดตั้งใน Claude Desktop (`claude_desktop_config.json`):
-เปิดไฟล์คอนฟิก (Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`) แล้วเพิ่ม:
-```json
-{
-  "mcpServers": {
-    "agent-team": {
-      "command": "node",
-      "args": [
-        "/Users/kittisak/workspace/agent_team/bin/agent-team-mcp.js"
-      ]
-    }
-  }
-}
-```
-
-#### รายการ MCP Tools ทั้งหมด (12 Tools):
-| Tool Name | คำอธิบาย | พารามิเตอร์หลัก |
-|---|---|---|
-| `office_set_work` | สั่ง Agent นั่งพิมพ์งานหน้าคอม (Auto-Spawn หากยังไม่มี) | `agent_name`, `task`, `progress` (0-100) |
-| `office_update_progress` | อัปเดต % ความคืบหน้าของงานและข้อความ | `agent_name`, `progress`, `task` |
-| `office_desk_visit` | ลุกจากโต๊ะเดินไปหาเพื่อนเพื่อถามข้อมูล/ปรึกษา | `from_agent`, `to_agent`, `question`, `reply`, `duration`, `stay` |
-| `office_return_to_desk`| สั่งให้ Agent ที่กำลังยืนคุยเดินกลับโต๊ะทำงาน | `agent_name` |
-| `office_start_meeting` | เรียกประชุมในห้อง 1-5 (Auto-Queue หากเต็ม 8 คน) | `agents`, `room` (1-5), `topic` |
-| `office_end_meeting` | จบประชุม (Auto-Admit คิวถัดไปให้อัตโนมัติ) | `room` (Optional) |
-| `office_get_status` | ดึงสถานะออฟฟิศทั้งหมด (Agent, ห้องประชุม, คิว, การเดินคุย) | `{}` |
-| `office_dismiss` | สั่งให้ Agent ปิดงานหายตัวไปพร้อมเอฟเฟกต์ควัน | `agents`, `idle`, `sleeping` |
-| `office_sleep` | สั่งให้นอนหลับ (มี Zzz ลอย) | `agent_name` |
-| `office_talk` | แสดงบอลลูนคำพูดเหนือศีรษะ | `agent_name`, `message` |
-| `office_spawn_potato` | เสก Potato Squad (10 บทบาท) เข้าโต๊ะทำงาน | `roles` (Optional) |
-| `office_reset` | ล้างทำความสะอาดออฟฟิศทั้งหมด | `{}` |
-
----
-
-### รูปแบบที่ 2: ผ่าน Shell CLI
-ใส่คำสั่งในสคริปต์, Makefile หรือ Tool Execution ของ Agent:
-```bash
-# 1. เมื่อเริ่มงาน
-agent-team work coder1 "Implementing JWT Auth" -P 20
-
-# 2. เมื่อทำงานไประยะหนึ่ง
-agent-team progress coder1 75 "Writing unit tests"
-
-# 3. เมื่อต้องการเดินไปถามข้อมูลหรือปรึกษาเพื่อนที่โต๊ะ
-agent-team ask pm1 coder1 "Is auth ready?" -r "Finishing up tests!"
-
-# 4. เมื่อต้องการประชุมทีม
-agent-team meet coder1 reviewer1 -r 1 -t "JWT Code Review"
-
-# 5. เมื่อประชุมเสร็จ
-agent-team end-meeting -r 1
-
-# 6. เมื่อทำงานเสร็จสิ้น ปิดงาน
-agent-team dismiss coder1
-```
-
-### รูปแบบที่ 2: ผ่าน REST API (JSON HTTP Endpoints)
-พอร์ตมาตรฐานคือ `3333`:
-
-| Method | Endpoint | Body Payload ตัวอย่าง | คำอธิบาย |
+| Method | Endpoint | Example Request Body | Description |
 |---|---|---|---|
-| `GET` | `/api/health` | - | ตรวจสอบสถานะเซิร์ฟเวอร์ |
-| `GET` | `/api/agents` | - | ดึงข้อมูล Agent และห้องประชุมทั้งหมด |
-| `GET` | `/api/meeting-rooms/status` | `?roomId=1` (Optional) | ดึงสถานะห้อง 1-5 และคิวที่รอ |
-| `GET` | `/api/agents/visits` | - | ดึงรายการ Session การเดินคุยทั้งหมด |
-| `POST` | `/api/agents/work` | `{"name": "coder1", "task": "Coding", "progress": 50}` | สั่งทำงาน (Auto-Spawn หากยังไม่มี) |
-| `POST` | `/api/agents/progress` | `{"name": "coder1", "progress": 80, "task": "Testing"}` | อัปเดตความคืบหน้า |
-| `POST` | `/api/agents/visit` | `{"from": "pm1", "to": "coder1", "question": "Ready?", "reply": "Yes", "duration": 12, "stay": false}` | สั่งเดินไปถามข้อมูลที่โต๊ะ |
-| `POST` | `/api/agents/return` | `{"name": "pm1"}` | สั่งให้เดินกลับโต๊ะทำงาน |
-| `POST` | `/api/agents/meet` | `{"names": ["coder1", "reviewer1"], "room": 1, "topic": "Review"}` | เรียกประชุม (Auto-Queue หากเต็ม) |
-| `POST` | `/api/agents/end-meeting`| `{"room": 1}` | จบการประชุม (Auto-Admit คิวถัดไป) |
-| `POST` | `/api/meeting-rooms/queue`| `{"names": ["qa1"], "room": 1, "topic": "Test"}` | สั่งเข้าคิวประชุมโดยตรง |
-| `POST` | `/api/meeting-rooms/dequeue`| `{"id": "Q-860"}` หรือ `{"name": "qa1"}` | ยกเลิกคิว |
-| `POST` | `/api/agents/sleep` | `{"name": "coder1"}` | สั่งนอนพัก |
-| `POST` | `/api/agents/talk` | `{"name": "coder1", "message": "Hello!"}` | ส่งข้อความพูดคุย |
-| `POST` | `/api/agents/remove` | `{"names": ["coder1"], "idle": false, "sleeping": false}` | สั่งให้ Agent หายไป (Dismiss) |
-| `POST` | `/api/reset` | `{}` | ล้างข้อมูล Agent ทั้งหมด |
+| `GET` | `/api/health` | - | Server health check |
+| `GET` | `/api/agents` | - | Retrieve all active agents and meeting rooms |
+| `GET` | `/api/meeting-rooms/status` | `?roomId=1` (Optional) | Status of rooms 1-5 and waiting queue |
+| `GET` | `/api/agents/visits` | - | Retrieve active desk consultation sessions |
+| `POST` | `/api/agents/work` | `{"name": "coder1", "task": "Coding", "progress": 50}` | Assign work (Auto-spawns agent if absent) |
+| `POST` | `/api/agents/progress` | `{"name": "coder1", "progress": 80, "task": "Testing"}` | Update work progress % |
+| `POST` | `/api/agents/visit` | `{"from": "pm1", "to": "coder1", "question": "Ready?", "reply": "Yes", "duration": 12, "stay": false}` | Start desk visit & consultation |
+| `POST` | `/api/agents/return` | `{"name": "pm1"}` | Return visiting agent to home desk |
+| `POST` | `/api/agents/meet` | `{"names": ["coder1", "reviewer1"], "room": 1, "topic": "Review"}` | Start meeting (Auto-queues if full) |
+| `POST` | `/api/agents/end-meeting`| `{"room": 1}` | End meeting (Auto-admits next queue item) |
+| `POST` | `/api/meeting-rooms/queue`| `{"names": ["qa1"], "room": 1, "topic": "Test"}` | Queue team for a room |
+| `POST` | `/api/meeting-rooms/dequeue`| `{"id": "Q-860"}` or `{"name": "qa1"}` | Cancel queued meeting |
+| `POST` | `/api/agents/sleep` | `{"name": "coder1"}` | Put agent to sleep |
+| `POST` | `/api/agents/talk` | `{"name": "coder1", "message": "Hello!"}` | Display speech bubble |
+| `POST` | `/api/agents/remove` | `{"names": ["coder1"], "idle": false, "sleeping": false}` | Dismiss agents (Smoke puff) |
+| `POST` | `/api/reset` | `{}` | Reset entire office |
 
 ---
 
-## 🗂️ โครงสร้างโปรเจกต์ (Project Directory Layout)
+## 🗂️ Project Directory Layout
 
 ```text
 agent_team/
 ├── bin/
-│   └── agent-team.js          # CLI Executable Entrypoint
-├── public/                    # 8-Bit Web Dashboard Frontend
-│   ├── index.html             # โครงสร้างหน้าเว็บ, CRT Effect, Canvas
-│   ├── style.css              # Cyber 8-bit Dark Theme
-│   ├── audio.js               # Web Audio API Synthesizer (SFX)
-│   ├── sprites.js             # ตัวเรนเดอร์พิกเซล (Agent, Badges, Furniture, Laptops)
-│   ├── app.js                 # เอนจินเกม, WebSocket Sync, Particle System
-│   └── assets/                # Spritesheet, GIFs, Icons
+│   ├── agent-team.js          # CLI executable entrypoint
+│   └── agent-team-mcp.js      # Stdio MCP Server executable for Claude
+├── public/                    # 8-Bit Web Canvas Dashboard
+│   ├── index.html             # HTML layout, CRT filter, responsive canvas
+│   ├── style.css              # Cyberpunk 8-bit dark styling
+│   ├── audio.js               # Web Audio API 8-bit synth sound engine
+│   ├── sprites.js             # Pixel renderers (agents, badges, furniture, laptops)
+│   ├── app.js                 # Game engine, pathfinding, particle system, WebSocket sync
+│   └── assets/                # Spritesheet, GIFs, icons, demo.gif
 ├── src/
 │   ├── cli/
-│   │   └── index.ts           # คำสั่ง CLI ผ่าน Commander.js
+│   │   └── index.ts           # Commander.js CLI commands
+│   ├── mcp/
+│   │   └── index.ts           # Model Context Protocol (MCP) server implementation
 │   └── server/
-│       ├── types.ts           # Type Definitions (Agent, Queue, RoomStatus, WebSocket)
-│       ├── state.ts           # StateManager จัดการคิว, ที่นั่ง, Auto-Admit, Lifecycle
-│       ├── server.ts          # Express Server & WebSocket Server
-│       ├── potato-agents.js   # ข้อมูล Agent จาก potato-skill/agents
-│       └── standalone.ts      # สคริปต์รันเซิร์ฟเวอร์แบบ Background Daemon
+│       ├── types.ts           # TypeScript models (Agent, Queue, Visit, WebSocket)
+│       ├── state.ts           # StateManager (desk slots, queueing, auto-admit, visits)
+│       ├── server.ts          # Express REST API & WebSocket server
+│       ├── potato-agents.js   # Potato-skill agent role definitions
+│       └── standalone.ts      # Background daemon runner script
 ├── tools/
-│   ├── pixel_engine.py        # Pyxel Engine Script สร้างเฟรมตัวละคร
-│   └── imagemagick_pipeline.sh# ImageMagick Script รวม Spritesheet & GIFs
+│   ├── record_demo_gif.js     # Headless Chrome CDP recorder & ffmpeg pipeline
+│   ├── pixel_engine.py        # Pyxel engine script for character frames
+│   └── imagemagick_pipeline.sh# ImageMagick spritesheet & GIF bundler
 ├── package.json
 ├── tsconfig.json
-└── README.md                  # เอกสารคู่มือการใช้งานฉบับสมบูรณ์
+├── .gitignore
+└── README.md                  # Comprehensive English documentation
 ```
 
 ---
 
-## 📄 ลิขสิทธิ์ (License)
+## 📄 License
 MIT License

@@ -378,7 +378,7 @@ function drawStartupDecor() {
 }
 
 /**
- * Draw 5 Long Workbench Desks (โต๊ะยาว 5 ตัว)
+ * Draw 5 Long Workbench Desks
  * Each desk seats 8 agents (40 total seats)
  */
 function drawWorkRoomBenches() {
@@ -644,7 +644,7 @@ function drawMeetingRooms() {
   ctx.font = '10px "Press Start 2P", monospace';
   ctx.fillStyle = '#ffbb00';
   ctx.textAlign = 'left';
-  ctx.fillText('📋 5 CONFERENCE ROOMS (ห้องประชุม 1 - 5)', 785, 25);
+  ctx.fillText('📋 5 CONFERENCE ROOMS (ROOMS 1 - 5)', 785, 25);
 
   // If there are meetings in waiting queue, show stylish cyber queue ticker
   if (meetingQueue && meetingQueue.length > 0) {
@@ -767,7 +767,7 @@ function drawSingleMeetingRoom(rId, room) {
     }
   }
 
-  // 2. Draw Meeting Table (โต๊ะประชุม)
+  // 2. Draw Meeting Table
   // Soft Table Shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
   ctx.beginPath();
