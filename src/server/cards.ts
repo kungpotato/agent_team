@@ -1,8 +1,33 @@
 import { execFile } from 'child_process';
+import { existsSync } from 'fs';
+import { homedir } from 'os';
+import { dirname, join } from 'path';
 import { promisify } from 'util';
 import { CardSourceProvider, StoryCard } from './types.js';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Resolves TASKRC/TASKDATA for the active Claude project, mirroring that project's own
+ * `bin/tw` wrapper convention: walk up from CLAUDE_PROJECT_DIR (or cwd) looking for a
+ * `.taskrc` file, and point Taskwarrior at the `.task` folder beside it. Without this, plain
+ * `task` falls back to Taskwarrior's own default config (~/.taskrc / the global database),
+ * which has nothing to do with whichever project's session is actually driving the office —
+ * this is computed fresh on every call (not cached at server startup), since one long-running
+ * `agent-team` daemon can serve multiple Claude project directories across its lifetime.
+ */
+function resolveTaskEnv(): NodeJS.ProcessEnv {
+  let dir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+  const home = homedir();
+  while (dir !== dirname(dir) && dir !== home) {
+    const candidate = join(dir, '.taskrc');
+    if (existsSync(candidate)) {
+      return { ...process.env, TASKRC: candidate, TASKDATA: join(dir, '.task') };
+    }
+    dir = dirname(dir);
+  }
+  return process.env;
+}
 
 /**
  * Taskwarrior Provider (Default Kanban Card Source)
@@ -46,7 +71,7 @@ export class TaskwarriorProvider {
    */
   public async isAvailable(): Promise<boolean> {
     try {
-      await execFileAsync('task', ['--version']);
+      await execFileAsync('task', ['--version'], { env: resolveTaskEnv() });
       return true;
     } catch {
       return false;
@@ -63,7 +88,7 @@ export class TaskwarriorProvider {
     }
 
     try {
-      const { stdout } = await execFileAsync('task', ['export']);
+      const { stdout } = await execFileAsync('task', ['export'], { env: resolveTaskEnv() });
       const rawTasks = JSON.parse(stdout || '[]');
       if (!Array.isArray(rawTasks) || rawTasks.length === 0) {
         return [...this.fallbackCards];
@@ -120,7 +145,7 @@ export class TaskwarriorProvider {
 
   public async startCard(id: string): Promise<void> {
     try {
-      await execFileAsync('task', [id, 'start']);
+      await execFileAsync('task', [id, 'start'], { env: resolveTaskEnv() });
     } catch {
       const fb = this.fallbackCards.find(c => c.id === id);
       if (fb) fb.status = 'in_progress';
@@ -129,7 +154,7 @@ export class TaskwarriorProvider {
 
   public async completeCard(id: string): Promise<void> {
     try {
-      await execFileAsync('task', [id, 'done']);
+      await execFileAsync('task', [id, 'done'], { env: resolveTaskEnv() });
     } catch {
       const fb = this.fallbackCards.find(c => c.id === id);
       if (fb) fb.status = 'done';
@@ -145,7 +170,7 @@ export class TaskwarriorProvider {
     try {
       const args = ['add', title, `project:${project}`, `priority:${priority}`, `+${pts}pts`];
       for (const t of tags) args.push(`+${t}`);
-      await execFileAsync('task', args);
+      await execFileAsync('task', args, { env: resolveTaskEnv() });
 
       const cards = await this.getCards();
       const created = cards.find(c => c.title.includes(title));
