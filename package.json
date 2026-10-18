@@ -5,23 +5,35 @@
   "type": "module",
   "main": "dist/server/server.js",
   "bin": {
-    "agent-team": "./bin/agent-team.js"
+    "agent-team": "./bin/agent-team.js",
+    "agent-team-mcp": "./bin/agent-team-mcp.js"
   },
   "scripts": {
     "start": "tsx src/server/standalone.ts",
     "cli": "tsx src/cli/index.ts",
+    "mcp": "node bin/agent-team-mcp.js",
     "build": "tsc",
     "generate-assets": "python3 tools/pixel_engine.py && ./tools/imagemagick_pipeline.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["ai", "agents", "pixel-art", "8bit", "cli", "dashboard", "claude"],
+  "keywords": [
+    "ai",
+    "agents",
+    "pixel-art",
+    "8bit",
+    "cli",
+    "dashboard",
+    "claude"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "commander": "^12.1.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

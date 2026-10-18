@@ -367,9 +367,54 @@ agent-team pyxel-edit
 
 ## 🤖 การเชื่อมต่อกับ Claude Code / AI Agents (Integration)
 
-สามารถสั่งการ Virtual Office ได้ 2 รูปแบบ:
+สามารถสั่งการ Virtual Office ได้ **3 รูปแบบ**:
 
-### รูปแบบที่ 1: ผ่าน Shell CLI (แนะนำสำหรับ Claude Code / Subagents)
+### รูปแบบที่ 1: ผ่าน Model Context Protocol (MCP Server) ⭐ แนะนำที่สุดสำหรับ Claude
+ระบบมี MCP Stdio Server ในตัว ทำให้ Claude Code, Claude Desktop, Cursor หรือ IDE ต่างๆ เรียกใช้ Tools ควบคุมออฟฟิศได้โดยตรง ไม่ต้องพิมพ์คำสั่ง shell เอง
+
+#### 1. การติดตั้งใน Claude Code (Terminal CLI):
+```bash
+claude mcp add agent-team node /Users/kittisak/workspace/agent_team/bin/agent-team-mcp.js
+```
+*หรือหากรันผ่าน CLI ของโปรเจกต์:*
+```bash
+claude mcp add agent-team node /Users/kittisak/workspace/agent_team/bin/agent-team.js mcp
+```
+
+#### 2. การติดตั้งใน Claude Desktop (`claude_desktop_config.json`):
+เปิดไฟล์คอนฟิก (Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`) แล้วเพิ่ม:
+```json
+{
+  "mcpServers": {
+    "agent-team": {
+      "command": "node",
+      "args": [
+        "/Users/kittisak/workspace/agent_team/bin/agent-team-mcp.js"
+      ]
+    }
+  }
+}
+```
+
+#### รายการ MCP Tools ทั้งหมด (12 Tools):
+| Tool Name | คำอธิบาย | พารามิเตอร์หลัก |
+|---|---|---|
+| `office_set_work` | สั่ง Agent นั่งพิมพ์งานหน้าคอม (Auto-Spawn หากยังไม่มี) | `agent_name`, `task`, `progress` (0-100) |
+| `office_update_progress` | อัปเดต % ความคืบหน้าของงานและข้อความ | `agent_name`, `progress`, `task` |
+| `office_desk_visit` | ลุกจากโต๊ะเดินไปหาเพื่อนเพื่อถามข้อมูล/ปรึกษา | `from_agent`, `to_agent`, `question`, `reply`, `duration`, `stay` |
+| `office_return_to_desk`| สั่งให้ Agent ที่กำลังยืนคุยเดินกลับโต๊ะทำงาน | `agent_name` |
+| `office_start_meeting` | เรียกประชุมในห้อง 1-5 (Auto-Queue หากเต็ม 8 คน) | `agents`, `room` (1-5), `topic` |
+| `office_end_meeting` | จบประชุม (Auto-Admit คิวถัดไปให้อัตโนมัติ) | `room` (Optional) |
+| `office_get_status` | ดึงสถานะออฟฟิศทั้งหมด (Agent, ห้องประชุม, คิว, การเดินคุย) | `{}` |
+| `office_dismiss` | สั่งให้ Agent ปิดงานหายตัวไปพร้อมเอฟเฟกต์ควัน | `agents`, `idle`, `sleeping` |
+| `office_sleep` | สั่งให้นอนหลับ (มี Zzz ลอย) | `agent_name` |
+| `office_talk` | แสดงบอลลูนคำพูดเหนือศีรษะ | `agent_name`, `message` |
+| `office_spawn_potato` | เสก Potato Squad (10 บทบาท) เข้าโต๊ะทำงาน | `roles` (Optional) |
+| `office_reset` | ล้างทำความสะอาดออฟฟิศทั้งหมด | `{}` |
+
+---
+
+### รูปแบบที่ 2: ผ่าน Shell CLI
 ใส่คำสั่งในสคริปต์, Makefile หรือ Tool Execution ของ Agent:
 ```bash
 # 1. เมื่อเริ่มงาน

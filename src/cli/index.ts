@@ -669,4 +669,13 @@ program
     });
   });
 
+// MCP COMMAND
+program
+  .command('mcp')
+  .description('Start Model Context Protocol (MCP) stdio server for Claude Code and Claude Desktop')
+  .action(async () => {
+    const { runMcpServer } = await import('../mcp/index.js');
+    await runMcpServer();
+  });
+
 program.parse(process.argv);
