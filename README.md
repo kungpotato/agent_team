@@ -249,6 +249,17 @@ stale-worktree issue mid-task) doesn't re-fire `PostToolUse` on `Agent`, so a ma
 handoff. Treat the two hooks as closing the two big, structural gaps (dispatch and completion),
 not as a 100% guarantee for every nuance.
 
+**Optional 3rd hook — `Stop`, prevents Claude from pausing mid-story.** The two hooks above keep
+the dashboard honest but don't stop Claude from asking "continue to the next wave?" when nothing
+new needs deciding (confirmed in practice to recur even with an explicit CLAUDE.md rule against
+it, since a text rule only works if Claude remembers it). A `Stop` hook that exits code `2`
+structurally blocks the turn from ending while a story card is still `stage:doing` — with a
+literal-marker escape hatch (`STORY-BLOCKED: <reason>`) and a hard force-cap so it can never spin
+forever. Full script, loop-safety test results, and a **known restriction** (Claude Code's own
+permission system can refuse Claude's own edit to `.claude/settings.json` for this one hook,
+treating it as "Self-Modification" — the human may need to add this one entry themselves) are in
+`docs/agent-team-sync-hooks.md`.
+
 ### 4. 🛡️ Mandatory Ceremony Enforcement for Claude (`CLAUDE.md`)
 Whenever Claude or any AI agent uses this project or its MCP tools, **it is strictly bound by the governance policy defined in [`CLAUDE.md`](CLAUDE.md)**:
 - **Strict Ceremony Sequence**: All agent collaboration must execute the 8 ceremonies sequentially (`validation` ➔ `grooming` ➔ `planning` ➔ `working` ➔ `demo` ➔ `uat` ➔ `release` ➔ `retro`).

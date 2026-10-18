@@ -1430,4 +1430,102 @@ sessionGroup
     }
   });
 
+// INSTALL-HOOKS COMMAND
+// Copies the battle-tested Claude Code sync hooks (see docs/agent-team-sync-hooks.md) into a
+// host project so the office dashboard reflects real subagent dispatch/completion as a
+// structural guarantee, instead of depending on Claude remembering to call office_set_work
+// itself every time. Run this yourself in your terminal (not something Claude should do via
+// its own Edit/Write tools) — editing .claude/settings.json to add hooks that govern Claude's
+// own control flow (especially the Stop hook) can be refused by Claude Code's own permission
+// system as "Self-Modification" when Claude tries to do it itself. A plain CLI command you run
+// has no such restriction.
+program
+  .command('install-hooks [targetDir]')
+  .description(
+    'Install the PostToolUse/SubagentStop/Stop sync hooks into a host project\'s .claude/ ' +
+    'directory, so its office dashboard and story-continuation behavior are structurally ' +
+    'guaranteed rather than dependent on Claude remembering to call office_set_work or re-read ' +
+    'CLAUDE.md every turn. Safe to re-run (idempotent, merges rather than clobbers existing hooks).'
+  )
+  .option('--skip-stop-hook', 'Only install the dashboard-sync hooks (PostToolUse/SubagentStop), skip the Stop story-continue-guard')
+  .action((targetDirArg: string | undefined, options: { skipStopHook?: boolean }) => {
+    const targetDir = path.resolve(targetDirArg || process.cwd());
+    const templatesDir = path.resolve(__dirname, '../../templates/hooks');
+    const hooksDestDir = path.join(targetDir, '.claude', 'hooks');
+    const settingsPath = path.join(targetDir, '.claude', 'settings.json');
+
+    if (!fs.existsSync(targetDir)) {
+      console.error(`❌ Target directory does not exist: ${targetDir}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    fs.mkdirSync(hooksDestDir, { recursive: true });
+
+    const filesToCopy = ['sync-agent-team.js', 'subagent-stop-sync.js'];
+    if (!options.skipStopHook) filesToCopy.push('story-continue-guard.cjs');
+
+    for (const file of filesToCopy) {
+      const src = path.join(templatesDir, file);
+      const dest = path.join(hooksDestDir, file);
+      fs.copyFileSync(src, dest);
+      fs.chmodSync(dest, 0o755);
+      console.log(`📄 Installed .claude/hooks/${file}`);
+    }
+
+    let settings: any = {};
+    if (fs.existsSync(settingsPath)) {
+      try {
+        settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      } catch {
+        console.error(`❌ ${settingsPath} exists but is not valid JSON — not touching it. Merge these hooks in by hand:`);
+        console.error(JSON.stringify(buildHookEntries(options.skipStopHook), null, 2));
+        process.exitCode = 1;
+        return;
+      }
+    }
+
+    settings.hooks = settings.hooks || {};
+    const entries = buildHookEntries(options.skipStopHook);
+    for (const [event, newEntries] of Object.entries(entries)) {
+      const existing: any[] = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
+      const alreadyPresent = (entry: any) =>
+        existing.some((e) => JSON.stringify(e) === JSON.stringify(entry));
+      const toAdd = (newEntries as any[]).filter((e) => !alreadyPresent(e));
+      settings.hooks[event] = [...existing, ...toAdd];
+    }
+
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+    console.log(`⚙️  Updated ${settingsPath}`);
+    console.log(
+      `\n✅ Hooks installed. Dashboard dispatch/completion sync is now automatic` +
+      (options.skipStopHook ? '.' : ', and the session cannot silently stop mid-story (see docs/agent-team-sync-hooks.md for the escape hatch: reply with "STORY-BLOCKED: <reason>" when genuinely blocked on a human step).')
+    );
+  });
+
+function buildHookEntries(skipStopHook?: boolean) {
+  const entries: Record<string, any[]> = {
+    PostToolUse: [
+      {
+        matcher: 'Agent',
+        hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/sync-agent-team.js'], timeout: 5 }],
+      },
+    ],
+    SubagentStop: [
+      {
+        hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/subagent-stop-sync.js'], timeout: 5 }],
+      },
+    ],
+  };
+  if (!skipStopHook) {
+    entries.Stop = [
+      {
+        hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/story-continue-guard.cjs'], timeout: 10 }],
+      },
+    ];
+  }
+  return entries;
+}
+
 program.parse(process.argv);

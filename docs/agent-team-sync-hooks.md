@@ -159,6 +159,121 @@ main();
 
 Make both executable: `chmod +x .claude/hooks/*.js`.
 
+## Optional 3rd hook: `Stop` — structurally prevent stopping mid-story
+
+The two hooks above keep the dashboard honest, but they don't stop Claude from pausing
+mid-story to ask "should I continue to the next wave?" when nothing new actually needs deciding
+— that's a separate, worse failure mode (confirmed in practice: a long epic repeatedly stalled
+with "wave N done, continue to wave N+1?" even though CLAUDE.md already said not to ask).
+
+A `Stop` hook can fix this structurally: Claude Code's `Stop` event fires right before a turn
+ends, and a command hook that exits with code `2` **blocks the turn from ending at all** — the
+model is handed the hook's stderr and must act on it. Unlike a note in CLAUDE.md, this doesn't
+depend on the model remembering anything.
+
+`.claude/hooks/story-continue-guard.cjs` (must be `.cjs` if the host repo's `package.json` has
+`"type": "module"`, or plain `.js` otherwise):
+
+```js
+#!/usr/bin/env node
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const MAX_FORCES = 5;
+const COUNTER_FILE = '/tmp/claude-story-continue-guard.json';
+const BLOCK_MARKER = /story-blocked:/i;
+
+function readStdin() {
+  return new Promise((resolve) => {
+    let data = '';
+    process.stdin.on('data', (chunk) => { data += chunk; });
+    process.stdin.on('end', () => resolve(data));
+    process.stdin.on('error', () => resolve(''));
+    setTimeout(() => resolve(data), 1000);
+  });
+}
+
+function readCounters() {
+  try { return JSON.parse(fs.readFileSync(COUNTER_FILE, 'utf8')); } catch { return {}; }
+}
+function writeCounters(c) {
+  try { fs.writeFileSync(COUNTER_FILE, JSON.stringify(c)); } catch { /* best-effort */ }
+}
+
+async function main() {
+  const raw = await readStdin();
+  let payload;
+  try { payload = JSON.parse(raw); } catch { process.exit(0); }
+
+  const lastMessage = String(payload.last_assistant_message || '');
+  if (BLOCK_MARKER.test(lastMessage)) process.exit(0); // explicit human-blocked escape hatch
+
+  const cwd = payload.cwd || process.cwd();
+  const twBin = path.join(cwd, 'bin', 'tw'); // adapt to this project's own task-board CLI
+  if (!fs.existsSync(twBin)) process.exit(0); // not a kanban-enabled project, fail open
+
+  let doingCards;
+  try {
+    const out = execFileSync(twBin, ['status:pending', 'stage:doing', 'export'], { cwd, encoding: 'utf8', timeout: 5000 });
+    doingCards = JSON.parse(out || '[]');
+  } catch { process.exit(0); } // tooling failure — fail open, never block on that
+
+  if (!Array.isArray(doingCards) || doingCards.length === 0) process.exit(0);
+
+  const storyIds = doingCards.map((c) => c.storyid).filter(Boolean).sort();
+  const counterKey = `${payload.session_id || 'unknown'}::${storyIds.join(',')}`;
+  const counters = readCounters();
+  const count = (counters[counterKey] || 0) + 1;
+  counters[counterKey] = count;
+  writeCounters(counters);
+
+  if (count > MAX_FORCES) process.exit(0); // safety valve tripped — give up forcing
+
+  process.stderr.write(
+    `Story card(s) still in stage:doing: ${storyIds.join(', ')}. Continue the pipeline instead ` +
+    `of stopping. If genuinely blocked on a human-only step, say so with the literal text ` +
+    `"STORY-BLOCKED: <reason>" so this check lets you stop. (force ${count}/${MAX_FORCES})\n`
+  );
+  process.exit(2);
+}
+
+main();
+```
+
+Register it in `.claude/settings.json`:
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/story-continue-guard.cjs"], "timeout": 10 }]
+      }
+    ]
+  }
+}
+```
+
+**Loop-safety guarantees (verified by direct testing, not just reasoning about the code):**
+- Escape hatch: a reply containing the literal text `STORY-BLOCKED:` always allows the stop,
+  immediately, no matter the counter state.
+- Hard cap: `MAX_FORCES` (5) forced continuations per unique (session, stuck-story-set) — once
+  exceeded, the hook always allows the stop, even if its own detection logic is wrong about
+  something. The counter resets implicitly once the stuck story set changes (i.e. real progress
+  was made), since the counter key includes the sorted story-id list.
+- Fail-open everywhere else: missing `tw` binary, a `tw` process error, bad JSON, wrong
+  directory — all of these `exit(0)` rather than risk blocking a session that genuinely has
+  nothing in `stage:doing` or where this hook's own assumptions don't hold.
+
+**Known restriction, confirmed in practice:** Claude Code's own permission system treats editing
+`.claude/settings.json` to add a `Stop` (or any hook that governs the session's own control
+flow) as "Self-Modification" and can refuse Claude's own `Edit`/`Write` tool calls for it,
+independent of whatever the host project's permission mode otherwise allows — the classifier may
+still approve it on a retry depending on context, but Claude should not try to work around a
+denial here (e.g. via `sed`/sudo-style tricks through Bash) if it recurs; surface it to the human
+and let them add the 6-line settings.json entry themselves instead. This is specific to the
+`Stop`-hook step — the `PostToolUse`/`SubagentStop` hooks above have not hit this restriction.
+
 ## Known limitations
 
 - A *resumed* agent (via `SendMessage`, e.g. to fix a stale-worktree issue mid-task) does not
