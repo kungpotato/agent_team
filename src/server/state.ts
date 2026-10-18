@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary, Thread, ThreadMessage, ThreadCategory, formatSmartBrevity, extractMentions } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
 
@@ -105,6 +105,7 @@ export class StateManager {
   private meetingQueue: MeetingQueueItem[] = [];
   private visits: Map<string, VisitSession> = new Map();
   private completedSprints: SprintRecord[] = [];
+  private threads: Map<string, Thread> = new Map();
   private sprint: SprintState = {
     sprintNumber: 1,
     story: 'AUTH-101: Implement OAuth2 & JWT Security',
@@ -148,7 +149,8 @@ export class StateManager {
       meetingQueue: [...this.meetingQueue],
       visits: Array.from(this.visits.values()),
       sprint: { ...this.sprint },
-      session: this.sessionId
+      session: this.sessionId,
+      threads: this.getThreads()
     };
   }
 
@@ -187,7 +189,8 @@ export class StateManager {
       meetingQueue: [...this.meetingQueue],
       visits: Array.from(this.visits.values()),
       sprint: this.sprint,
-      completedSprints: this.completedSprints
+      completedSprints: this.completedSprints,
+      threads: Array.from(this.threads.values())
     };
   }
 
@@ -231,6 +234,191 @@ export class StateManager {
         completedSprints: [...this.completedSprints]
       };
     }
+    if (Array.isArray(data.threads)) {
+      this.threads.clear();
+      for (const th of data.threads) {
+        if (th && th.id) {
+          this.threads.set(th.id, th);
+        }
+      }
+    }
+  }
+
+  /**
+   * Get all threads, optionally filtered by category or roomId
+   */
+  public getThreads(filter?: { category?: ThreadCategory; roomId?: number }): Thread[] {
+    let list = Array.from(this.threads.values());
+    if (filter?.category) {
+      list = list.filter(t => t.category === filter.category);
+    }
+    if (filter?.roomId !== undefined) {
+      list = list.filter(t => t.roomId === filter.roomId);
+    }
+    return list.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /**
+   * Get a specific thread and its message history
+   */
+  public getThread(threadId: string): Thread | undefined {
+    return this.threads.get(threadId);
+  }
+
+  /**
+   * Create a new Slack-like thread formatted with Smart Brevity
+   */
+  public createThread(params: {
+    id?: string;
+    title: string;
+    category?: ThreadCategory;
+    roomId?: number;
+    sprintNumber?: number;
+    ceremonyPhase?: SprintPhase;
+    author: string;
+    content?: string;
+    topic?: string;
+    intent?: string;
+    point?: string;
+    nextSteps?: string;
+    mentions?: string[];
+  }): Thread {
+    const threadId = params.id || (
+      params.roomId && params.category === 'meeting'
+        ? `th-room-${params.roomId}`
+        : params.ceremonyPhase
+          ? `th-ceremony-s${params.sprintNumber ?? this.sprint.sprintNumber}-${params.ceremonyPhase}`
+          : `th-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+    );
+
+    const existing = this.threads.get(threadId);
+    if (existing && (params.category === 'meeting' || params.category === 'ceremony')) {
+      if (params.point || params.content) {
+        this.postThreadMessage(threadId, {
+          author: params.author,
+          content: params.content,
+          topic: params.topic,
+          intent: params.intent,
+          point: params.point,
+          nextSteps: params.nextSteps,
+          mentions: params.mentions
+        });
+      }
+      return existing;
+    }
+
+    const category: ThreadCategory = params.category || (params.roomId ? 'meeting' : 'general');
+    const author = params.author.trim().toLowerCase();
+    const agent = this.agents.get(author);
+    const mentions = Array.from(new Set([
+      ...(params.mentions || []),
+      ...extractMentions(params.content || ''),
+      ...extractMentions(params.point || ''),
+      ...extractMentions(params.nextSteps || '')
+    ]));
+
+    const formattedContent = formatSmartBrevity({
+      topic: params.topic || params.title,
+      intent: params.intent,
+      point: params.point,
+      nextSteps: params.nextSteps,
+      content: params.content,
+      mentions
+    });
+
+    const initialMessage: ThreadMessage = {
+      id: `msg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      author,
+      roleTitle: agent?.roleTitle || author.toUpperCase(),
+      department: agent?.department || resolveDepartmentByRole(agent?.role || author).id,
+      content: formattedContent,
+      topic: params.topic || params.title,
+      intent: params.intent,
+      point: params.point,
+      nextSteps: params.nextSteps,
+      mentions,
+      timestamp: Date.now()
+    };
+
+    const thread: Thread = {
+      id: threadId,
+      title: params.title,
+      category,
+      roomId: params.roomId,
+      sprintNumber: params.sprintNumber ?? this.sprint.sprintNumber,
+      ceremonyPhase: params.ceremonyPhase,
+      createdBy: author,
+      mentions,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages: [initialMessage],
+      status: 'active'
+    };
+
+    this.threads.set(threadId, thread);
+    this.notify();
+    return thread;
+  }
+
+  /**
+   * Post a reply to an existing thread, enforcing Smart Brevity
+   */
+  public postThreadMessage(threadId: string, params: {
+    author: string;
+    content?: string;
+    topic?: string;
+    intent?: string;
+    point?: string;
+    nextSteps?: string;
+    mentions?: string[];
+  }): { message: ThreadMessage; thread: Thread } {
+    const thread = this.threads.get(threadId);
+    if (!thread) {
+      throw new Error(`Thread "${threadId}" not found`);
+    }
+
+    const author = params.author.trim().toLowerCase();
+    const agent = this.agents.get(author);
+    const mentions = Array.from(new Set([
+      ...(params.mentions || []),
+      ...extractMentions(params.content || ''),
+      ...extractMentions(params.point || ''),
+      ...extractMentions(params.nextSteps || '')
+    ]));
+
+    const formattedContent = formatSmartBrevity({
+      topic: params.topic,
+      intent: params.intent,
+      point: params.point,
+      nextSteps: params.nextSteps,
+      content: params.content,
+      mentions
+    });
+
+    const message: ThreadMessage = {
+      id: `msg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      author,
+      roleTitle: agent?.roleTitle || author.toUpperCase(),
+      department: agent?.department || resolveDepartmentByRole(agent?.role || author).id,
+      content: formattedContent,
+      topic: params.topic,
+      intent: params.intent,
+      point: params.point,
+      nextSteps: params.nextSteps,
+      mentions,
+      timestamp: Date.now()
+    };
+
+    thread.messages.push(message);
+    thread.updatedAt = Date.now();
+    for (const m of mentions) {
+      if (!thread.mentions.includes(m)) {
+        thread.mentions.push(m);
+      }
+    }
+
+    this.notify();
+    return { message, thread };
   }
 
 
@@ -637,6 +825,21 @@ export class StateManager {
       this.notify({ type: 'talk', agent });
     }
 
+    // Auto-create / join meeting thread in Retro Slack feed
+    const mentions = names.map(n => `@${n}`);
+    const lead = names[0] || 'lead';
+    this.createThread({
+      title: `[Room ${roomId}: ${roomInfo ? roomInfo.symbol + ' ' + roomInfo.name : `Room ${roomId}`}] ${topic || 'Conference Sync'}`,
+      category: 'meeting',
+      roomId,
+      author: lead,
+      topic: topic || `${roomDisplayName} Meeting`,
+      intent: `Mandatory conference room discussion in ${roomDisplayName}.`,
+      point: `Meeting opened for attendees: ${names.join(', ')}. All meeting discussion must be captured here with Smart Brevity.`,
+      nextSteps: `${mentions.join(' ')} please discuss and post key findings/decisions here.`,
+      mentions
+    });
+
     return {
       started: true,
       queued: false,
@@ -825,6 +1028,19 @@ export class StateManager {
 
     this.visits.set(visitor.name.toLowerCase(), session);
     this.notify({ type: 'walk', agent: visitor });
+
+    // Auto-create / log to Slack consult thread
+    const consultTitle = `[Consult] @${visitor.name} ➔ @${target.name}: ${question.slice(0, 35)}`;
+    this.createThread({
+      title: consultTitle,
+      category: 'consult',
+      author: visitor.name,
+      topic: `Desk Consultation: @${visitor.name} ➔ @${target.name}`,
+      intent: `Real-time desk visit to resolve question/blocker.`,
+      point: question,
+      nextSteps: reply ? `@${target.name} replied: "${reply}"` : `@${target.name} to follow up.`,
+      mentions: [`@${visitor.name}`, `@${target.name}`]
+    });
 
     // Transition from walking to talking/visiting phase after walking arrival (~2.2s)
     setTimeout(() => {
@@ -1148,6 +1364,25 @@ export class StateManager {
       updatedAt: Date.now()
     };
     this.notify({ type: 'spawn', agent: dummyAgent });
+
+    // Auto-create / join ceremony thread in Retro Slack feed
+    const ceremonyRoomInfo = target.room ? MEETING_ROOMS[target.room] : undefined;
+    const roomPrefix = ceremonyRoomInfo ? `[Room ${target.room}: ${ceremonyRoomInfo.symbol}] ` : '';
+    const ceremonyTitle = `${roomPrefix}[Sprint #${this.sprint.sprintNumber}] Ceremony ${target.phaseIndex}: ${target.shortName}`;
+    const ceremonyMentions = target.roles.map(r => `@${r}1`);
+    this.createThread({
+      title: ceremonyTitle,
+      category: 'ceremony',
+      roomId: target.room,
+      sprintNumber: this.sprint.sprintNumber,
+      ceremonyPhase: target.phase,
+      author: ceremonyMentions[0]?.replace('@', '') || 'scrum-master1',
+      topic: `${target.name} - ${topic}`,
+      intent: `Mandatory Phase ${target.phaseIndex} Agile Ceremony governance for story: "${this.sprint.story}".`,
+      point: `${target.description} (Story Points: ${this.sprint.storyPoints || 5} pts). All meeting discussion must be captured here with Smart Brevity.`,
+      nextSteps: `${ceremonyMentions.slice(0, 4).join(' ')} please discuss deliverables and document sign-off in this thread.`,
+      mentions: ceremonyMentions
+    });
 
     return { ceremony: ceremonyInfo, sprint: { ...this.sprint } };
   }

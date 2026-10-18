@@ -464,6 +464,98 @@ export function createServer() {
     }
   });
 
+  // REST API: Retro Slack-like Agent Threads & Smart Brevity Discussions
+  app.get('/api/threads', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const category = req.query.category as any;
+    const roomId = req.query.roomId ? Number(req.query.roomId) : undefined;
+    res.json({ success: true, session: sm.sessionId, threads: sm.getThreads({ category, roomId }) });
+  });
+
+  app.post('/api/threads', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const { title, category, roomId, sprintNumber, ceremonyPhase, author = 'lead', content, topic, intent, point, nextSteps, mentions } = req.body || {};
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    const thread = sm.createThread({
+      title,
+      category,
+      roomId: roomId ? Number(roomId) : undefined,
+      sprintNumber: sprintNumber ? Number(sprintNumber) : undefined,
+      ceremonyPhase,
+      author,
+      content,
+      topic,
+      intent,
+      point,
+      nextSteps,
+      mentions
+    });
+    res.json({ success: true, session: sm.sessionId, thread });
+  });
+
+  app.get('/api/threads/:id', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const thread = sm.getThread(req.params.id);
+    if (!thread) return res.status(404).json({ error: `Thread "${req.params.id}" not found` });
+    res.json({ success: true, session: sm.sessionId, thread });
+  });
+
+  app.post('/api/threads/:id/messages', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const { author = 'lead', content, topic, intent, point, nextSteps, mentions } = req.body || {};
+    try {
+      const result = sm.postThreadMessage(req.params.id, {
+        author,
+        content,
+        topic,
+        intent,
+        point,
+        nextSteps,
+        mentions
+      });
+      res.json({ success: true, session: sm.sessionId, message: result.message, thread: result.thread });
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  // Session-scoped Thread Endpoints
+  app.get('/api/sessions/:id/threads', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const category = req.query.category as any;
+    const roomId = req.query.roomId ? Number(req.query.roomId) : undefined;
+    res.json({ success: true, session: sm.sessionId, threads: sm.getThreads({ category, roomId }) });
+  });
+
+  app.get('/api/sessions/:id/threads/:threadId', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const thread = sm.getThread(req.params.threadId);
+    if (!thread) return res.status(404).json({ error: `Thread "${req.params.threadId}" not found` });
+    res.json({ success: true, session: sm.sessionId, thread });
+  });
+
+  app.post('/api/sessions/:id/threads/:threadId/messages', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const { author = 'lead', content, topic, intent, point, nextSteps, mentions } = req.body || {};
+    try {
+      const result = sm.postThreadMessage(req.params.threadId, {
+        author,
+        content,
+        topic,
+        intent,
+        point,
+        nextSteps,
+        mentions
+      });
+      res.json({ success: true, session: sm.sessionId, message: result.message, thread: result.thread });
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
   return { app, server };
 }
 

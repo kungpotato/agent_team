@@ -199,6 +199,78 @@ export interface SessionSummary {
   updatedAt: number;
 }
 
+export type ThreadCategory = 'meeting' | 'ceremony' | 'consult' | 'general';
+
+export interface ThreadMessage {
+  id: string; // e.g. "msg-123456789"
+  author: string; // e.g. "coder1", "system-architect1"
+  roleTitle?: string; // e.g. "CODER", "SYSTEM ARCHITECT"
+  department?: DepartmentId;
+  content: string; // full markdown formatted
+  topic?: string;
+  intent?: string; // "Why it matters"
+  point?: string; // "The point"
+  nextSteps?: string; // "Next steps / Action item"
+  mentions: string[]; // e.g. ["@coder1", "@qa-tester1"]
+  timestamp: number;
+}
+
+export interface Thread {
+  id: string; // e.g. "th-1", "th-meet-delta-1"
+  title: string;
+  category: ThreadCategory;
+  roomId?: number; // 1..5 if associated with meeting room
+  sprintNumber?: number;
+  ceremonyPhase?: SprintPhase;
+  createdBy: string;
+  mentions: string[];
+  createdAt: number;
+  updatedAt: number;
+  messages: ThreadMessage[];
+  status: 'active' | 'resolved' | 'archived';
+}
+
+export function extractMentions(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/@([a-zA-Z0-9_-]+)/g);
+  if (!matches) return [];
+  return Array.from(new Set(matches.map(m => m.toLowerCase())));
+}
+
+export function formatSmartBrevity(params: {
+  topic?: string;
+  intent?: string;
+  point?: string;
+  nextSteps?: string;
+  content?: string;
+  mentions?: string[];
+}): string {
+  const parts: string[] = [];
+  if (params.topic) {
+    parts.push(`**Topic:** ${params.topic}`);
+  }
+  if (params.intent) {
+    parts.push(`**Why It Matters:** ${params.intent}`);
+  }
+  if (params.point) {
+    parts.push(`**The Point:** ${params.point}`);
+  }
+  if (params.nextSteps) {
+    parts.push(`**Next Steps:** ${params.nextSteps}`);
+  }
+  if (params.content && !params.point && !params.intent) {
+    parts.push(params.content);
+  }
+  if (params.mentions && params.mentions.length > 0) {
+    const mentionTags = params.mentions.map(m => m.startsWith('@') ? m : `@${m}`);
+    const unmentioned = mentionTags.filter(m => !parts.some(p => p.toLowerCase().includes(m.toLowerCase())));
+    if (unmentioned.length > 0) {
+      parts.push(`cc: ${unmentioned.join(' ')}`);
+    }
+  }
+  return parts.join('\n\n');
+}
+
 export interface ServerState {
   agents: Agent[];
   meetingTopics: Record<number, string>; // room 1..5 -> topic
@@ -206,6 +278,7 @@ export interface ServerState {
   visits: VisitSession[];
   sprint: SprintState;
   session?: string;
+  threads?: Thread[];
 }
 
 export type WSMessage =
@@ -213,7 +286,9 @@ export type WSMessage =
   | { type: 'STATE_UPDATE'; session?: string; payload: ServerState }
   | { type: 'AGENT_EVENT'; session?: string; payload: { event: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent } }
   | { type: 'SPRINT_UPDATE'; session?: string; payload: SprintState }
-  | { type: 'SESSIONS_UPDATE'; payload: SessionSummary[] };
+  | { type: 'SESSIONS_UPDATE'; payload: SessionSummary[] }
+  | { type: 'THREAD_CREATED'; session?: string; payload: Thread }
+  | { type: 'THREAD_MESSAGE'; session?: string; payload: { threadId: string; message: ThreadMessage; thread: Thread } };
 
 export interface MeetingRoomInfo {
   id: number; // 1 to 5

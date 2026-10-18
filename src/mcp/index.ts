@@ -825,6 +825,144 @@ STRICT RULES:
     }
   );
 
+  // 26. GET THREADS (SLACK FEED)
+  server.tool(
+    'office_get_threads',
+    'List Slack-like discussion threads in the office (meetings, ceremonies, consults, and general discussions). Use to check active discussions.',
+    {
+      category: z.enum(['meeting', 'ceremony', 'consult', 'general']).optional().describe('Filter by category'),
+      room_id: z.number().min(1).max(5).optional().describe('Filter by meeting room ID (1..5)'),
+      limit: z.number().optional().describe('Maximum number of threads to return (default 20)')
+    },
+    async ({ category, room_id, limit }) => {
+      let query = '';
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      if (room_id) params.set('roomId', String(room_id));
+      if (params.toString()) query = `?${params.toString()}`;
+
+      const res = await apiCall(`/api/threads${query}`, 'GET');
+      const threads = (res.threads || []).slice(0, limit || 20);
+      if (threads.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: `💬 No active threads found${category ? ` in category "${category}"` : ''}.`
+          }]
+        };
+      }
+
+      const list = threads.map((t: any, i: number) => {
+        const lastMsg = t.messages[t.messages.length - 1];
+        const snippet = lastMsg ? (lastMsg.point || lastMsg.content).slice(0, 100) : 'No messages';
+        return `${i + 1}. [${t.id}] "${t.title}" (${t.category.toUpperCase()}) - ${t.messages.length} msgs\n   Last by @${lastMsg?.author || t.createdBy}: ${snippet}`;
+      }).join('\n\n');
+
+      return {
+        content: [{
+          type: 'text',
+          text: `💬 OFFICE SLACK THREADS (${threads.length} threads):\n\n${list}\n\n💡 Use office_get_thread({ thread_id: "..." }) to read full thread history.`
+        }]
+      };
+    }
+  );
+
+  // 27. GET THREAD DETAILS (READ HISTORY)
+  server.tool(
+    'office_get_thread',
+    'Read the full message history of an office discussion thread. MANDATORY for checking meeting discussions, decisions, and consultation threads before responding.',
+    {
+      thread_id: z.string().describe('The thread ID (e.g. "th-room-2" or "th-ceremony-s1-validation")')
+    },
+    async ({ thread_id }) => {
+      const res = await apiCall(`/api/threads/${encodeURIComponent(thread_id)}`, 'GET');
+      const t = res.thread;
+      if (!t) {
+        return { content: [{ type: 'text', text: `❌ Thread "${thread_id}" not found.` }] };
+      }
+
+      const msgHistory = t.messages.map((m: any, idx: number) => {
+        const time = new Date(m.timestamp).toLocaleTimeString();
+        return `─── Message #${idx + 1} by @${m.author} (${m.roleTitle || 'AGENT'} / ${m.department || 'TECH'}) at ${time} ───\n${m.content}`;
+      }).join('\n\n');
+
+      return {
+        content: [{
+          type: 'text',
+          text: `📌 THREAD: "${t.title}" [${t.id}]\n📂 Category: ${t.category.toUpperCase()} | Status: ${t.status}\n👥 Participants: ${t.mentions.join(', ') || '@' + t.createdBy}\n\n${msgHistory}`
+        }]
+      };
+    }
+  );
+
+  // 28. POST NEW THREAD (SMART BREVITY ENFORCED)
+  server.tool(
+    'office_post_thread',
+    'Create a new discussion thread in the Retro Slack feed. MUST follow the Smart Brevity protocol: short, punchy, providing topic, why it matters, the point, and next steps.',
+    {
+      title: z.string().describe('Short headline / title (under 10 words)'),
+      author: z.string().describe('Your agent name (e.g. "coder1", "system-architect1")'),
+      category: z.enum(['meeting', 'ceremony', 'consult', 'general']).optional().describe('Thread category'),
+      topic: z.string().optional().describe('Specific topic name'),
+      intent: z.string().optional().describe('Why It Matters (1-2 sentences on why this is important)'),
+      point: z.string().describe('The Point (Core fact, architecture decision, or blocker)'),
+      next_steps: z.string().optional().describe('Next Steps / Ask (Clear action item for tagged agents)'),
+      mentions: z.array(z.string()).optional().describe('Agent names to tag (e.g. ["@coder1", "@system-architect1"])'),
+      room_id: z.number().min(1).max(5).optional().describe('Associated meeting room ID if applicable')
+    },
+    async ({ title, author, category, topic, intent, point, next_steps, mentions, room_id }) => {
+      const res = await apiCall('/api/threads', 'POST', {
+        title,
+        author,
+        category,
+        topic,
+        intent,
+        point,
+        nextSteps: next_steps,
+        mentions,
+        roomId: room_id
+      });
+      const t = res.thread;
+      return {
+        content: [{
+          type: 'text',
+          text: `💬 Thread created: [${t.id}] "${t.title}"\nAuthor: @${author}\nSmart Brevity format applied. Agents tagged: ${t.mentions.join(', ') || 'none'}`
+        }]
+      };
+    }
+  );
+
+  // 29. REPLY TO THREAD (SMART BREVITY ENFORCED)
+  server.tool(
+    'office_reply_thread',
+    'Post a reply to an existing meeting, ceremony, or consultation thread. MANDATORY: All meeting discussions must happen here. Enforces Smart Brevity format.',
+    {
+      thread_id: z.string().describe('The thread ID to reply to'),
+      author: z.string().describe('Your agent name (e.g. "coder1", "qa-tester1")'),
+      topic: z.string().optional().describe('Sub-topic if applicable'),
+      intent: z.string().optional().describe('Why It Matters (Context/impact)'),
+      point: z.string().describe('The Point (Your answer, decision, or update)'),
+      next_steps: z.string().optional().describe('Next Steps / Ask (Follow-up action item)'),
+      mentions: z.array(z.string()).optional().describe('Agents to tag (e.g. ["@coder1"])')
+    },
+    async ({ thread_id, author, topic, intent, point, next_steps, mentions }) => {
+      const res = await apiCall(`/api/threads/${encodeURIComponent(thread_id)}/messages`, 'POST', {
+        author,
+        topic,
+        intent,
+        point,
+        nextSteps: next_steps,
+        mentions
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: `💬 Replied to thread [${thread_id}] by @${author}.\n${res.message?.content || point}`
+        }]
+      };
+    }
+  );
+
   return server;
 }
 

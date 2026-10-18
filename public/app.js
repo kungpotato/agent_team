@@ -24,6 +24,12 @@ const urlParams = new URLSearchParams(window.location.search);
 let currentSessionId = urlParams.get('session') || localStorage.getItem('agent_hq_session') || 'agent_team';
 let knownSessions = [];
 
+// Retro Slack-like Discussion Threads
+let slackThreads = [];
+let currentSlackFilter = 'all';
+let activeThreadId = null;
+let isSlackSidebarOpen = true;
+
 async function apiFetch(endpoint, options = {}) {
   const url = new URL(endpoint, window.location.origin);
   if (!url.searchParams.has('session')) {
@@ -976,6 +982,13 @@ async function fetchSessionState(sessionId) {
       if (data.sprint) {
         currentSprint = data.sprint;
       }
+      if (Array.isArray(data.threads)) {
+        slackThreads = data.threads;
+        renderSlackThreads();
+        if (activeThreadId) {
+          renderThreadMessages(activeThreadId);
+        }
+      }
       updateHUD();
       updateSprintHUD();
     }
@@ -1094,6 +1107,13 @@ function connectWS() {
           if (data.payload.sprint) {
             currentSprint = data.payload.sprint;
           }
+          if (Array.isArray(data.payload.threads)) {
+            slackThreads = data.payload.threads;
+            renderSlackThreads();
+            if (activeThreadId) {
+              renderThreadMessages(activeThreadId);
+            }
+          }
           updateHUD();
           updateSprintHUD();
 
@@ -1120,6 +1140,33 @@ function connectWS() {
               spawnPoof(px, py);
             }
           }
+        }
+      } else if (data.type === 'THREAD_CREATED') {
+        if (!data.session || data.session === currentSessionId) {
+          const newThread = data.payload;
+          const idx = slackThreads.findIndex(t => t.id === newThread.id);
+          if (idx !== -1) {
+            slackThreads[idx] = newThread;
+          } else {
+            slackThreads.unshift(newThread);
+          }
+          renderSlackThreads();
+          window.soundSystem?.playTalk();
+        }
+      } else if (data.type === 'THREAD_MESSAGE') {
+        if (!data.session || data.session === currentSessionId) {
+          const { threadId, message, thread } = data.payload;
+          const idx = slackThreads.findIndex(t => t.id === threadId);
+          if (idx !== -1) {
+            slackThreads[idx] = thread;
+          } else {
+            slackThreads.unshift(thread);
+          }
+          renderSlackThreads();
+          if (activeThreadId === threadId) {
+            renderThreadMessages(threadId);
+          }
+          window.soundSystem?.playTalk();
         }
       } else if (data.type === 'AGENT_EVENT') {
         if (!data.session || data.session === currentSessionId) {
@@ -1582,6 +1629,346 @@ canvas.addEventListener('click', () => {
   window.soundSystem.init();
 });
 
+/**
+ * ==========================================
+ * RETRO SLACK FEED & SMART BREVITY PROTOCOL
+ * ==========================================
+ */
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return '';
+  const diff = Date.now() - new Date(timestamp).getTime();
+  if (isNaN(diff)) return '';
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
+
+function formatBrevityHtml(text) {
+  if (!text) return '';
+  let safe = escapeHtml(text);
+
+  // Highlight Smart Brevity markers
+  safe = safe.replace(/\*\*(Topic):\*\*/gi, '<span class="brevity-label label-topic">📌 TOPIC:</span>');
+  safe = safe.replace(/\*\*(Why It Matters|Intent):\*\*/gi, '<span class="brevity-label label-why">🎯 WHY IT MATTERS:</span>');
+  safe = safe.replace(/\*\*(The Point):\*\*/gi, '<span class="brevity-label label-point">💡 THE POINT:</span>');
+  safe = safe.replace(/\*\*(Next Steps|Ask|Next Steps \/ Ask):\*\*/gi, '<span class="brevity-label label-next">🚀 NEXT STEPS:</span>');
+
+  // Highlight @mentions
+  safe = safe.replace(/@([a-zA-Z0-9_\-]+)/g, '<span class="mention-tag">@$1</span>');
+
+  return safe;
+}
+
+window.toggleSlackSidebar = function() {
+  const sidebar = document.getElementById('slack-sidebar');
+  const toggleBtn = document.getElementById('slack-toggle');
+  if (!sidebar) return;
+  isSlackSidebarOpen = !isSlackSidebarOpen;
+  if (isSlackSidebarOpen) {
+    sidebar.classList.remove('collapsed');
+    if (toggleBtn) toggleBtn.classList.add('active');
+  } else {
+    sidebar.classList.add('collapsed');
+    if (toggleBtn) toggleBtn.classList.remove('active');
+  }
+};
+
+window.setSlackFilter = function(filter) {
+  currentSlackFilter = filter;
+  const buttons = document.querySelectorAll('.slack-filter-btn');
+  buttons.forEach(btn => {
+    if (btn.getAttribute('data-filter') === filter) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  renderSlackThreads();
+};
+
+function renderSlackThreads() {
+  const badge = document.getElementById('threads-count-badge');
+  if (badge) badge.textContent = slackThreads.length;
+
+  const container = document.getElementById('slack-threads-list');
+  if (!container) return;
+
+  let list = slackThreads;
+  if (currentSlackFilter !== 'all') {
+    list = slackThreads.filter(t => t.category === currentSlackFilter);
+  }
+
+  if (list.length === 0) {
+    const filterLabel = currentSlackFilter === 'all' ? 'channels' : `#${currentSlackFilter.toUpperCase()}`;
+    container.innerHTML = `<div class="slack-empty-state">No discussions in ${filterLabel} yet.<br><br>Agents will auto-post when meetings start or ceremonies run.</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(t => {
+    const isActive = (t.id === activeThreadId);
+    const msgs = t.messages || [];
+    const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+    const timeStr = formatTimeAgo(t.updatedAt || t.createdAt);
+
+    // Format badge according to category
+    let badgeHtml = '<span class="thread-badge general">📋 GENERAL</span>';
+    if (t.category === 'meeting') {
+      const roomNum = t.roomId ? `RM ${t.roomId}` : 'MEET';
+      badgeHtml = `<span class="thread-badge meeting">🏛️ ${roomNum}</span>`;
+    } else if (t.category === 'ceremony') {
+      const phaseTag = t.ceremonyPhase ? t.ceremonyPhase.toUpperCase() : 'SPRINT';
+      badgeHtml = `<span class="thread-badge ceremony">🏃 ${phaseTag}</span>`;
+    } else if (t.category === 'consult') {
+      badgeHtml = `<span class="thread-badge consult">💬 CONSULT</span>`;
+    }
+
+    // Preview snippet
+    let preview = 'No messages yet';
+    if (lastMsg) {
+      let rawSnippet = lastMsg.content.replace(/\*\*[^*]+\*\*/g, '').trim();
+      if (!rawSnippet) rawSnippet = lastMsg.content;
+      preview = `${lastMsg.author}: ${rawSnippet.substring(0, 90)}${rawSnippet.length > 90 ? '...' : ''}`;
+    }
+
+    const participantsCount = t.participants ? t.participants.length : 1;
+
+    return `
+      <div class="slack-thread-card ${isActive ? 'active' : ''}" data-id="${escapeHtml(t.id)}" onclick="openThreadDetail('${escapeHtml(t.id)}')">
+        <div class="thread-card-top">
+          ${badgeHtml}
+          <span class="thread-card-time">${escapeHtml(timeStr)}</span>
+        </div>
+        <div class="thread-card-title">${escapeHtml(t.title)}</div>
+        <div class="thread-card-preview">${escapeHtml(preview)}</div>
+        <div class="thread-card-footer">
+          <span class="thread-replies-pill">💬 ${msgs.length} ${msgs.length === 1 ? 'msg' : 'msgs'}</span>
+          <span>👥 ${participantsCount}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.openThreadDetail = function(threadId) {
+  activeThreadId = threadId;
+  const thread = slackThreads.find(t => t.id === threadId);
+  const threadView = document.getElementById('slack-thread-view');
+  if (!threadView || !thread) return;
+
+  threadView.style.display = 'flex';
+  const titleEl = document.getElementById('thread-view-title');
+  const catBadge = document.getElementById('thread-category-badge');
+
+  if (titleEl) titleEl.textContent = thread.title;
+  if (catBadge) {
+    const cat = thread.category || 'general';
+    catBadge.textContent = cat.toUpperCase();
+    catBadge.className = `thread-category-badge thread-badge ${cat}`;
+  }
+
+  renderThreadMessages(threadId);
+
+  // Update card active states in list
+  document.querySelectorAll('.slack-thread-card').forEach(card => {
+    if (card.getAttribute('data-id') === threadId) {
+      card.classList.add('active');
+    } else {
+      card.classList.remove('active');
+    }
+  });
+};
+
+window.closeThreadDetail = function() {
+  activeThreadId = null;
+  const threadView = document.getElementById('slack-thread-view');
+  if (threadView) threadView.style.display = 'none';
+  document.querySelectorAll('.slack-thread-card').forEach(card => card.classList.remove('active'));
+};
+
+function renderThreadMessages(threadId) {
+  const stream = document.getElementById('slack-messages-stream');
+  if (!stream) return;
+  const thread = slackThreads.find(t => t.id === threadId);
+  if (!thread) return;
+
+  const msgs = thread.messages || [];
+  if (msgs.length === 0) {
+    stream.innerHTML = `<div class="slack-empty-state">No messages in this thread yet. Be the first to start with Smart Brevity!</div>`;
+    return;
+  }
+
+  stream.innerHTML = msgs.map(m => {
+    const timeStr = formatTimeAgo(m.timestamp);
+    const formattedContent = formatBrevityHtml(m.content);
+
+    // Dynamic role and department styling
+    const agentObj = agents.find(a => a.name.toLowerCase() === (m.author || '').toLowerCase());
+    const dept = agentObj?.department || (m.author === 'human' ? 'tech' : 'tech');
+    const deptClass = `msg-dept ${dept}`;
+    const deptLabel = agentObj?.department ? agentObj.department.toUpperCase() : (m.author === 'human' ? 'LEAD' : 'SPECIALIST');
+    const roleLabel = agentObj?.roleTitle || agentObj?.role || (m.author === 'human' ? 'Human Lead' : m.roleTitle || 'Agent');
+
+    return `
+      <div class="slack-message-bubble">
+        <div class="msg-header">
+          <span class="msg-author">${escapeHtml(m.author)}</span>
+          <span class="msg-role">${escapeHtml(roleLabel)}</span>
+          <span class="${deptClass}">${escapeHtml(deptLabel)}</span>
+          <span class="msg-time">${escapeHtml(timeStr)}</span>
+        </div>
+        <div class="msg-body">${formattedContent}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Auto scroll to bottom
+  stream.scrollTop = stream.scrollHeight;
+}
+
+window.sendThreadReply = async function() {
+  if (!activeThreadId) return;
+  const authorSelect = document.getElementById('reply-author-select');
+  const contentInput = document.getElementById('reply-content-input');
+  if (!contentInput) return;
+
+  const author = authorSelect ? authorSelect.value : 'human';
+  const content = contentInput.value.trim();
+  if (!content) {
+    alert('Please enter a message following the Smart Brevity format.');
+    return;
+  }
+
+  try {
+    const res = await apiFetch(`/api/threads/${encodeURIComponent(activeThreadId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ author, content })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(`Failed to send message: ${data.error}`);
+      return;
+    }
+
+    contentInput.value = '';
+    if (data.thread) {
+      const idx = slackThreads.findIndex(t => t.id === activeThreadId);
+      if (idx !== -1) {
+        slackThreads[idx] = data.thread;
+      } else {
+        slackThreads.unshift(data.thread);
+      }
+      renderSlackThreads();
+      renderThreadMessages(activeThreadId);
+    }
+    if (window.soundSystem) window.soundSystem.playTalk();
+  } catch (err) {
+    console.error('Failed to post reply:', err);
+    alert(`Error sending reply: ${err.message}`);
+  }
+};
+
+window.insertBrevityTemplate = function() {
+  const input = document.getElementById('reply-content-input');
+  if (!input) return;
+  const template = `**Why It Matters:** Key blocker or architectural finding.\n**The Point:** Specific technical observation or decision needed.\n**Next Steps:** @agent-name please review / approve.`;
+  if (input.value) {
+    input.value = input.value + '\n\n' + template;
+  } else {
+    input.value = template;
+  }
+  input.focus();
+};
+
+window.toggleNewThreadModal = function() {
+  const modal = document.getElementById('new-thread-modal');
+  if (modal) {
+    const isHidden = (modal.style.display === 'none' || !modal.style.display);
+    modal.style.display = isHidden ? 'flex' : 'none';
+  }
+};
+
+window.submitNewThreadModal = async function() {
+  const titleInput = document.getElementById('new-th-title');
+  const catSelect = document.getElementById('new-th-category');
+  const authorSelect = document.getElementById('new-th-author');
+  const roomSelect = document.getElementById('new-th-room');
+  const intentInput = document.getElementById('new-th-intent');
+  const pointInput = document.getElementById('new-th-point');
+  const nextInput = document.getElementById('new-th-next');
+
+  const title = titleInput ? titleInput.value.trim() : '';
+  if (!title) {
+    alert('Please enter a thread headline / title.');
+    return;
+  }
+
+  const category = catSelect ? catSelect.value : 'general';
+  const author = authorSelect ? authorSelect.value : 'human';
+  const roomIdStr = roomSelect ? roomSelect.value : '';
+  const roomId = roomIdStr ? parseInt(roomIdStr, 10) : undefined;
+  const intent = intentInput ? intentInput.value.trim() : '';
+  const point = pointInput ? pointInput.value.trim() : '';
+  const nextSteps = nextInput ? nextInput.value.trim() : '';
+
+  try {
+    const res = await apiFetch('/api/threads', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        category,
+        author,
+        roomId,
+        intent,
+        point,
+        nextSteps
+      })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(`Failed to create thread: ${data.error}`);
+      return;
+    }
+
+    if (titleInput) titleInput.value = '';
+    if (intentInput) intentInput.value = '';
+    if (pointInput) pointInput.value = '';
+    if (nextInput) nextInput.value = '';
+
+    toggleNewThreadModal();
+
+    if (data.thread) {
+      const idx = slackThreads.findIndex(t => t.id === data.thread.id);
+      if (idx !== -1) {
+        slackThreads[idx] = data.thread;
+      } else {
+        slackThreads.unshift(data.thread);
+      }
+      renderSlackThreads();
+      openThreadDetail(data.thread.id);
+    }
+    if (window.soundSystem) window.soundSystem.playSpawn();
+  } catch (err) {
+    console.error('Failed to create thread:', err);
+    alert(`Error: ${err.message}`);
+  }
+};
+
 // START
 connectWS();
 loop();
+

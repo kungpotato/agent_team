@@ -1539,4 +1539,147 @@ function buildHookEntries(skipStopHook?: boolean) {
   return entries;
 }
 
+// THREAD / SLACK FEED COMMANDS
+const threadCmd = program
+  .command('thread')
+  .alias('threads')
+  .description('Manage Retro Slack-like discussion threads & Smart Brevity posts');
+
+threadCmd
+  .command('list')
+  .description('List office discussion threads')
+  .option('-c, --category <type>', 'Filter by category (meeting, ceremony, consult, general)')
+  .option('-r, --room <number>', 'Filter by meeting room (1..5)')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const params = new URLSearchParams();
+      if (options.category) params.set('category', options.category);
+      if (options.room) params.set('roomId', options.room);
+      const query = params.toString() ? `?${params.toString()}` : '';
+
+      const res = await apiCall(`/api/threads${query}`, 'GET', undefined, port);
+      const threads = res.threads || [];
+      if (threads.length === 0) {
+        console.log('💬 No discussion threads found.');
+        return;
+      }
+
+      console.log(`\n💬 OFFICE SLACK THREADS (${threads.length} total):`);
+      console.log('═'.repeat(70));
+      for (const t of threads) {
+        const lastMsg = t.messages[t.messages.length - 1];
+        const time = new Date(t.updatedAt).toLocaleTimeString();
+        console.log(`📌 [${t.id}] ${t.title}`);
+        console.log(`   Category: ${t.category.toUpperCase()} | Messages: ${t.messages.length} | Updated: ${time}`);
+        if (lastMsg) {
+          const snip = (lastMsg.point || lastMsg.content).replace(/\n/g, ' ').slice(0, 80);
+          console.log(`   Latest by @${lastMsg.author}: "${snip}..."`);
+        }
+        console.log('─'.repeat(70));
+      }
+      console.log('💡 View full thread: agent-team thread view <thread_id>\n');
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+threadCmd
+  .command('view <threadId>')
+  .description('View full message history of a thread')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (threadId, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall(`/api/threads/${encodeURIComponent(threadId)}`, 'GET', undefined, port);
+      const t = res.thread;
+      if (!t) {
+        console.log(`❌ Thread "${threadId}" not found.`);
+        return;
+      }
+
+      console.log(`\n📌 THREAD: ${t.title} [${t.id}]`);
+      console.log(`📂 Category: ${t.category.toUpperCase()} | Created by: @${t.createdBy}`);
+      console.log(`👥 Participants: ${t.mentions.join(', ') || '@' + t.createdBy}`);
+      console.log('═'.repeat(70));
+      for (let i = 0; i < t.messages.length; i++) {
+        const m = t.messages[i];
+        const time = new Date(m.timestamp).toLocaleTimeString();
+        console.log(`\n[#${i + 1}] @${m.author} (${m.roleTitle || 'AGENT'} / ${m.department || 'TECH'}) - ${time}:`);
+        console.log(m.content);
+        console.log('─'.repeat(70));
+      }
+      console.log(`\n💡 Reply: agent-team thread reply ${t.id} -a <your_name> -p "Your point"\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+threadCmd
+  .command('post <title>')
+  .description('Post a new thread formatted with Smart Brevity')
+  .option('-a, --author <name>', 'Author agent name', 'human')
+  .option('-c, --category <type>', 'Category (meeting, ceremony, consult, general)', 'general')
+  .option('-t, --topic <topic>', 'Specific topic name')
+  .option('-i, --intent <text>', 'Why It Matters (1-2 sentences)')
+  .requiredOption('-p, --point <text>', 'The Point (Core fact or technical finding)')
+  .option('-n, --next <text>', 'Next Steps / Ask (Action item)')
+  .option('--tag <mentions...>', 'Agent names to tag (e.g. coder1 qa-tester1)')
+  .option('--room <number>', 'Room ID (1..5)')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (title, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const mentions = (options.tag || []).map((t: string) => t.startsWith('@') ? t : `@${t}`);
+      const res = await apiCall('/api/threads', 'POST', {
+        title,
+        author: options.author,
+        category: options.category,
+        topic: options.topic,
+        intent: options.intent,
+        point: options.point,
+        nextSteps: options.next,
+        mentions,
+        roomId: options.room ? Number(options.room) : undefined
+      }, port);
+      const t = res.thread;
+      console.log(`\n✅ Thread created: [${t.id}] "${t.title}"`);
+      console.log(`Author: @${t.createdBy} | Category: ${t.category.toUpperCase()}`);
+      console.log(`Tagged: ${t.mentions.join(', ') || 'none'}\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+threadCmd
+  .command('reply <threadId>')
+  .description('Reply to an existing thread with Smart Brevity')
+  .option('-a, --author <name>', 'Author agent name', 'human')
+  .option('-t, --topic <topic>', 'Sub-topic if applicable')
+  .option('-i, --intent <text>', 'Why It Matters (Context/impact)')
+  .requiredOption('-p, --point <text>', 'The Point (Your answer or decision)')
+  .option('-n, --next <text>', 'Next Steps / Ask')
+  .option('--tag <mentions...>', 'Agent names to tag')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (threadId, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const mentions = (options.tag || []).map((t: string) => t.startsWith('@') ? t : `@${t}`);
+      const res = await apiCall(`/api/threads/${encodeURIComponent(threadId)}/messages`, 'POST', {
+        author: options.author,
+        topic: options.topic,
+        intent: options.intent,
+        point: options.point,
+        nextSteps: options.next,
+        mentions
+      }, port);
+      console.log(`\n✅ Replied to thread [${threadId}] by @${options.author}:`);
+      console.log(res.message?.content || options.point);
+      console.log();
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
 program.parse(process.argv);

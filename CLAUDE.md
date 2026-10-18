@@ -69,6 +69,16 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
 - This is a per-host-project setup step (the hook scripts live in the host project's
   `.claude/hooks/`, not in this repo) — treat skipping it as an incomplete installation.
 
+### Rule 8: Mandatory Discussion Threads & Smart Brevity Protocol
+- **Slack-like Agent Feed**: All inter-agent consultations, conference room meetings, and Agile sprint ceremonies MUST log discussions into the live Slack feed sidebar (`#slack-sidebar`).
+- **Smart Brevity Standard**: All thread messages and replies MUST be concise, punchy, and direct without fluff, following the *Smart Brevity* formula:
+  1. **Topic:** Short, punchy headline (under 10 words).
+  2. **Why It Matters:** 1-2 sentences on intent, impact, or business/architecture stakes.
+  3. **The Point:** Core technical fact, blocker, test outcome, or specific proposal.
+  4. **Next Steps:** Actionable ask mentioning specific agents using `@agent-name`.
+- **Thread History & Claude Code Channels**: AI agents must query thread history (`office_get_thread`) before entering a meeting or making decisions, ensuring full conversational context and autonomous multi-agent handoffs.
+
+
 ---
 
 ## 🛠️ Tool Calling Mapping for Claude
@@ -98,6 +108,11 @@ When Claude operates via MCP or terminal CLI:
 | Complete Sprint | `office_sprint_complete({ summary })` | `agent-team complete-sprint` or `agent-team sprint complete` |
 | Sequential Next | `office_sprint_next({})` | `agent-team sprint next` |
 | Status Check | `office_sprint_status({})` | `agent-team sprint status` |
+| List Slack Threads | `office_get_threads({ category, room_id })` | `agent-team thread list [-c cat] [-r room]` |
+| View Thread History | `office_get_thread({ thread_id })` | `agent-team thread view <threadId>` |
+| Post Smart Brevity Thread | `office_post_thread({ title, category, intent, point, next_steps, author })` | `agent-team thread post <title> -i ... -p ... -n ...` |
+| Reply to Thread | `office_reply_thread({ thread_id, author, point, intent, next_steps })` | `agent-team thread reply <threadId> -a ... -p ...` |
+
 
 ---
 
