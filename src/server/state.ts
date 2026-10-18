@@ -1,4 +1,4 @@
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 
 export const SPRINT_CEREMONIES: {
@@ -97,6 +97,7 @@ export class StateManager {
   private meetingTopics: Map<number, string> = new Map();
   private meetingQueue: MeetingQueueItem[] = [];
   private visits: Map<string, VisitSession> = new Map();
+  private completedSprints: SprintRecord[] = [];
   private sprint: SprintState = {
     sprintNumber: 1,
     story: 'AUTH-101: Implement OAuth2 & JWT Security',
@@ -104,7 +105,8 @@ export class StateManager {
     phase: 'idle',
     phaseIndex: 0,
     startedAt: Date.now(),
-    history: []
+    history: [],
+    completedSprints: []
   };
   private listeners: ((state: ServerState, event?: { type: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent }) => void)[] = [];
 
@@ -808,7 +810,8 @@ export class StateManager {
       phase: 'idle',
       phaseIndex: 0,
       startedAt: Date.now(),
-      history: []
+      history: [],
+      completedSprints: [...this.completedSprints]
     };
     const dummyAgent: Agent = {
       id: '_all',
@@ -825,12 +828,16 @@ export class StateManager {
   }
 
   /**
-   * Start or initialize a sprint
+   * Start or initialize a sprint (starts new cycle e.g. Sprint #1 -> #2 -> #3)
    */
   public startSprint(sprintNumber?: number, story?: string, points?: number): SprintState {
-    const num = sprintNumber || (this.sprint.sprintNumber ? this.sprint.sprintNumber + 1 : 1);
-    const storyTitle = story || this.sprint.story || 'AUTH-101: Implement OAuth2 & JWT Security';
+    const isCompleted = this.sprint.phase === 'completed';
+    const num = sprintNumber || (isCompleted ? (this.sprint.sprintNumber || 0) + 1 : (this.sprint.sprintNumber || 1));
+    const storyTitle = story || (isCompleted ? `FEATURE-${num}01: Continuous Delivery Increment #${num}` : (this.sprint.story || 'AUTH-101: Implement OAuth2 & JWT Security'));
     const pts = points !== undefined ? points : (this.sprint.storyPoints || 5);
+
+    // Free any active meeting rooms
+    this.endMeeting();
 
     this.sprint = {
       sprintNumber: num,
@@ -839,7 +846,8 @@ export class StateManager {
       phase: 'idle',
       phaseIndex: 0,
       startedAt: Date.now(),
-      history: []
+      history: [],
+      completedSprints: [...this.completedSprints]
     };
 
     const dummyAgent: Agent = {
@@ -1019,10 +1027,72 @@ export class StateManager {
   /**
    * Advance to the next sprint ceremony in sequence (1 -> 8)
    */
-  public nextCeremony(): { ceremony: SprintCeremonyInfo; sprint: SprintState } {
+  /**
+   * Advance to the next sprint ceremony in sequence (1 -> 8 -> complete)
+   */
+  public nextCeremony(): { ceremony?: SprintCeremonyInfo; sprint: SprintState; completed?: boolean } {
+    if (this.sprint.phaseIndex === 8 || this.sprint.phase === 'retro') {
+      const res = this.completeSprint();
+      return { sprint: res.sprint, completed: true };
+    }
     let nextIndex = this.sprint.phaseIndex + 1;
     if (nextIndex > SPRINT_CEREMONIES.length) nextIndex = 1;
     return this.runCeremony(nextIndex);
+  }
+
+  /**
+   * Complete the current sprint after retrospective and archive it
+   */
+  public completeSprint(summary?: string): { sprint: SprintState; record: SprintRecord } {
+    if (this.sprint.phase === 'completed') {
+      throw new Error(`Sprint #${this.sprint.sprintNumber} is already marked as COMPLETED.`);
+    }
+
+    // Governance: Retrospective (Ceremony 8) must have been completed!
+    const retroDone = this.sprint.history.some(h => h.phase === 'retro') || this.sprint.phaseIndex === 8;
+    if (!retroDone) {
+      throw new Error(`🚫 CEREMONY POLICY VIOLATION: Cannot complete sprint #${this.sprint.sprintNumber}! You must complete Ceremony 8 (Sprint Retrospective) before completing the sprint.`);
+    }
+
+    const completedAt = Date.now();
+    const record: SprintRecord = {
+      sprintNumber: this.sprint.sprintNumber,
+      story: this.sprint.story,
+      storyPoints: this.sprint.storyPoints,
+      startedAt: this.sprint.startedAt,
+      completedAt,
+      ceremoniesCount: this.sprint.history.length,
+      summary: summary || `Sprint #${this.sprint.sprintNumber} ("${this.sprint.story}") completed successfully (${this.sprint.storyPoints || 5} pts).`
+    };
+
+    this.completedSprints.push(record);
+
+    this.sprint.phase = 'completed';
+    this.sprint.phaseIndex = 9;
+    this.sprint.completedAt = completedAt;
+    this.sprint.activeCeremony = undefined;
+    this.sprint.completedSprints = [...this.completedSprints];
+
+    // Clear meeting rooms
+    this.endMeeting();
+
+    const dummyAgent: Agent = {
+      id: '_sprint_completed',
+      name: 'sprint_completed',
+      role: 'sprint',
+      status: 'working',
+      room: 'work',
+      slot: 0,
+      colorIndex: 0,
+      updatedAt: Date.now()
+    };
+    this.notify({ type: 'spawn', agent: dummyAgent });
+
+    return { sprint: { ...this.sprint }, record };
+  }
+
+  public getCompletedSprints(): SprintRecord[] {
+    return [...this.completedSprints];
   }
 
   public getSprint(): SprintState {

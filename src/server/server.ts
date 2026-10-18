@@ -234,6 +234,20 @@ export function createServer() {
     }
   });
 
+  app.post('/api/sprint/complete', (req, res) => {
+    try {
+      const { summary } = req.body || {};
+      const result = stateManager.completeSprint(summary);
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/sprint/history', (req, res) => {
+    res.json({ success: true, completedSprints: stateManager.getCompletedSprints() });
+  });
+
   return { app, server };
 }
 

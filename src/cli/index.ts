@@ -679,6 +679,28 @@ sprintCmd
   });
 
 sprintCmd
+  .command('complete [summaryParts...]')
+  .alias('finish')
+  .alias('done')
+  .alias('close')
+  .description('Complete and archive current Sprint after Retrospective (Phase 8)')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (summaryParts, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const summary = summaryParts && summaryParts.length > 0 ? summaryParts.join(' ') : undefined;
+      const res = await apiCall('/api/sprint/complete', 'POST', { summary }, port);
+      console.log(`\n🏆 SPRINT #${res.record.sprintNumber} COMPLETED & ARCHIVED!`);
+      console.log(`📋 Story Card: "${res.record.story}" (${res.record.storyPoints} pts)`);
+      console.log(`⏱️ Ceremonies Executed: ${res.record.ceremoniesCount} phases`);
+      console.log(`📝 Summary: "${res.record.summary}"`);
+      console.log(`\n💡 To start the next sprint cycle, run: "agent-team sprint start"\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+sprintCmd
   .command('status')
   .description('Display current Sprint phase, active ceremony, story points, and history')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
@@ -700,14 +722,14 @@ sprintCmd
       ];
 
       console.log(`\n══════════════════════════════════════════════════════════════════════`);
-      console.log(`🏃 SPRINT #${s.sprintNumber} STATUS REPORT`);
+      console.log(`🏃 SPRINT #${s.sprintNumber} STATUS REPORT ${s.phase === 'completed' ? '🏆 [COMPLETED]' : ''}`);
       console.log(`══════════════════════════════════════════════════════════════════════`);
       console.log(`📋 Story Card:   "${s.story}"`);
       console.log(`🎯 Story Points:  ${s.storyPoints || 'Not estimated'} pts`);
       console.log(`📍 Current Phase: ${s.phase.toUpperCase()} (${s.phaseIndex}/8)`);
       console.log(`\n📈 SPRINT PIPELINE:`);
       const badges = CEREMONIES.map(c => {
-        if (c.idx < s.phaseIndex) return `[✅ ${c.name}]`;
+        if (s.phase === 'completed' || c.idx < s.phaseIndex) return `[✅ ${c.name}]`;
         if (c.idx === s.phaseIndex) return `[▶️ ${c.name.toUpperCase()}]`;
         return `[⬜ ${c.name}]`;
       });
@@ -718,6 +740,18 @@ sprintCmd
         if (s.activeCeremony.room) {
           console.log(`   Room: ${s.activeCeremony.room} | Attendees: [${s.activeCeremony.attendees.join(', ')}]`);
         }
+      }
+
+      if (s.completedSprints && s.completedSprints.length > 0) {
+        console.log(`\n🏆 COMPLETED SPRINTS ARCHIVE (${s.completedSprints.length} sprints total):`);
+        s.completedSprints.forEach((r: any) => {
+          const dStr = new Date(r.completedAt).toLocaleTimeString();
+          console.log(`   ✨ Sprint #${r.sprintNumber}: "${r.story}" [${r.storyPoints || 5} pts] (Finished at ${dStr})`);
+        });
+      }
+
+      if (s.phase === 'completed') {
+        console.log(`\n🎉 Sprint is concluded! Run "agent-team sprint start" to begin the next sprint.`);
       }
       console.log(`══════════════════════════════════════════════════════════════════════\n`);
     } catch (err: any) {
@@ -834,6 +868,43 @@ program
       const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'retro' }, port);
       console.log(`\n🎉 SPRINT CEREMONY #8: SPRINT RETROSPECTIVE (LESSONS LEARNED)`);
       console.log(`🏢 Location: Meeting Room ${res.ceremony.room} (Boardroom) with [${res.ceremony.attendees.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+program
+  .command('complete-sprint [summaryParts...]')
+  .alias('finish-sprint')
+  .description('Shortcut: Complete and archive the current sprint cycle')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (summaryParts, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const summary = summaryParts && summaryParts.length > 0 ? summaryParts.join(' ') : undefined;
+      const res = await apiCall('/api/sprint/complete', 'POST', { summary }, port);
+      console.log(`\n🏆 SPRINT #${res.record.sprintNumber} COMPLETED!`);
+      console.log(`💡 Start the next sprint cycle anytime with: "agent-team start-sprint" or "agent-team sprint start"`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+program
+  .command('start-sprint [sprintNumber] [storyParts...]')
+  .description('Shortcut: Start a new sprint cycle')
+  .option('-p, --points <number>', 'Story points estimation (default: 5)', '5')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (sprintNumber, storyParts, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const num = sprintNumber && /^\d+$/.test(sprintNumber) ? parseInt(sprintNumber, 10) : undefined;
+      const story = Array.isArray(storyParts) && storyParts.length > 0 ? storyParts.join(' ') : (!num && sprintNumber ? sprintNumber : undefined);
+      const points = parseInt(options.points, 10) || 5;
+      const res = await apiCall('/api/sprint/start', 'POST', { sprintNumber: num, story, points }, port);
+      console.log(`\n🏃 SPRINT #${res.sprint.sprintNumber} STARTED!`);
+      console.log(`📋 Story Card: "${res.sprint.story}" (${res.sprint.storyPoints} pts)`);
+      console.log(`💡 Next step: Run "agent-team validate" or "agent-team sprint next"\n`);
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
     }

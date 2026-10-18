@@ -67,19 +67,31 @@ export interface SprintCeremonyInfo {
   startedAt: number;
 }
 
+export interface SprintRecord {
+  sprintNumber: number;
+  story: string;
+  storyPoints?: number;
+  startedAt: number;
+  completedAt: number;
+  ceremoniesCount: number;
+  summary?: string;
+}
+
 export interface SprintState {
   sprintNumber: number;
   story: string;
   storyPoints?: number;
   phase: SprintPhase;
-  phaseIndex: number; // 0 to 8 (0 = idle)
+  phaseIndex: number; // 0 to 8 (0 = idle, 9 = completed)
   startedAt: number;
+  completedAt?: number;
   activeCeremony?: SprintCeremonyInfo;
   history: {
     phase: SprintPhase;
     timestamp: number;
     summary: string;
   }[];
+  completedSprints?: SprintRecord[];
 }
 
 export interface ServerState {

@@ -41,6 +41,10 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
 ### Rule 4: Retrospective Is Non-Negotiable (Phase 8 Mandatory)
 - After every production release, Claude must assemble the team in the Boardroom (Room 5) for Phase 8 (`retro`) to document lessons learned before concluding the sprint cycle.
 
+### Rule 5: Continuous Sprint Lifecycle (Start ➔ Complete ➔ Start Next)
+- Once the sprint retrospective is complete, Claude MUST call `office_sprint_complete` (or `agent-team sprint complete`) to formally close and archive the sprint.
+- To take on new work, Claude immediately launches the next sprint with `office_sprint_start` (auto-incrementing to Sprint #N+1). This allows continuous agile delivery across infinite milestones.
+
 ---
 
 ## 🛠️ Tool Calling Mapping for Claude
@@ -59,12 +63,13 @@ When Claude operates via MCP or terminal CLI:
 | 6. UAT Sign-Off | `office_sprint_ceremony({ phase: "uat" })` | `agent-team uat` |
 | 7. Release Prod | `office_sprint_ceremony({ phase: "release" })` | `agent-team release` |
 | 8. Retrospective | `office_sprint_ceremony({ phase: "retro" })` | `agent-team retro` |
+| Complete Sprint | `office_sprint_complete({ summary })` | `agent-team complete-sprint` or `agent-team sprint complete` |
 | Sequential Next | `office_sprint_next({})` | `agent-team sprint next` |
 | Status Check | `office_sprint_status({})` | `agent-team sprint status` |
 
 ---
 
-## 💡 Example Workflow for Claude
+## 💡 Example Continuous Workflow for Claude
 
 When the user asks Claude: *"Implement user password reset via email"*:
 1. Claude runs `office_sprint_start` with story `"AUTH-201: Password Reset by Email"`.
@@ -76,3 +81,5 @@ When the user asks Claude: *"Implement user password reset via email"*:
 7. Claude calls `office_sprint_ceremony({ phase: "uat" })` (Room 2) to sign off criteria.
 8. Claude calls `office_sprint_ceremony({ phase: "release" })` (Room 4) for canary deployment.
 9. Claude calls `office_sprint_ceremony({ phase: "retro" })` (Room 5) for lessons learned.
+10. Claude calls `office_sprint_complete({ summary: "Password reset deployed with 100% tests passing" })` to archive Sprint #1.
+11. When new work arrives, Claude calls `office_sprint_start` to kick off Sprint #2!

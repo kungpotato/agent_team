@@ -155,13 +155,14 @@ Whenever Claude or any AI agent uses this project or its MCP tools, **it is stri
 
 ---
 
-### MCP Tools Reference (16 Tools)
+### MCP Tools Reference (17 Tools)
 
 | Tool Name | Description | Key Parameters |
 |---|---|---|
 | `office_sprint_start` | Start a new Sprint cycle with story card and story points | `sprint_number`, `story`, `points` |
 | `office_sprint_ceremony` | Execute a ceremony: `validation`, `grooming`, `planning`, `working`, `demo`, `uat`, `release`, `retro` | `phase`, `points`, `topic` |
-| `office_sprint_next` | Advance to the next sprint ceremony in sequence (1 -> 8) | `{}` |
+| `office_sprint_next` | Advance to the next sprint ceremony in sequence (1 -> 8 -> complete) | `{}` |
+| `office_sprint_complete` | Complete and archive the current sprint cycle after Retrospective | `summary` (Optional) |
 | `office_sprint_status` | Retrieve current sprint details, pipeline progress, and history | `{}` |
 | `office_set_work` | Assign an agent to work on a task with progress % (Auto-spawns agent if absent) | `agent_name`, `task`, `progress` (0-100) |
 | `office_update_progress` | Update completion percentage and task description | `agent_name`, `progress`, `task` |
@@ -361,10 +362,27 @@ Advance sequentially to the next ceremony in the pipeline:
 agent-team sprint next
 ```
 
+#### `agent-team sprint complete [summary...]`
+> **Aliases:** `finish`, `done`, `close`
+
+Complete and archive the current sprint cycle after Retrospective (Phase 8):
+```bash
+agent-team sprint complete "Auth module delivered with 100% test coverage"
+# Or shortcut
+agent-team complete-sprint
+```
+
 #### `agent-team sprint status`
-Display a retro visual pipeline report showing current phase, active room, story points, and ceremony history:
+Display a retro visual pipeline report showing current phase, active room, story points, completed sprint archives, and ceremony history:
 ```bash
 agent-team sprint status
+```
+
+#### `agent-team start-sprint [sprintNumber] [story...] [-p <points>]`
+Shortcut to begin the next sprint cycle (auto-increments sprint number):
+```bash
+agent-team start-sprint
+agent-team start-sprint 2 "PAYMENT-201: Stripe Integration" -p 13
 ```
 
 ---
@@ -481,7 +499,9 @@ The server operates on port `3333` by default:
 | `GET` | `/api/sprint` | - | Retrieve current sprint cycle, phase, and ceremony history |
 | `POST` | `/api/sprint/start` | `{"sprintNumber": 1, "story": "OAuth2", "points": 8}` | Initialize a new sprint cycle with story card |
 | `POST` | `/api/sprint/ceremony`| `{"phase": "validation", "points": 8}` | Execute a ceremony (`validation`, `grooming`, `planning`, etc.) |
-| `POST` | `/api/sprint/next` | `{}` | Advance sequentially to next ceremony (1 -> 6) |
+| `POST` | `/api/sprint/next` | `{}` | Advance sequentially to next ceremony (1 -> 8 -> complete) |
+| `POST` | `/api/sprint/complete`| `{"summary": "Sprint done"}` | Complete and archive current sprint after Retrospective |
+| `GET` | `/api/sprint/history` | - | Retrieve archived completed sprints history |
 | `GET` | `/api/meeting-rooms/status` | `?roomId=1` (Optional) | Status of rooms 1-5 and waiting queue |
 | `GET` | `/api/agents/visits` | - | Retrieve active desk consultation sessions |
 | `POST` | `/api/agents/work` | `{"name": "coder1", "task": "Coding", "progress": 50}` | Assign work (Auto-spawns agent if absent) |

@@ -518,10 +518,14 @@ body {
   font-size: 7px;
 }
 
-.sprint-next-btn {
-  background: #1e293b;
-  color: #38bdf8;
-  border: 1px solid #0284c7;
+.sprint-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sprint-btn {
   padding: 4px 10px;
   font-family: inherit;
   font-size: 8px;
@@ -532,8 +536,45 @@ body {
   flex-shrink: 0;
 }
 
+.sprint-next-btn {
+  background: #1e293b;
+  color: #38bdf8;
+  border: 1px solid #0284c7;
+}
+
 .sprint-next-btn:hover {
   background: #0284c7;
   color: #fff;
   box-shadow: 0 0 8px #38bdf8;
+}
+
+.sprint-complete-btn {
+  background: rgba(234, 179, 8, 0.2);
+  color: #fde047;
+  border: 1px solid #eab308;
+  font-weight: bold;
+  animation: pulse-glow 1.5s infinite;
+}
+
+.sprint-complete-btn:hover {
+  background: #eab308;
+  color: #000;
+  box-shadow: 0 0 10px #fde047;
+}
+
+.sprint-start-btn {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid #10b981;
+}
+
+.sprint-start-btn:hover {
+  background: #10b981;
+  color: #fff;
+  box-shadow: 0 0 8px #34d399;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(234, 179, 8, 0.4); }
+  50% { box-shadow: 0 0 12px rgba(234, 179, 8, 0.8); }
 }

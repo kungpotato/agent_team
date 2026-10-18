@@ -63,9 +63,17 @@
         <span class="c-arrow">➔</span>
         <span class="c-step" data-step="8">8. RETRO</span>
       </div>
-      <button class="sprint-next-btn" onclick="quickSprintNext()" title="Advance to Next Sprint Ceremony">
-        ⏩ NEXT CEREMONY
-      </button>
+      <div class="sprint-actions">
+        <button class="sprint-btn sprint-next-btn" id="sprint-next-btn" onclick="quickSprintNext()" title="Advance to Next Sprint Ceremony">
+          ⏩ NEXT CEREMONY
+        </button>
+        <button class="sprint-btn sprint-complete-btn" id="sprint-complete-btn" onclick="quickSprintComplete()" title="Complete and Archive Sprint" style="display:none;">
+          🏆 COMPLETE SPRINT
+        </button>
+        <button class="sprint-btn sprint-start-btn" id="sprint-start-btn" onclick="quickSprintStartPrompt()" title="Start New Sprint Cycle">
+          🚀 NEW SPRINT
+        </button>
+      </div>
     </div>
 
     <!-- LIVE TASK & PROGRESS TICKER -->

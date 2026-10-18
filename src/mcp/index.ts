@@ -534,8 +534,38 @@ STRICT RULES:
         }
       }
 
+      if (s.completedSprints && s.completedSprints.length > 0) {
+        lines.push(`\n🏆 Completed Sprints Archive (${s.completedSprints.length} sprints total):`);
+        s.completedSprints.forEach((r: any) => {
+          lines.push(`   ✨ Sprint #${r.sprintNumber}: "${r.story}" [${r.storyPoints || 5} pts]`);
+        });
+      }
+
+      if (s.phase === 'completed') {
+        lines.push(`\n🎉 Current sprint is COMPLETED! Call "office_sprint_start" to launch the next sprint cycle.`);
+      }
+
       return {
         content: [{ type: 'text', text: lines.join('\n') }]
+      };
+    }
+  );
+
+  // 17. SPRINT COMPLETE
+  server.tool(
+    'office_sprint_complete',
+    'Mark the current Sprint cycle as COMPLETED and archive it. MANDATORY: All 8 ceremonies including Phase 8 (Sprint Retrospective) must be finished before completing.',
+    {
+      summary: z.string().optional().describe('Optional retrospective summary or milestone conclusion notes')
+    },
+    async ({ summary }) => {
+      const res = await apiCall('/api/sprint/complete', 'POST', { summary });
+      const r = res.record;
+      return {
+        content: [{
+          type: 'text',
+          text: `🏆 SPRINT #${r.sprintNumber} COMPLETED & ARCHIVED!\n📋 Story: "${r.story}" (${r.storyPoints} pts)\n⏱️ Ceremonies: ${r.ceremoniesCount} phases executed\n📝 Summary: "${r.summary}"\n\n💡 Ready for the next sprint! Call "office_sprint_start" to begin Sprint #${r.sprintNumber + 1}.`
+        }]
       };
     }
   );

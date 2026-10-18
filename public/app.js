@@ -987,15 +987,35 @@ function updateSprintHUD() {
   const badge = document.getElementById('sprint-badge');
   const story = document.getElementById('sprint-story');
   const pts = document.getElementById('sprint-pts');
+  const completeBtn = document.getElementById('sprint-complete-btn');
+  const nextBtn = document.getElementById('sprint-next-btn');
 
-  if (badge) badge.textContent = `🏃 SPRINT #${currentSprint.sprintNumber}`;
+  const isCompleted = currentSprint.phase === 'completed';
+  if (badge) {
+    if (isCompleted) {
+      badge.textContent = `🏆 SPRINT #${currentSprint.sprintNumber} COMPLETED`;
+      badge.style.background = '#eab308';
+      badge.style.color = '#000';
+    } else {
+      badge.textContent = `🏃 SPRINT #${currentSprint.sprintNumber}`;
+      badge.style.background = '#2563eb';
+      badge.style.color = '#fff';
+    }
+  }
   if (story) story.textContent = currentSprint.story;
   if (pts) pts.textContent = `${currentSprint.storyPoints || 5} PTS`;
+
+  if (completeBtn) {
+    completeBtn.style.display = (currentSprint.phase === 'retro' || currentSprint.phaseIndex === 8) ? 'inline-block' : 'none';
+  }
+  if (nextBtn) {
+    nextBtn.style.display = isCompleted ? 'none' : 'inline-block';
+  }
 
   const steps = document.querySelectorAll('.c-step');
   steps.forEach(step => {
     const sIndex = parseInt(step.getAttribute('data-step'), 10);
-    if (sIndex < currentSprint.phaseIndex) {
+    if (isCompleted || sIndex < currentSprint.phaseIndex) {
       step.className = 'c-step completed';
     } else if (sIndex === currentSprint.phaseIndex) {
       step.className = 'c-step active';
@@ -1012,6 +1032,10 @@ window.quickSprintNext = async function() {
       headers: { 'Content-Type': 'application/json' }
     });
     const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
     if (data.sprint) {
       currentSprint = data.sprint;
       updateSprintHUD();
@@ -1019,6 +1043,53 @@ window.quickSprintNext = async function() {
     }
   } catch (e) {
     console.error('Failed to advance sprint:', e);
+  }
+};
+
+window.quickSprintComplete = async function() {
+  try {
+    const res = await fetch('/api/sprint/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    if (data.sprint) {
+      currentSprint = data.sprint;
+      updateSprintHUD();
+      if (window.soundSystem) window.soundSystem.playSpawn();
+    }
+  } catch (e) {
+    console.error('Failed to complete sprint:', e);
+  }
+};
+
+window.quickSprintStartPrompt = async function() {
+  const isCompleted = currentSprint && currentSprint.phase === 'completed';
+  const defaultNum = (currentSprint ? currentSprint.sprintNumber : 0) + (isCompleted ? 1 : 1);
+  const story = prompt(`Enter story card for Sprint #${defaultNum}:`, `AUTH-${defaultNum}01: Continuous Milestone Increment #${defaultNum}`);
+  if (!story) return;
+
+  const ptsStr = prompt(`Story Points estimation for "${story}":`, '8');
+  const points = parseInt(ptsStr, 10) || 5;
+
+  try {
+    const res = await fetch('/api/sprint/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sprintNumber: defaultNum, story, points })
+    });
+    const data = await res.json();
+    if (data.sprint) {
+      currentSprint = data.sprint;
+      updateSprintHUD();
+      if (window.soundSystem) window.soundSystem.playSpawn();
+    }
+  } catch (e) {
+    console.error('Failed to start sprint:', e);
   }
 };
 
