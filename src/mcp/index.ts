@@ -553,10 +553,20 @@ STRICT RULES:
   // 15. SPRINT NEXT
   server.tool(
     'office_sprint_next',
-    'Advance to the next Sprint Ceremony in sequence (1.validation -> 2.grooming -> 3.planning -> 4.working -> 5.demo -> 6.uat -> 7.release -> 8.retro).',
-    {},
-    async () => {
-      const res = await apiCall('/api/sprint/next', 'POST');
+    'Advance to the next Sprint Ceremony in sequence (1.validation -> 2.grooming -> 3.planning -> 4.working -> 5.demo -> 6.uat -> 7.release -> 8.retro). Enforces mandatory Slack thread discussion sign-off before advancing.',
+    {
+      force: z.boolean().optional().describe('Bypass discussion sign-off policy gate (emergency override)')
+    },
+    async ({ force }) => {
+      const res = await apiCall('/api/sprint/next', 'POST', { force });
+      if (res.completed) {
+        return {
+          content: [{
+            type: 'text',
+            text: `🏁 SPRINT #${res.sprint.sprintNumber} COMPLETED!\nRetrospective concluded and all ceremony governance artifacts archived.`
+          }]
+        };
+      }
       const c = res.ceremony;
       let text = `⏩ ADVANCED TO SPRINT CEREMONY #${c.phaseIndex}: ${c.name.toUpperCase()}\n📝 Description: ${c.description}\n🏷️ Topic: "${c.topic}"`;
       if (c.room) {
@@ -1077,6 +1087,73 @@ STRICT RULES:
         content: [{
           type: 'text',
           text: `🗑️ Message [${message_id}] in thread [${thread_id}] deleted by @${author}.`
+        }]
+      };
+    }
+  );
+
+  // 34. ASK AGENT / REPORT BLOCKER PROTOCOL
+  server.tool(
+    'office_ask_agent',
+    'Mandatory protocol to ask another agent a question or report a blocker. Walks to the specialist agent\'s desk and opens a Slack consult thread with Smart Brevity formatting.',
+    {
+      from: z.string().describe('Calling agent who needs help (e.g. "coder1")'),
+      to: z.string().describe('Target specialist agent being consulted (e.g. "system-architect1", "runtime-sre1")'),
+      question: z.string().describe('The Point: Core question, error trace, or blocker details'),
+      topic: z.string().optional().describe('Brief subject line for the discussion'),
+      intent: z.string().optional().describe('Why It Matters: Context, impact, or urgency'),
+      next_steps: z.string().optional().describe('Next Steps / Ask: Specific action or decision needed from the specialist'),
+      reply: z.string().optional().describe('Optional immediate reply if pre-determined'),
+      duration: z.number().optional().describe('Duration in seconds for the desk visit animation (default 14)')
+    },
+    async ({ from, to, question, topic, intent, next_steps, reply, duration }) => {
+      const res = await apiCall('/api/agents/ask', 'POST', {
+        from,
+        to,
+        question,
+        topic,
+        intent,
+        nextSteps: next_steps,
+        reply,
+        duration
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: `🤝 CONSULTATION OPENED: @${from} ➔ @${to}\n` +
+                `📌 Thread: [${res.thread.id}] "${res.thread.title}"\n` +
+                `❓ Question: "${question}"\n` +
+                `💡 Initial Response: "${res.reply}"\n` +
+                `📝 Discussion captured in office Slack feed with Smart Brevity audit trail.`
+        }]
+      };
+    }
+  );
+
+  // 35. CHECK CEREMONY SIGNOFF
+  server.tool(
+    'office_check_ceremony_signoff',
+    'Verify whether the active sprint ceremony discussion thread has met mandatory policy requirements (all required stakeholder roles have participated with Smart Brevity).',
+    {
+      phase: z.enum(['validation', 'grooming', 'planning', 'working', 'demo', 'uat', 'release', 'retro']).optional().describe('Optional ceremony phase to check (defaults to currently active ceremony)')
+    },
+    async ({ phase }) => {
+      const query = phase ? `?phase=${encodeURIComponent(phase)}` : '';
+      const res = await apiCall(`/api/sprint/ceremony-check${query}`, 'GET');
+      const statusIcon = res.satisfied ? '✅ SATISFIED' : '🚫 BLOCKED';
+      const requiredStr = res.requiredRoles.map((r: string) => `@${r}`).join(', ') || 'None';
+      const missingStr = res.missingRoles.length > 0 ? res.missingRoles.map((r: string) => `@${r}`).join(', ') : 'None (All sign-offs satisfied)';
+      return {
+        content: [{
+          type: 'text',
+          text: `🏛️ CEREMONY GATE STATUS: [${statusIcon}]\n` +
+                `Phase: ${res.phase.toUpperCase()} | Thread: [${res.threadId}]\n` +
+                `Messages Count: ${res.messagesCount}\n` +
+                `Required Roles: ${requiredStr}\n` +
+                `Missing Roles: ${missingStr}\n` +
+                (res.satisfied
+                  ? `✨ Ready to advance to next ceremony phase!`
+                  : `⚠️ Advance is BLOCKED until missing roles participate in the thread.`)
         }]
       };
     }

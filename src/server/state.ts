@@ -96,6 +96,19 @@ export const SPRINT_CEREMONIES: {
   }
 ];
 
+export const CEREMONY_REQUIRED_SIGNOFFS: Record<SprintPhase, string[]> = {
+  validation: ['product-manager', 'system-architect'],
+  grooming: ['coder', 'qa-tester'],
+  planning: ['project-planner', 'coder'],
+  working: ['coder'],
+  demo: ['coder', 'qa-tester'],
+  uat: ['qa-tester', 'product-manager'],
+  release: ['devops-release', 'runtime-sre'],
+  retro: ['project-planner', 'product-manager'],
+  idle: [],
+  completed: []
+};
+
 export class StateManager {
   public readonly sessionId: string;
   public readonly createdAt: number = Date.now();
@@ -544,6 +557,70 @@ export class StateManager {
         this.startMeeting(attendeeNames, topic || `Room ${rId} Sync`, rId);
       }
     }
+  }
+
+  /**
+   * Programmatic gate: verify whether the current ceremony phase has received required discussion/sign-offs in its Slack thread
+   */
+  public verifyCeremonySignoff(phase: SprintPhase): {
+    satisfied: boolean;
+    phase: SprintPhase;
+    threadId: string;
+    requiredRoles: string[];
+    missingRoles: string[];
+    messagesCount: number;
+    threadTitle?: string;
+  } {
+    const threadId = `th-ceremony-s${this.sprint.sprintNumber}-${phase}`;
+    const thread = this.threads.get(threadId);
+    const requiredRoles = CEREMONY_REQUIRED_SIGNOFFS[phase] || [];
+
+    if (!requiredRoles.length) {
+      return {
+        satisfied: true,
+        phase,
+        threadId,
+        requiredRoles: [],
+        missingRoles: [],
+        messagesCount: thread?.messages?.length || 0,
+        threadTitle: thread?.title
+      };
+    }
+
+    if (!thread || !thread.messages || thread.messages.length === 0) {
+      return {
+        satisfied: false,
+        phase,
+        threadId,
+        requiredRoles,
+        missingRoles: [...requiredRoles],
+        messagesCount: 0
+      };
+    }
+
+    const missingRoles: string[] = [];
+    for (const reqRole of requiredRoles) {
+      const lower = reqRole.toLowerCase();
+      const hasContribution = thread.messages.some(m => {
+        const author = m.author.toLowerCase();
+        const role = (m.roleTitle || '').toLowerCase();
+        const dept = (m.department || '').toLowerCase();
+        return author.includes(lower) || author.startsWith(lower) || role.includes(lower) || dept.includes(lower);
+      });
+      if (!hasContribution) {
+        missingRoles.push(reqRole);
+      }
+    }
+
+    return {
+      satisfied: missingRoles.length === 0,
+      phase,
+      threadId,
+      requiredRoles,
+      missingRoles,
+      messagesCount: thread.messages.length,
+      threadTitle: thread.title
+    };
   }
 
   /**
@@ -1611,6 +1688,67 @@ export class StateManager {
   }
 
   /**
+   * Dedicated programmatic protocol for an agent to ask another agent a question / report blocker.
+   * Walks to desk and opens/posts to a Slack consult thread with Smart Brevity.
+   */
+  public askAgent(params: {
+    from: string;
+    to: string;
+    question: string;
+    topic?: string;
+    intent?: string;
+    nextSteps?: string;
+    reply?: string;
+    durationSec?: number;
+  }): {
+    thread: Thread;
+    visit: VisitSession;
+    visitor: Agent;
+    target: Agent;
+    reply: string;
+  } {
+    const from = params.from.trim().toLowerCase();
+    const to = params.to.trim().toLowerCase();
+    const question = params.question.trim();
+
+    if (!question) {
+      throw new Error('Question / blocker point cannot be empty');
+    }
+
+    const duration = params.durationSec ?? 14;
+    const visitResult = this.startVisit(from, to, question, params.reply, duration);
+
+    // Retrieve or find the created thread
+    const consultTitle = `[Consult] @${visitResult.visitor.name} ➔ @${visitResult.target.name}: ${params.topic || question.slice(0, 35)}`;
+    let thread = Array.from(this.threads.values()).find(t =>
+      t.category === 'consult' &&
+      t.mentions.includes(`@${visitResult.visitor.name}`) &&
+      t.mentions.includes(`@${visitResult.target.name}`)
+    );
+
+    if (!thread) {
+      thread = this.createThread({
+        title: consultTitle,
+        category: 'consult',
+        author: visitResult.visitor.name,
+        topic: params.topic || `Consultation: @${visitResult.visitor.name} ➔ @${visitResult.target.name}`,
+        intent: params.intent || 'Real-time consultation to resolve technical blocker.',
+        point: question,
+        nextSteps: params.nextSteps || `@${visitResult.target.name} please advise.`,
+        mentions: [`@${visitResult.visitor.name}`, `@${visitResult.target.name}`]
+      });
+    }
+
+    return {
+      thread,
+      visit: visitResult.visit,
+      visitor: visitResult.visitor,
+      target: visitResult.target,
+      reply: visitResult.visit.reply || ''
+    };
+  }
+
+  /**
    * Reset / clear all agents and queues (Clock Out / Go Home)
    */
   public reset(): { count: number } {
@@ -1748,35 +1886,63 @@ export class StateManager {
         if (!valDone) {
           throw new Error(`🚫 CEREMONY POLICY VIOLATION: Backlog Grooming (Phase 2) is BLOCKED! Agents must complete Phase 1 (Story Validation & Refinement) first.`);
         }
+        const valSignoff = this.verifyCeremonySignoff('validation');
+        if (!valSignoff.satisfied) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Backlog Grooming (Phase 2) is BLOCKED! Validation thread [${valSignoff.threadId}] is missing required discussion/sign-off from: ${valSignoff.missingRoles.map(r => '@' + r).join(', ')}. All attending agents must document decisions in the thread.`);
+        }
       } else if (target.phase === 'planning') {
         const groomDone = this.sprint.history.some(h => h.phase === 'grooming') || this.sprint.phaseIndex >= 2;
         if (!groomDone) {
           throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Planning (Phase 3) is BLOCKED! Agents must complete Phase 2 (Backlog Grooming & Point Estimation) first.`);
+        }
+        const groomSignoff = this.verifyCeremonySignoff('grooming');
+        if (!groomSignoff.satisfied) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Planning (Phase 3) is BLOCKED! Grooming thread [${groomSignoff.threadId}] is missing required discussion/sign-off from: ${groomSignoff.missingRoles.map(r => '@' + r).join(', ')}.`);
         }
       } else if (target.phase === 'working') {
         const planDone = this.sprint.history.some(h => h.phase === 'planning') || this.sprint.phaseIndex >= 3;
         if (!planDone) {
           throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Work (Phase 4) is BLOCKED! Agents must complete Phase 1 (Validation), Phase 2 (Grooming), and Phase 3 (Planning) before active work.`);
         }
+        const planSignoff = this.verifyCeremonySignoff('planning');
+        if (!planSignoff.satisfied) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Work (Phase 4) is BLOCKED! Planning thread [${planSignoff.threadId}] is missing required discussion/sign-off from: ${planSignoff.missingRoles.map(r => '@' + r).join(', ')}.`);
+        }
       } else if (target.phase === 'demo') {
         const workDone = this.sprint.history.some(h => h.phase === 'working') || this.sprint.phaseIndex >= 4;
         if (!workDone) {
           throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Demo (Phase 5) is BLOCKED! Agents must complete Phase 4 (Sprint Execution / Active Work) first.`);
+        }
+        const workSignoff = this.verifyCeremonySignoff('working');
+        if (!workSignoff.satisfied) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Demo (Phase 5) is BLOCKED! Sprint work thread [${workSignoff.threadId}] is missing code delivery update from: ${workSignoff.missingRoles.map(r => '@' + r).join(', ')}.`);
         }
       } else if (target.phase === 'uat') {
         const demoDone = this.sprint.history.some(h => h.phase === 'demo') || this.sprint.phaseIndex >= 5;
         if (!demoDone) {
           throw new Error(`🚫 CEREMONY POLICY VIOLATION: UAT Sign-Off (Phase 6) is BLOCKED! Agents must complete Phase 5 (Sprint Demo) before formal UAT verification.`);
         }
+        const demoSignoff = this.verifyCeremonySignoff('demo');
+        if (!demoSignoff.satisfied) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: UAT Sign-Off (Phase 6) is BLOCKED! Demo thread [${demoSignoff.threadId}] is missing demonstration sign-off from: ${demoSignoff.missingRoles.map(r => '@' + r).join(', ')}.`);
+        }
       } else if (target.phase === 'release') {
         const uatDone = this.sprint.history.some(h => h.phase === 'uat') || this.sprint.phaseIndex >= 6;
         if (!uatDone) {
           throw new Error(`🚫 CEREMONY POLICY VIOLATION: Production Release (Phase 7) is BLOCKED! All agents must complete Phase 6 (UAT Verification & Formal Sign-Off) before releasing to production.`);
         }
+        const uatSignoff = this.verifyCeremonySignoff('uat');
+        if (!uatSignoff.satisfied) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Production Release (Phase 7) is BLOCKED! UAT thread [${uatSignoff.threadId}] is missing formal acceptance sign-off from: ${uatSignoff.missingRoles.map(r => '@' + r).join(', ')}.`);
+        }
       } else if (target.phase === 'retro') {
         const relDone = this.sprint.history.some(h => h.phase === 'release') || this.sprint.phaseIndex >= 7;
         if (!relDone) {
           throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Retrospective (Phase 8) is BLOCKED! Agents must complete Phase 7 (Production Release) before conducting the retrospective.`);
+        }
+        const relSignoff = this.verifyCeremonySignoff('release');
+        if (!relSignoff.satisfied) {
+          throw new Error(`🚫 CEREMONY POLICY VIOLATION: Sprint Retrospective (Phase 8) is BLOCKED! Release thread [${relSignoff.threadId}] is missing production deployment attestation from: ${relSignoff.missingRoles.map(r => '@' + r).join(', ')}.`);
         }
       }
     }
@@ -1885,20 +2051,33 @@ export class StateManager {
   /**
    * Advance to the next sprint ceremony in sequence (1 -> 8 -> complete)
    */
-  public nextCeremony(): { ceremony?: SprintCeremonyInfo; sprint: SprintState; completed?: boolean } {
+  public nextCeremony(options?: { force?: boolean }): { ceremony?: SprintCeremonyInfo; sprint: SprintState; completed?: boolean } {
+    if (this.sprint.phase && this.sprint.phase !== 'idle' && this.sprint.phase !== 'completed') {
+      const check = this.verifyCeremonySignoff(this.sprint.phase);
+      if (!check.satisfied && !options?.force) {
+        const missingStr = check.missingRoles.map(r => '@' + r).join(', ');
+        throw new Error(
+          `🚫 CEREMONY POLICY VIOLATION: Cannot advance from Phase ${this.sprint.phaseIndex} (${this.sprint.phase.toUpperCase()})! ` +
+          `Mandatory discussion/sign-off in Slack thread [${check.threadId}] is INCOMPLETE. ` +
+          `Missing required messages from: ${missingStr}. ` +
+          `All attending agents must participate and document decisions in the thread before advancing.`
+        );
+      }
+    }
+
     if (this.sprint.phaseIndex === 8 || this.sprint.phase === 'retro') {
-      const res = this.completeSprint();
+      const res = this.completeSprint(undefined, options);
       return { sprint: res.sprint, completed: true };
     }
     let nextIndex = this.sprint.phaseIndex + 1;
     if (nextIndex > SPRINT_CEREMONIES.length) nextIndex = 1;
-    return this.runCeremony(nextIndex);
+    return this.runCeremony(nextIndex, options);
   }
 
   /**
    * Complete the current sprint after retrospective and archive it
    */
-  public completeSprint(summary?: string): { sprint: SprintState; record: SprintRecord } {
+  public completeSprint(summary?: string, options?: { force?: boolean }): { sprint: SprintState; record: SprintRecord } {
     if (this.sprint.phase === 'completed') {
       throw new Error(`Sprint #${this.sprint.sprintNumber} is already marked as COMPLETED.`);
     }
@@ -1907,6 +2086,18 @@ export class StateManager {
     const retroDone = this.sprint.history.some(h => h.phase === 'retro') || this.sprint.phaseIndex === 8;
     if (!retroDone) {
       throw new Error(`🚫 CEREMONY POLICY VIOLATION: Cannot complete sprint #${this.sprint.sprintNumber}! You must complete Ceremony 8 (Sprint Retrospective) before completing the sprint.`);
+    }
+
+    if (!options?.force) {
+      const retroSignoff = this.verifyCeremonySignoff('retro');
+      if (!retroSignoff.satisfied) {
+        const missingStr = retroSignoff.missingRoles.map(r => '@' + r).join(', ');
+        throw new Error(
+          `🚫 CEREMONY POLICY VIOLATION: Cannot complete sprint #${this.sprint.sprintNumber}! ` +
+          `Retrospective Slack thread [${retroSignoff.threadId}] is missing required sign-off from: ${missingStr}. ` +
+          `All stakeholders must document retrospective sign-off in the thread before final archiving.`
+        );
+      }
     }
 
     const completedAt = Date.now();

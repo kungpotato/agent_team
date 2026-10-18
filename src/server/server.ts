@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { sessionManager, StateManager } from './state.js';
 import { potatoAgentRegistry, getAllPotatoRoles } from './potato-agents.js';
 import { cardManager } from './cards.js';
-import { WSMessage, DEPARTMENTS, DepartmentId, Agent, MEETING_ROOMS, resolveRoomId } from './types.js';
+import { WSMessage, DEPARTMENTS, DepartmentId, Agent, MEETING_ROOMS, resolveRoomId, SprintPhase } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -275,6 +275,32 @@ export function createServer() {
     res.json({ success: true, session: sm.sessionId, ...result });
   });
 
+  app.post('/api/agents/ask', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const { from, to, question, topic, intent, nextSteps, reply, duration } = req.body;
+    if (!from || !to) {
+      return res.status(400).json({ error: 'Both "from" (asking agent) and "to" (specialist agent) are required' });
+    }
+    if (!question) {
+      return res.status(400).json({ error: 'Question / blocker point is required' });
+    }
+    try {
+      const result = sm.askAgent({
+        from,
+        to,
+        question,
+        topic,
+        intent,
+        nextSteps,
+        reply,
+        durationSec: duration !== undefined ? Number(duration) : 14
+      });
+      res.json({ success: true, session: sm.sessionId, ...result });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   app.post('/api/agents/return', (req, res) => {
     const sm: StateManager = (req as any).stateManager;
     const { name, visitor } = req.body;
@@ -366,6 +392,13 @@ export function createServer() {
   app.get('/api/sprint', (req, res) => {
     const sm: StateManager = (req as any).stateManager;
     res.json({ success: true, session: sm.sessionId, sprint: sm.getSprint() });
+  });
+
+  app.get('/api/sprint/ceremony-check', (req, res) => {
+    const sm: StateManager = (req as any).stateManager;
+    const phase = (req.query.phase as SprintPhase) || sm.getSprint().phase;
+    const check = sm.verifyCeremonySignoff(phase);
+    res.json({ success: true, session: sm.sessionId, ...check });
   });
 
   app.post('/api/sprint/start', async (req, res) => {

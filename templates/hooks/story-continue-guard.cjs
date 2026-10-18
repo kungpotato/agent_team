@@ -62,7 +62,30 @@ async function main() {
 
   const lastMessage = String(payload.last_assistant_message || '');
   if (BLOCK_MARKER.test(lastMessage)) {
-    process.exit(0); // explicit human-blocked escape hatch
+    // Programmatic Blocker Protocol: Must open a consult thread in office Slack feed before stopping
+    const port = process.env.AGENT_TEAM_PORT || 3333;
+    try {
+      const res = await fetch(`http://localhost:${port}/api/threads?category=consult`, { signal: AbortSignal.timeout(800) });
+      if (res.ok) {
+        const data = await res.json();
+        const threads = data.threads || [];
+        const hasRecentConsult = threads.some((t) => Date.now() - t.updatedAt < 30 * 60 * 1000);
+        if (hasRecentConsult) {
+          process.exit(0); // Verified: Blocker documented with specialist in consult thread
+        }
+      }
+    } catch {
+      process.exit(0); // Fail open if agent-team server is unreachable
+    }
+
+    process.stderr.write(
+      `🛑 STORY-BLOCKED PROTOCOL ENFORCEMENT:\n` +
+      `You signaled STORY-BLOCKED, but no consultation thread was opened with a specialist agent!\n` +
+      `Mandatory protocol: You MUST ask a specialist agent using MCP \`office_ask_agent\` (or \`agent-team ask <from> <to> "<blocker>"\`)\n` +
+      `tagging the relevant specialist (@system-architect1, @runtime-sre1, @product-manager1, etc.)\n` +
+      `to document the blocker in the office Slack feed before stopping.\n`
+    );
+    process.exit(2);
   }
 
   const cwd = payload.cwd || process.cwd();

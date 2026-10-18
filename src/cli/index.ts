@@ -258,17 +258,19 @@ program
     }
   });
 
-// ASK / VISIT COMMAND (Walk to another desk for consultation)
+// ASK / VISIT COMMAND (Walk to another desk for consultation & Smart Brevity thread)
 program
   .command('ask <from> <to> [question...]')
   .alias('visit')
   .alias('consult')
   .alias('walk-to')
   .alias('talk-to')
-  .description('Send an agent walking over to another agent\'s desk to ask information or consult')
+  .description('Send an agent walking over to another agent\'s desk to ask information or consult (creates Slack thread)')
+  .option('-t, --topic <topic>', 'Specific topic / headline')
+  .option('-i, --intent <text>', 'Why It Matters (1-2 sentences)')
+  .option('-n, --next <text>', 'Next Steps / Ask')
   .option('-r, --reply <reply>', 'Explicit answer/reply from the target agent')
-  .option('-d, --duration <seconds>', 'Duration of consultation before returning (default: 12, 0 to stay)', '12')
-  .option('--stay', 'Stay at the target desk until "agent-team return" is called')
+  .option('-d, --duration <seconds>', 'Duration of consultation before returning (default: 14)', '14')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (from, to, questionParts, options) => {
     try {
@@ -276,12 +278,15 @@ program
       const question = questionParts && questionParts.length > 0
         ? questionParts.join(' ')
         : 'Hey, do you have a minute to sync on this?';
-      const duration = options.stay ? 0 : parseInt(options.duration, 10) || 12;
+      const duration = parseInt(options.duration, 10) || 14;
 
-      const res = await apiCall('/api/agents/visit', 'POST', {
+      const res = await apiCall('/api/agents/ask', 'POST', {
         from,
         to,
         question,
+        topic: options.topic,
+        intent: options.intent,
+        nextSteps: options.next,
         reply: options.reply,
         duration
       }, port);
@@ -289,17 +294,13 @@ program
       const targetDesk = Math.floor(res.target.slot / 8) + 1;
       const targetSeat = (res.target.slot % 8) + 1;
 
-      console.log(`\n🚶 [${res.visitor.name}] is walking over to [${res.target.name}]'s desk (Desk ${targetDesk}, Seat ${targetSeat})...`);
-      console.log(`❓ [${res.visitor.name}] asks: "${res.visit.question}"`);
-      if (res.visit.reply) {
-        console.log(`💡 [${res.target.name}] replies: "${res.visit.reply}"`);
+      console.log(`\n🤝 CONSULTATION OPENED: @${res.visitor.name} ➔ @${res.target.name} (Desk ${targetDesk}, Seat ${targetSeat})`);
+      console.log(`📌 Thread: [${res.thread.id}] "${res.thread.title}"`);
+      console.log(`❓ Question: "${question}"`);
+      if (res.reply) {
+        console.log(`💡 Reply: "${res.reply}"`);
       }
-      if (duration > 0) {
-        console.log(`⏱️ [${res.visitor.name}] will consult for ${duration}s, then walk back to their desk.`);
-      } else {
-        console.log(`📌 [${res.visitor.name}] will stay at the desk until you run: "agent-team return ${res.visitor.name}".`);
-      }
-      console.log('');
+      console.log(`⏱️ Duration: ${duration}s walking animation | Logged in Slack feed with Smart Brevity.\n`);
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
     }
@@ -796,12 +797,18 @@ sprintCmd
 
 sprintCmd
   .command('next')
-  .description('Advance to the next Sprint Ceremony in sequence (1 -> 8)')
+  .description('Advance to the next Sprint Ceremony in sequence (enforces mandatory Slack thread sign-off)')
+  .option('-f, --force', 'Bypass ceremony thread discussion sign-off policy gate (emergency override)')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
     try {
       const port = parseInt(options.port, 10);
-      const res = await apiCall('/api/sprint/next', 'POST', undefined, port);
+      const res = await apiCall('/api/sprint/next', 'POST', { force: options.force }, port);
+      if (res.completed) {
+        console.log(`\n🏆 SPRINT #${res.sprint.sprintNumber} COMPLETED!`);
+        console.log(`Retrospective concluded and all ceremony governance artifacts archived.\n`);
+        return;
+      }
       const c = res.ceremony;
       console.log(`\n⏩ ADVANCED TO SPRINT CEREMONY #${c.phaseIndex}: ${c.name.toUpperCase()}`);
       console.log(`📝 Description: ${c.description}`);
@@ -812,6 +819,33 @@ sprintCmd
         console.log(`💻 Location: Open-Space Workbenches (All agents coding at desks)`);
       }
       console.log(`\n💡 To advance: Run "agent-team sprint next"\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+sprintCmd
+  .command('check [phase]')
+  .description('Verify whether ceremony Slack thread discussion has met required sign-offs before advancing')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (phase, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const query = phase ? `?phase=${encodeURIComponent(phase)}` : '';
+      const res = await apiCall(`/api/sprint/ceremony-check${query}`, 'GET', undefined, port);
+      const statusIcon = res.satisfied ? '✅ SATISFIED' : '🚫 BLOCKED';
+      console.log(`\n🏛️ CEREMONY DISCUSSION GATE: [${statusIcon}]`);
+      console.log('═'.repeat(70));
+      console.log(`Phase: ${res.phase.toUpperCase()} | Thread ID: [${res.threadId}]`);
+      console.log(`Messages Logged: ${res.messagesCount}`);
+      console.log(`Required Stakeholders: ${res.requiredRoles.map((r: string) => '@' + r).join(', ') || 'None'}`);
+      console.log(`Missing Contributions: ${res.missingRoles.length > 0 ? res.missingRoles.map((r: string) => '@' + r).join(', ') : 'None (All satisfied)'}`);
+      console.log('─'.repeat(70));
+      if (res.satisfied) {
+        console.log(`✨ Status: Ready to advance to the next ceremony phase!\n`);
+      } else {
+        console.log(`⚠️ Status: Advance is BLOCKED! Attending agents must post discussion in the thread first.\n`);
+      }
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
     }
