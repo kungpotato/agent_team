@@ -603,7 +603,7 @@ program
 // SPRINT COMMAND GROUP
 const sprintCmd = program
   .command('sprint')
-  .description('Manage Agile Sprint Ceremonies: 1.validation | 2.grooming | 3.planning | 4.working | 5.demo | 6.retro');
+  .description('Manage Agile Sprint Ceremonies: 1.validation | 2.grooming | 3.planning | 4.working | 5.demo | 6.uat | 7.release | 8.retro');
 
 sprintCmd
   .command('start [sprintNumber] [storyParts...]')
@@ -630,7 +630,7 @@ sprintCmd
 sprintCmd
   .command('ceremony <phase>')
   .alias('run')
-  .description('Run a Sprint Ceremony: 1.validation | 2.grooming | 3.planning | 4.working | 5.demo | 6.retro')
+  .description('Run a Sprint Ceremony: 1.validation | 2.grooming | 3.planning | 4.working | 5.demo | 6.uat | 7.release | 8.retro')
   .option('-p, --points <number>', 'Story points (for grooming phase)')
   .option('-t, --topic <text>', 'Custom ceremony topic')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
@@ -657,7 +657,7 @@ sprintCmd
 
 sprintCmd
   .command('next')
-  .description('Advance to the next Sprint Ceremony in sequence (1 -> 2 -> 3 -> 4 -> 5 -> 6)')
+  .description('Advance to the next Sprint Ceremony in sequence (1 -> 8)')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
     try {
@@ -693,8 +693,10 @@ sprintCmd
         { idx: 2, key: 'grooming', name: '2. Grooming' },
         { idx: 3, key: 'planning', name: '3. Planning' },
         { idx: 4, key: 'working', name: '4. Work' },
-        { idx: 5, key: 'demo', name: '5. Demo+UAT' },
-        { idx: 6, key: 'retro', name: '6. Retro' }
+        { idx: 5, key: 'demo', name: '5. Demo' },
+        { idx: 6, key: 'uat', name: '6. UAT Sign-Off' },
+        { idx: 7, key: 'release', name: '7. Release Prod' },
+        { idx: 8, key: 'retro', name: '8. Retro' }
       ];
 
       console.log(`\n══════════════════════════════════════════════════════════════════════`);
@@ -702,7 +704,7 @@ sprintCmd
       console.log(`══════════════════════════════════════════════════════════════════════`);
       console.log(`📋 Story Card:   "${s.story}"`);
       console.log(`🎯 Story Points:  ${s.storyPoints || 'Not estimated'} pts`);
-      console.log(`📍 Current Phase: ${s.phase.toUpperCase()} (${s.phaseIndex}/6)`);
+      console.log(`📍 Current Phase: ${s.phase.toUpperCase()} (${s.phaseIndex}/8)`);
       console.log(`\n📈 SPRINT PIPELINE:`);
       const badges = CEREMONIES.map(c => {
         if (c.idx < s.phaseIndex) return `[✅ ${c.name}]`;
@@ -763,23 +765,49 @@ program
 
 program
   .command('demo')
-  .description('Shortcut: Run Ceremony 5 - Sprint Demo & UAT Acceptance')
+  .description('Shortcut: Run Ceremony 5 - Sprint Feature Demo')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
     const port = parseInt(options.port, 10);
     const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'demo' }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #5: SPRINT DEMO & UAT ACCEPTANCE`);
+    console.log(`\n🎉 SPRINT CEREMONY #5: SPRINT FEATURE DEMO`);
+    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+  });
+
+program
+  .command('uat')
+  .alias('sign-off')
+  .alias('uat-sign-off')
+  .description('Shortcut: Run Ceremony 6 - UAT Acceptance & Formal Sign-Off')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (options) => {
+    const port = parseInt(options.port, 10);
+    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'uat' }, port);
+    console.log(`\n🎉 SPRINT CEREMONY #6: UAT ACCEPTANCE & FORMAL SIGN-OFF`);
+    console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
+  });
+
+program
+  .command('release')
+  .alias('release-prod')
+  .alias('deploy-prod')
+  .description('Shortcut: Run Ceremony 7 - Production Release & Canary Rollout')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (options) => {
+    const port = parseInt(options.port, 10);
+    const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'release' }, port);
+    console.log(`\n🎉 SPRINT CEREMONY #7: PRODUCTION RELEASE & CANARY ROLLOUT`);
     console.log(`🏢 Location: Meeting Room ${res.ceremony.room} with [${res.ceremony.attendees.join(', ')}]`);
   });
 
 program
   .command('retro')
-  .description('Shortcut: Run Ceremony 6 - Sprint Retrospective in Boardroom')
+  .description('Shortcut: Run Ceremony 8 - Sprint Retrospective in Boardroom')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
     const port = parseInt(options.port, 10);
     const res = await apiCall('/api/sprint/ceremony', 'POST', { phase: 'retro' }, port);
-    console.log(`\n🎉 SPRINT CEREMONY #6: SPRINT RETROSPECTIVE (LESSONS LEARNED)`);
+    console.log(`\n🎉 SPRINT CEREMONY #8: SPRINT RETROSPECTIVE (LESSONS LEARNED)`);
     console.log(`🏢 Location: Meeting Room ${res.ceremony.room} (Boardroom) with [${res.ceremony.attendees.join(', ')}]`);
   });
 

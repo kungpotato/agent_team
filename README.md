@@ -78,14 +78,16 @@
 
 ---
 
-### 8. 🏃 Agile Sprint Ceremonies Engine (6 Mandatory Phases)
+### 8. 🏃 Agile Sprint Ceremonies Engine (8 Mandatory Phases)
 The core operating model of Agent Team is facilitating autonomous **Sprint Ceremonies**:
 1. **Story Validation & Refinement**: PO (`product-manager`) brings user story cards to Lead Dev (`coder`) and Architect (`system-architect`) in Room 2 to validate acceptance criteria and technical feasibility.
 2. **Backlog Grooming & Point Estimation**: Devs, QA (`qa-tester`), Architect, and PO meet in Room 1 to discuss edge cases, test scenarios, and agree on story point estimates.
 3. **Sprint Planning & Task Distribution**: The entire multidisciplinary squad gathers in the Room 5 Boardroom to decompose task DAG waves and distribute commitments.
 4. **Sprint Execution (Active Work)**: All agents return to their respective workbenches across Benches 1-5 with typing animations, glowing screens, and floating task HUDs.
-5. **Sprint Demo & UAT Acceptance**: PO, QA, Devs, and Release assemble in Room 3 for live feature demonstration and formal UAT sign-off.
-6. **Sprint Retrospective**: All agents gather in Room 5 Boardroom to analyze issues encountered, review lessons learned, and commit to continuous improvements for the next sprint.
+5. **Sprint Feature Demo**: Coder, UI/UX Designer, QA, and PO assemble in Room 3 for live feature demonstration and walkthrough.
+6. **UAT Verification & Formal Sign-Off**: PO and QA review acceptance criteria against test results in Room 2 to grant official UAT sign-off before production.
+7. **Production Release & Canary Rollout**: DevOps and SRE deploy the release artifact to production in Room 4 with automated canary verification.
+8. **Sprint Retrospective**: All agents gather in Room 5 Boardroom to analyze issues encountered, review lessons learned, and commit to continuous improvements for the next sprint.
 
 ---
 
@@ -149,8 +151,8 @@ Open your Claude Desktop configuration (macOS: `~/Library/Application Support/Cl
 | Tool Name | Description | Key Parameters |
 |---|---|---|
 | `office_sprint_start` | Start a new Sprint cycle with story card and story points | `sprint_number`, `story`, `points` |
-| `office_sprint_ceremony` | Execute a ceremony: `validation`, `grooming`, `planning`, `working`, `demo`, `retro` | `phase`, `points`, `topic` |
-| `office_sprint_next` | Advance to the next sprint ceremony in sequence (1 -> 6) | `{}` |
+| `office_sprint_ceremony` | Execute a ceremony: `validation`, `grooming`, `planning`, `working`, `demo`, `uat`, `release`, `retro` | `phase`, `points`, `topic` |
+| `office_sprint_next` | Advance to the next sprint ceremony in sequence (1 -> 8) | `{}` |
 | `office_sprint_status` | Retrieve current sprint details, pipeline progress, and history | `{}` |
 | `office_set_work` | Assign an agent to work on a task with progress % (Auto-spawns agent if absent) | `agent_name`, `task`, `progress` (0-100) |
 | `office_update_progress` | Update completion percentage and task description | `agent_name`, `progress`, `task` |
@@ -310,7 +312,7 @@ agent-team end-meeting
 
 ### 5. 🏃 Agile Sprint Ceremonies Commands
 
-Manage the full 6-phase sprint lifecycle directly via CLI:
+Manage the full 8-phase sprint lifecycle directly via CLI:
 
 #### `agent-team sprint start [sprintNumber] [story...] [-p <points>]`
 Initialize a new sprint cycle with a story card and optional story points:
@@ -324,7 +326,9 @@ Execute a specific ceremony phase:
 - `grooming`   : Dev, QA, and PO discuss scope and estimate story points (Room 1)
 - `planning`   : All agents gather in Boardroom to decompose task DAG waves and distribute work (Room 5)
 - `working`    : All agents return to open-space workbenches actively coding with task HUDs
-- `demo`       : PO, QA, Devs, and Release assemble for live feature demo and UAT sign-off (Room 3)
+- `demo`       : Coder, UI/UX, QA, and PO assemble for live feature demonstration and walkthrough (Room 3)
+- `uat`        : PO and QA verify acceptance criteria and test results for formal UAT sign-off (Room 2)
+- `release`    : DevOps and SRE deploy release artifact to production with canary verification (Room 4)
 - `retro`      : All agents assemble in Boardroom to review lessons learned and continuous improvements (Room 5)
 
 ```bash
@@ -336,12 +340,14 @@ agent-team validate "AUTH-101: OAuth2 Specification"
 agent-team groom 8
 agent-team plan
 agent-team demo
+agent-team uat
+agent-team release
 agent-team retro
 ```
 
 #### `agent-team sprint next`
 Advance sequentially to the next ceremony in the pipeline:
-`1. Validation` ➔ `2. Grooming` ➔ `3. Planning` ➔ `4. Work` ➔ `5. Demo+UAT` ➔ `6. Retro`
+`1. Validation` ➔ `2. Grooming` ➔ `3. Planning` ➔ `4. Work` ➔ `5. Demo` ➔ `6. UAT Sign-Off` ➔ `7. Release Prod` ➔ `8. Retro`
 ```bash
 agent-team sprint next
 ```

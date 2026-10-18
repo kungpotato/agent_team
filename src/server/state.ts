@@ -53,19 +53,39 @@ export const SPRINT_CEREMONIES: {
   {
     phase: 'demo',
     phaseIndex: 5,
-    name: 'Sprint Demo & UAT Acceptance',
-    shortName: '5. DEMO + UAT',
-    description: 'All relevant agents gather for feature demo and UAT sign-off.',
+    name: 'Sprint Feature Demo',
+    shortName: '5. DEMO',
+    description: 'Dev team demonstrates completed features live to PO and stakeholders.',
     room: 3,
-    roles: ['product-manager', 'coder', 'qa-tester', 'devops-release'],
-    defaultTopic: 'Sprint Demo & UAT Sign-Off'
+    roles: ['coder', 'ui-ux-designer', 'qa-tester', 'product-manager'],
+    defaultTopic: 'Sprint Feature Showcase & Live Demo'
+  },
+  {
+    phase: 'uat',
+    phaseIndex: 6,
+    name: 'UAT Verification & Formal Sign-Off',
+    shortName: '6. UAT SIGN-OFF',
+    description: 'PO and QA verify acceptance criteria, review test results, and grant formal UAT sign-off.',
+    room: 2,
+    roles: ['product-manager', 'qa-tester', 'coder', 'system-architect'],
+    defaultTopic: 'UAT Acceptance Criteria Review & Sign-Off'
+  },
+  {
+    phase: 'release',
+    phaseIndex: 7,
+    name: 'Production Release & Canary Rollout',
+    shortName: '7. RELEASE PROD',
+    description: 'DevOps and SRE deploy release artifact to production with automated canary verification.',
+    room: 4,
+    roles: ['devops-release', 'runtime-sre', 'coder', 'system-architect'],
+    defaultTopic: 'Production Release & Canary Deployment'
   },
   {
     phase: 'retro',
-    phaseIndex: 6,
+    phaseIndex: 8,
     name: 'Sprint Retrospective',
-    shortName: '6. RETRO',
-    description: 'All agents gather to review lessons learned from issues to improve.',
+    shortName: '8. RETRO',
+    description: 'All agents gather in Boardroom to review sprint lessons learned and continuous improvements.',
     room: 5,
     roles: ['product-manager', 'project-planner', 'system-architect', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release'],
     defaultTopic: 'Sprint Retrospective: Lessons Learned'
@@ -837,7 +857,7 @@ export class StateManager {
   }
 
   /**
-   * Run a specific sprint ceremony (1: validation, 2: grooming, 3: planning, 4: working, 5: demo, 6: retro)
+   * Run a specific sprint ceremony (1: validation, 2: grooming, 3: planning, 4: working, 5: demo, 6: uat, 7: release, 8: retro)
    */
   public runCeremony(phaseOrIndex: string | number, options?: { points?: number; topic?: string }): { ceremony: SprintCeremonyInfo; sprint: SprintState } {
     let target = SPRINT_CEREMONIES.find(c =>
@@ -848,15 +868,17 @@ export class StateManager {
     if (!target) {
       const lower = String(phaseOrIndex).toLowerCase();
       if (lower.includes('val')) target = SPRINT_CEREMONIES[0];
-      else if (lower.includes('groom') || lower.includes('refine')) target = SPRINT_CEREMONIES[1];
+      else if (lower.includes('groom') || lower.includes('point') || lower.includes('refine')) target = SPRINT_CEREMONIES[1];
       else if (lower.includes('plan')) target = SPRINT_CEREMONIES[2];
       else if (lower.includes('work') || lower.includes('exec')) target = SPRINT_CEREMONIES[3];
-      else if (lower.includes('demo') || lower.includes('uat') || lower.includes('review')) target = SPRINT_CEREMONIES[4];
-      else if (lower.includes('retro')) target = SPRINT_CEREMONIES[5];
+      else if (lower.includes('demo') || lower.includes('show')) target = SPRINT_CEREMONIES[4];
+      else if (lower.includes('uat') || lower.includes('sign') || lower.includes('accept')) target = SPRINT_CEREMONIES[5];
+      else if (lower.includes('rel') || lower.includes('prod') || lower.includes('deploy')) target = SPRINT_CEREMONIES[6];
+      else if (lower.includes('retro')) target = SPRINT_CEREMONIES[7];
     }
 
     if (!target) {
-      throw new Error(`Unknown ceremony phase "${phaseOrIndex}". Supported: validation, grooming, planning, working, demo, retro (or 1..6)`);
+      throw new Error(`Unknown ceremony phase "${phaseOrIndex}". Supported: validation, grooming, planning, working, demo, uat, release, retro (or 1..8)`);
     }
 
     if (options?.points !== undefined) {
@@ -955,11 +977,11 @@ export class StateManager {
   }
 
   /**
-   * Advance to the next sprint ceremony in sequence (1 -> 2 -> 3 -> 4 -> 5 -> 6)
+   * Advance to the next sprint ceremony in sequence (1 -> 8)
    */
   public nextCeremony(): { ceremony: SprintCeremonyInfo; sprint: SprintState } {
     let nextIndex = this.sprint.phaseIndex + 1;
-    if (nextIndex > 6) nextIndex = 1;
+    if (nextIndex > SPRINT_CEREMONIES.length) nextIndex = 1;
     return this.runCeremony(nextIndex);
   }
 

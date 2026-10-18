@@ -424,9 +424,9 @@ export function createOfficeMcpServer(): McpServer {
   // 14. SPRINT CEREMONY
   server.tool(
     'office_sprint_ceremony',
-    'Execute a specific Agile Sprint Ceremony: 1.validation (PO & Dev AC validation) | 2.grooming (Dev & QA point estimation) | 3.planning (Boardroom task distribution) | 4.working (All agents actively coding at desks) | 5.demo (Feature Demo & UAT acceptance) | 6.retro (Retrospective & lessons learned)',
+    'Execute a specific Agile Sprint Ceremony: 1.validation (PO & Dev AC validation) | 2.grooming (Dev & QA point estimation) | 3.planning (Boardroom task distribution) | 4.working (All agents coding at desks) | 5.demo (Feature Demo) | 6.uat (UAT Verification & Formal Sign-Off) | 7.release (Production Release & Canary Rollout) | 8.retro (Retrospective & lessons learned)',
     {
-      phase: z.enum(['validation', 'grooming', 'planning', 'working', 'demo', 'retro']).describe('Ceremony phase to execute'),
+      phase: z.enum(['validation', 'grooming', 'planning', 'working', 'demo', 'uat', 'release', 'retro']).describe('Ceremony phase to execute'),
       points: z.number().optional().describe('Story points (for grooming phase)'),
       topic: z.string().optional().describe('Custom meeting topic')
     },
@@ -448,7 +448,7 @@ export function createOfficeMcpServer(): McpServer {
   // 15. SPRINT NEXT
   server.tool(
     'office_sprint_next',
-    'Advance to the next Sprint Ceremony in sequence (1.validation -> 2.grooming -> 3.planning -> 4.working -> 5.demo -> 6.retro).',
+    'Advance to the next Sprint Ceremony in sequence (1.validation -> 2.grooming -> 3.planning -> 4.working -> 5.demo -> 6.uat -> 7.release -> 8.retro).',
     {},
     async () => {
       const res = await apiCall('/api/sprint/next', 'POST');
@@ -478,8 +478,10 @@ export function createOfficeMcpServer(): McpServer {
         { idx: 2, name: '2. Grooming' },
         { idx: 3, name: '3. Planning' },
         { idx: 4, name: '4. Work' },
-        { idx: 5, name: '5. Demo+UAT' },
-        { idx: 6, name: '6. Retro' }
+        { idx: 5, name: '5. Demo' },
+        { idx: 6, name: '6. UAT Sign-Off' },
+        { idx: 7, name: '7. Release Prod' },
+        { idx: 8, name: '8. Retro' }
       ];
       const badges = CEREMONIES.map(c => {
         if (c.idx < s.phaseIndex) return `[✅ ${c.name}]`;
@@ -491,7 +493,7 @@ export function createOfficeMcpServer(): McpServer {
         `🏃 SPRINT #${s.sprintNumber} STATUS REPORT:`,
         `📋 Story Card:   "${s.story}"`,
         `🎯 Story Points:  ${s.storyPoints || 'Not estimated'} pts`,
-        `📍 Current Phase: ${s.phase.toUpperCase()} (${s.phaseIndex}/6)`,
+        `📍 Current Phase: ${s.phase.toUpperCase()} (${s.phaseIndex}/8)`,
         `📈 Pipeline:      ${badges.join(' ➔ ')}`
       ];
 

@@ -53,11 +53,11 @@ export interface RoomStatusInfo {
   attendees: string[];
 }
 
-export type SprintPhase = 'idle' | 'validation' | 'grooming' | 'planning' | 'working' | 'demo' | 'retro' | 'completed';
+export type SprintPhase = 'idle' | 'validation' | 'grooming' | 'planning' | 'working' | 'demo' | 'uat' | 'release' | 'retro' | 'completed';
 
 export interface SprintCeremonyInfo {
   phase: SprintPhase;
-  phaseIndex: number; // 1 to 6
+  phaseIndex: number; // 1 to 8
   name: string;
   shortName: string;
   description: string;
@@ -72,7 +72,7 @@ export interface SprintState {
   story: string;
   storyPoints?: number;
   phase: SprintPhase;
-  phaseIndex: number; // 0 to 6 (0 = idle)
+  phaseIndex: number; // 0 to 8 (0 = idle)
   startedAt: number;
   activeCeremony?: SprintCeremonyInfo;
   history: {
