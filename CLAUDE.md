@@ -55,6 +55,20 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
 - Sessions can be monitored and listed via `office_list_sessions` or CLI `agent-team sessions`.
 - The Web Canvas UI (`http://localhost:3333`) provides an interactive directory session dropdown in the retro header to switch between projects seamlessly in real-time.
 
+### Rule 7: The Dashboard Is Only As Honest As Its Sync Hooks — Install Them At Setup Time
+- `office_set_work`, `office_desk_visit`, and the other MCP tools only move the dashboard when
+  something explicitly calls them. Relying on Claude to remember to call them after every real
+  `Agent`-tool dispatch does not hold up over a long multi-wave session — this has been observed
+  to silently drift in practice.
+- **Whenever this MCP server is installed into a new host project, Claude MUST also set up the
+  two Claude Code hooks described in [`docs/agent-team-sync-hooks.md`](docs/agent-team-sync-hooks.md)
+  in that host project's own `.claude/settings.json`**: a `PostToolUse` hook on the `Agent` tool
+  (syncs on dispatch) and a `SubagentStop` hook (syncs on completion). Do this as part of initial
+  setup, not as an afterthought — it is the only way the dashboard stays a structurally-guaranteed
+  reflection of real work rather than something that depends on Claude's own memory/discipline.
+- This is a per-host-project setup step (the hook scripts live in the host project's
+  `.claude/hooks/`, not in this repo) — treat skipping it as an incomplete installation.
+
 ---
 
 ## 🛠️ Tool Calling Mapping for Claude

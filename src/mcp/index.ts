@@ -156,10 +156,13 @@ STRICT RULES:
         task,
         progress: progress ?? 25
       });
+      const deskSuffix = res.agent.desk
+        ? ` at Desk ${res.agent.desk.benchNumber + 1}, Seat ${res.agent.desk.seatIndex + 1}`
+        : '';
       return {
         content: [{
           type: 'text',
-          text: `💻 Agent [${res.agent.name}] is now WORKING (${res.agent.progress}%): "${res.agent.task}" at Desk ${res.agent.desk.benchNumber + 1}, Seat ${res.agent.desk.seatIndex + 1}`
+          text: `💻 Agent [${res.agent.name}] is now WORKING (${res.agent.progress}%): "${res.agent.message}"${deskSuffix}`
         }]
       };
     }
@@ -183,7 +186,7 @@ STRICT RULES:
       return {
         content: [{
           type: 'text',
-          text: `📊 Agent [${res.agent.name}] progress updated to ${res.agent.progress}%: "${res.agent.task}"`
+          text: `📊 Agent [${res.agent.name}] progress updated to ${res.agent.progress}%: "${res.agent.message}"`
         }]
       };
     }

@@ -197,7 +197,59 @@ Open your Claude Desktop configuration (macOS: `~/Library/Application Support/Cl
 }
 ```
 
-### 3. 🛡️ Mandatory Ceremony Enforcement for Claude (`CLAUDE.md`)
+### 3. 🪝 Required: Claude Code Hooks to Keep the Dashboard Honest
+
+**The MCP tools alone do NOT keep the office in sync automatically.** `office_set_work`,
+`office_desk_visit`, etc. only update state when something explicitly calls them — if Claude
+just *remembers* to call them after dispatching real work, that habit *will* eventually slip
+(confirmed in practice: a long multi-wave session can go several real subagent dispatches
+without a single dashboard update, because nothing forces the call).
+
+**Every host project wiring up this MCP server MUST also install two Claude Code hooks** in its
+own `.claude/settings.json`, so the dashboard reflects real `Agent`-tool dispatches and
+completions as a structural guarantee, not a memory aid:
+
+1. **`PostToolUse` on the `Agent` tool** — fires the instant a real subagent is dispatched; POSTs
+   to `/api/agents/work` so the matching office desk shows "busy" immediately, with no dependency
+   on Claude choosing to call `office_set_work` itself.
+2. **`SubagentStop`** — fires when that subagent actually finishes (foreground or background);
+   POSTs to `/api/agents/work` with `progress: 100` and a snippet of `last_assistant_message`, so
+   the desk flips back to "done" automatically too.
+
+Minimal `.claude/settings.json` for the host project:
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/sync-agent-team.js"], "timeout": 5 }]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/subagent-stop-sync.js"], "timeout": 5 }]
+      }
+    ]
+  }
+}
+```
+
+Both hook scripts read the event JSON from stdin, map `tool_input.subagent_type` /
+`agent_type` to an office agent name (e.g. `coder` → `coder1`, `code-reviewer` → `reviewer1`),
+and `POST` to `http://localhost:3333/api/agents/work`. They must swallow every error and always
+`exit 0` — a dashboard sync failure (server not running, network hiccup) must never block the
+real tool call or the real session. See `docs/agent-team-sync-hooks.md` in this repo for the
+full, copy-pasteable scripts (first implemented and battle-tested in T-CAMPFolio's own
+`.claude/hooks/`).
+
+Known gap even with both hooks installed: a *resumed* agent (via `SendMessage`, e.g. fixing a
+stale-worktree issue mid-task) doesn't re-fire `PostToolUse` on `Agent`, so a manual
+`office_set_work`/`office_desk_visit` call is still the only way to reflect that specific
+handoff. Treat the two hooks as closing the two big, structural gaps (dispatch and completion),
+not as a 100% guarantee for every nuance.
+
+### 4. 🛡️ Mandatory Ceremony Enforcement for Claude (`CLAUDE.md`)
 Whenever Claude or any AI agent uses this project or its MCP tools, **it is strictly bound by the governance policy defined in [`CLAUDE.md`](CLAUDE.md)**:
 - **Strict Ceremony Sequence**: All agent collaboration must execute the 8 ceremonies sequentially (`validation` ➔ `grooming` ➔ `planning` ➔ `working` ➔ `demo` ➔ `uat` ➔ `release` ➔ `retro`).
 - **No Early Coding**: Agents are programmatically blocked from jumping straight to active coding before Story Validation, Backlog Grooming, and Sprint Planning have completed.
