@@ -10,19 +10,19 @@ When the user requests to plan, execute, or complete work, you MUST follow the m
 ## Strict Ceremonies Sequence
 
 1. **Phase 1: `validation` (PO & Dev Story Validation)**
-   - Location: Meeting Room 2
+   - Location: Room 2: Delta Room (Δ)
    - Attendees: `product-manager`, `system-architect`, `coder`
    - Command: Call `office_sprint_ceremony({ phase: "validation" })` or run `agent-team validate`
    - Goal: PO brings the story card to Dev and Architect to validate technical feasibility and refine Acceptance Criteria (AC).
 
 2. **Phase 2: `grooming` (Backlog Grooming & Point Estimation)**
-   - Location: Meeting Room 1
+   - Location: Room 1: Sigma Room (Σ)
    - Attendees: `product-manager`, `coder`, `qa-tester`, `code-reviewer`, `system-architect`
    - Command: Call `office_sprint_ceremony({ phase: "grooming", points: N })` or run `agent-team groom [pts]`
    - Goal: Team analyzes edge cases, test vectors, and estimates Fibonacci story points.
 
 3. **Phase 3: `planning` (Sprint Planning in Boardroom)**
-   - Location: Meeting Room 5 (Main Boardroom)
+   - Location: Room 5: Infinity Boardroom (∞)
    - Attendees: All 8 Leads & Specialists
    - Command: Call `office_sprint_ceremony({ phase: "planning" })` or run `agent-team plan`
    - Goal: Decompose task DAG waves, assign subtasks to agents, and commit to sprint scope.
@@ -34,25 +34,25 @@ When the user requests to plan, execute, or complete work, you MUST follow the m
    - Goal: Agents actively implement features and write tests. Update progress via `office_update_progress`.
 
 5. **Phase 5: `demo` (Sprint Feature Demo)**
-   - Location: Meeting Room 3
+   - Location: Room 3: Lambda Room (λ)
    - Attendees: `coder`, `ui-ux-designer`, `qa-tester`, `product-manager`
    - Command: Call `office_sprint_ceremony({ phase: "demo" })` or run `agent-team demo`
    - Goal: Dev team demonstrates implemented functionality to the PO and stakeholders.
 
 6. **Phase 6: `uat` (Formal UAT Verification & Sign-Off)**
-   - Location: Meeting Room 2
+   - Location: Room 2: Delta Room (Δ)
    - Attendees: `product-manager`, `qa-tester`, `coder`, `system-architect`
    - Command: Call `office_sprint_ceremony({ phase: "uat" })` or run `agent-team uat`
    - Goal: **MANDATORY**: PO and QA verify acceptance criteria. Formal sign-off is required before any production release.
 
 7. **Phase 7: `release` (Production Release & Canary Rollout)**
-   - Location: Meeting Room 4
+   - Location: Room 4: Omega Room (Ω)
    - Attendees: `devops-release`, `runtime-sre`, `coder`, `system-architect`
    - Command: Call `office_sprint_ceremony({ phase: "release" })` or run `agent-team release`
    - Goal: Deploy release artifact to production with canary verification.
 
 8. **Phase 8: `retro` (Sprint Retrospective)**
-   - Location: Meeting Room 5 (Main Boardroom)
+   - Location: Room 5: Infinity Boardroom (∞)
    - Attendees: All 8 Leads & Specialists
    - Command: Call `office_sprint_ceremony({ phase: "retro" })` or run `agent-team retro`
    - Goal: Analyze sprint retrospective, extract lessons learned, and formulate action items.

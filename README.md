@@ -19,13 +19,13 @@
   - **Desk Equipment**: Laptops with animated code displays, color-coded office chairs, hot coffee mugs, and energy drink cans.
   - **Desk Nameplates**: Every agent's name is rendered cleanly in front of their workspace.
   - **Startup Decor**: Kanban whiteboard (TODO, DOING, PROD), coffee & beverage bar, glowing neon `MOVE FAST & BREAK THINGS` sign, retro arcade cabinet, Monstera plants, and blinking server racks.
-- **5 Executive Conference Rooms (Right Canvas)**:
-  - **Rooms 1 to 5**: Each room seats up to **8 agents** (supporting up to 40 concurrent meeting attendees):
-    - `Room 1`: Executive Suite 1
-    - `Room 2`: Executive Suite 2
-    - `Room 3`: Executive Suite 3
-    - `Room 4`: Executive Suite 4
-    - `Room 5`: Main Boardroom (Large all-hands boardroom)
+- **5 Math & Physics Conference Suites (Right Canvas)**:
+  - **Rooms 1 to 5**: Each room seats up to **8 agents** (supporting up to 40 concurrent meeting attendees), named after iconic mathematical and physics symbols:
+    - `Room 1` — **Sigma (Σ)**: *The Summation Suite* (Math: Summation $\sum$ / Physics: Pauli Spin Matrix) — Backlog Grooming & Point Estimation
+    - `Room 2` — **Delta (Δ)**: *The Differential Suite* (Math: Differential $\Delta$ / Physics: Uncertainty Principle $\Delta x \Delta p$) — Story Validation & UAT Sign-Off
+    - `Room 3` — **Lambda (λ)**: *The Lambda Suite* (Math: $\lambda$-Calculus & Eigenvalues / Physics: Wavelength $\lambda$) — Architecture & Feature Demo
+    - `Room 4` — **Omega (Ω)**: *The Omega Suite* (Physics: Ohmic Resistance $\Omega$ & Cosmology / Math: Asymptotics) — Production Release & Canary Rollout
+    - `Room 5` — **Infinity (∞)**: *The Infinity Boardroom* (Math: Infinity $\infty$ / Physics: Infinite Space-Time) — All-Hands Sprint Planning & Retrospective
   - **Meeting Equipment**: Oval executive wooden table, central conference microphone, 8 chairs, status LED (Green = Available, Amber = In Session, Blinking Red = Full 8/8), and active meeting topic marquee.
   - **Meeting Badges**: Name badges placed around the conference table for all attendees.
 
@@ -80,14 +80,14 @@
 
 ### 8. 🏃 Agile Sprint Ceremonies Engine (8 Mandatory Phases)
 The core operating model of Agent Team is facilitating autonomous **Sprint Ceremonies**:
-1. **Story Validation & Refinement**: PO (`product-manager`) brings user story cards to Lead Dev (`coder`) and Architect (`system-architect`) in Room 2 to validate acceptance criteria and technical feasibility.
-2. **Backlog Grooming & Point Estimation**: Devs, QA (`qa-tester`), Architect, and PO meet in Room 1 to discuss edge cases, test scenarios, and agree on story point estimates.
-3. **Sprint Planning & Task Distribution**: The entire multidisciplinary squad gathers in the Room 5 Boardroom to decompose task DAG waves and distribute commitments.
+1. **Story Validation & Refinement**: PO (`product-manager`) brings user story cards to Lead Dev (`coder`) and Architect (`system-architect`) in **Room 2: Delta Room (Δ)** to validate acceptance criteria and technical feasibility.
+2. **Backlog Grooming & Point Estimation**: Devs, QA (`qa-tester`), Architect, and PO meet in **Room 1: Sigma Room (Σ)** to discuss edge cases, test scenarios, and agree on story point estimates.
+3. **Sprint Planning & Task Distribution**: The entire multidisciplinary squad gathers in **Room 5: Infinity Boardroom (∞)** to decompose task DAG waves and distribute commitments.
 4. **Sprint Execution (Active Work)**: All agents return to their respective workbenches across Benches 1-5 with typing animations, glowing screens, and floating task HUDs.
-5. **Sprint Feature Demo**: Coder, UI/UX Designer, QA, and PO assemble in Room 3 for live feature demonstration and walkthrough.
-6. **UAT Verification & Formal Sign-Off**: PO and QA review acceptance criteria against test results in Room 2 to grant official UAT sign-off before production.
-7. **Production Release & Canary Rollout**: DevOps and SRE deploy the release artifact to production in Room 4 with automated canary verification.
-8. **Sprint Retrospective**: All agents gather in Room 5 Boardroom to analyze issues encountered, review lessons learned, and commit to continuous improvements for the next sprint.
+5. **Sprint Feature Demo**: Coder, UI/UX Designer, QA, and PO assemble in **Room 3: Lambda Room (λ)** for live feature demonstration and walkthrough.
+6. **UAT Verification & Formal Sign-Off**: PO and QA review acceptance criteria against test results in **Room 2: Delta Room (Δ)** to grant official UAT sign-off before production.
+7. **Production Release & Canary Rollout**: DevOps and SRE deploy the release artifact to production in **Room 4: Omega Room (Ω)** with automated canary verification.
+8. **Sprint Retrospective**: All agents gather in **Room 5: Infinity Boardroom (∞)** to analyze issues encountered, review lessons learned, and commit to continuous improvements for the next sprint.
 
 ---
 
@@ -244,20 +244,20 @@ agent-team room-status 1
 
 **Example Output:**
 ```text
-🏢 MEETING ROOMS & RESERVATION STATUS (Capacity: 8 seats per room)
+🏛️ CONFERENCE ROOMS (MATH & PHYSICS: Σ, Δ, λ, Ω, ∞ — Capacity: 8 seats/room)
 ════════════════════════════════════════════════════════════════════════════════════════
-ROOM   | NAME                 | STATUS         | SEATS   | TOPIC / ATTENDEES
+ROOM   | NAME & SYMBOL            | STATUS         | SEATS   | TOPIC / ATTENDEES
 ────────────────────────────────────────────────────────────────────────────────────────
-RM 1   | Executive Suite 1    | 🔴 FULL (8/8)  | [8/8]   | "Sprint Planning" -> [dev1, dev2, dev3, ...]
-RM 2   | Executive Suite 2    | 🟢 AVAILABLE   | [0/8]   | (None)
-RM 3   | Executive Suite 3    | 🟡 IN USE      | [2/8]   | "QA Review" -> [qa1, devops1]
-RM 4   | Executive Suite 4    | 🟢 AVAILABLE   | [0/8]   | (None)
-RM 5   | Main Boardroom       | 🟢 AVAILABLE   | [0/8]   | (None)
+RM 1   | Sigma Room (Σ)           | 🔴 FULL (8/8)  | [8/8]   | "Sprint Planning" -> [dev1, dev2, dev3, ...]
+RM 2   | Delta Room (Δ)           | 🟢 AVAILABLE   | [0/8]   | (None)
+RM 3   | Lambda Room (λ)          | 🟡 IN USE      | [2/8]   | "QA Review" -> [qa1, devops1]
+RM 4   | Omega Room (Ω)           | 🟢 AVAILABLE   | [0/8]   | (None)
+RM 5   | Infinity Boardroom (∞)   | 🟢 AVAILABLE   | [0/8]   | (None)
 ════════════════════════════════════════════════════════════════════════════════════════
 
 ⏳ MEETING WAITING QUEUE (1 meeting request waiting):
 ────────────────────────────────────────────────────────────────────────────────────────
-  #1 [Q-860] Target: Room 1           | Topic: "Security Audit"
+  #1 [Q-860] Target: Sigma Room (Σ)            | Topic: "Security Audit"
      Waiting Agents: [coder1, reviewer1] (Queued: just now)
 ────────────────────────────────────────────────────────────────────────────────────────
 💡 Note: When a room is freed (via "agent-team end-meeting <room>"), the next waiting team is automatically admitted!
@@ -549,19 +549,19 @@ agent-team reset
 
 ---
 
-### 8. 🏢 Five Specialized Departments & Potato Squad
+### 8. 🏢 Five Specialized Departments & 14 Project Agents
 
-Workstations are strictly mapped into **5 Specialized Departments** corresponding directly to the 5 office workbenches (each with 8 seats, 40 total desks):
+Workstations are mapped into **5 Specialized Departments** corresponding to the 5 office workbenches (each with 8 seats, 40 total desks). The system dynamically loads exclusively the **14 agents** defined in [`agents/`](agents/):
 
-| Department | ID | Workbench | Agent Role | Title | Color | Primary Responsibility |
+| Department | ID | Workbench | Agent Roles | Titles | Colors | Primary Responsibilities |
 |---|---|---|---|---|---|---|
-| **Product** | `product` | `Bench 1` | `product-manager`<br>`project-planner` | `PM`<br>`PLANNER` | 🟣 Purple<br>🟢 Green | Product Requirements (PRD), Acceptance Criteria, and task DAG decomposition |
-| **Designer** | `designer` | `Bench 2` | `ui-ux-designer`<br>`design-to-code` | `UI/UX`<br>`UI DEV` | 🌸 Magenta<br>🩵 Teal | Information Architecture, wireframes, Design System tokens, and component breakdown |
-| **Tech**<br>*(Frontend + Backend + QA)* | `tech` | `Bench 3` | `system-architect`<br>`coder`<br>`code-reviewer`<br>`qa-tester` | `ARCHITECT`<br>`CODER`<br>`REVIEWER`<br>`QA` | 🔵 Blue<br>🟠 Orange<br>🔴 Red<br>🟡 Yellow | System architecture, frontend/backend implementation, AST security review, and fuzz testing |
-| **DevOps** | `devops` | `Bench 4` | `devops-release`<br>`runtime-sre` | `DEVOPS`<br>`SRE` | 🌐 Cyan<br>🩷 Pink | CI/CD pipelines, container orchestration, canary rollout, and SLO telemetry |
-| **AI & DATA** | `ai_data` | `Bench 5` | `ai-engineer`<br>`data-engineer` | `AI ENG`<br>`DATA ENG` | 🟣 Violet<br>🟢 Emerald | LLM prompt engineering, embeddings, vector search, ETL pipelines, and data analytics |
+| **Product** | `product` | `Bench 1` | `product-manager`<br>`project-planner`<br>`product-owner`<br>`scrum-master` | `PM`<br>`PLANNER`<br>`PO`<br>`SCRUM` | 🟣 Purple<br>🟢 Green<br>🟣 Purple<br>🟢 Green | PRD drafting, task DAG waves, story card AC validation, and Agile ceremony facilitation |
+| **Designer** | `designer` | `Bench 2` | `ui-ux-designer`<br>`design-to-code` | `UI/UX`<br>`UI DEV` | 🌸 Magenta<br>🩵 Teal | Information Architecture, wireframes, design tokens, and atomic UI component breakdown |
+| **Tech**<br>*(Frontend + Backend + QA)* | `tech` | `Bench 3` | `system-architect`<br>`coder`<br>`code-reviewer`<br>`qa-tester` | `ARCHITECT`<br>`CODER`<br>`REVIEWER`<br>`QA` | 🔵 Blue<br>🟠 Orange<br>🔴 Red<br>🟡 Yellow | OpenAPI contract architecture, production coding, AST security review, and fuzz/property testing |
+| **DevOps** | `devops` | `Bench 4` | `devops-release`<br>`devops-engineer`<br>`runtime-sre` | `DEVOPS`<br>`OPS`<br>`SRE` | 🌐 Cyan<br>🌐 Cyan<br>🩷 Pink | Canary rollout CI/CD, Docker/K8s infrastructure runtime, and SLO telemetry monitoring |
+| **AI & DATA** | `ai_data` | `Bench 5` | `ai-engineer` | `AI ENG` | 🟣 Purple | LLM chains, prompt templates, RAG architecture, and vector embeddings |
 
-#### Department & Potato Squad CLI Commands:
+#### Department & Agent CLI Commands:
 ```bash
 # List all 5 departments, bench numbers, and occupancy
 agent-team departments
@@ -569,18 +569,18 @@ agent-team departments
 # Spawn agents directly into a department (e.g. Tech Bench 3)
 agent-team spawn-dept tech 4
 
-# List all 12 Potato agent roles
+# List all 14 project agent roles loaded from agents/
 agent-team potato-list
 
-# Spawn selected roles (supports auto-numbering, e.g. coder1, coder2)
-agent-team spawn-potato coder system-architect qa-tester
+# Spawn all 14 agents to their designated department workbenches
+agent-team spawn-potato
 
-# Run preset multi-agent workflows matching potato-skill DAG waves:
-agent-team potato-workflow review     # coder1 & code-reviewer1 meet in Room 1 (Review AST)
-agent-team potato-workflow arch       # product-manager1 & system-architect1 meet in Room 2 (PRD Contract)
-agent-team potato-workflow qa         # qa-tester1 & devops-release1 meet in Room 3 (Canary Rollout)
-agent-team potato-workflow triage     # runtime-sre1 & coder1 meet in Room 4 (Incident Hotfix)
-agent-team potato-workflow all-hands  # All 8 team leads meet in Room 5 Boardroom (DAG Wave Planning)
+# Run preset multi-agent workflows matching DAG waves:
+agent-team potato-workflow review     # coder1 & code-reviewer1 meet in Room 1: Sigma Room (Σ) (Review AST)
+agent-team potato-workflow arch       # product-manager1 & system-architect1 meet in Room 2: Delta Room (Δ) (PRD Contract)
+agent-team potato-workflow qa         # qa-tester1 & devops-release1 meet in Room 3: Lambda Room (λ) (Canary Rollout)
+agent-team potato-workflow triage     # runtime-sre1 & coder1 meet in Room 4: Omega Room (Ω) (Incident Hotfix)
+agent-team potato-workflow all-hands  # All 8 team leads meet in Room 5: Infinity Boardroom (∞) (DAG Wave Planning)
 ```
 
 ---

@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { MEETING_ROOMS, resolveRoomId } from '../server/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -216,30 +217,33 @@ STRICT RULES:
   // 5. START MEETING
   server.tool(
     'office_start_meeting',
-    'Move agents into a conference room (Room 1-5, capacity 8). If room is full (8/8), automatically places them into the Waiting Queue.',
+    'Move agents into a conference suite (Room 1-5: Sigma, Delta, Lambda, Omega, Infinity, capacity 8). If room is full (8/8), automatically places them into the Waiting Queue.',
     {
       agents: z.array(z.string()).describe('List of agent names to join meeting (e.g. ["coder1", "reviewer1"])'),
-      room: z.number().min(1).max(5).default(1).describe('Conference room number (1-5)'),
-      topic: z.string().describe('Topic of the meeting')
+      room: z.union([z.number(), z.string()]).default(1).describe('Conference room: 1-5, or symbol/name (sigma, delta, lambda, omega, infinity, Σ, Δ, λ, Ω, ∞)'),
+      topic: z.string().optional().describe('Topic of the meeting')
     },
     async ({ agents, room, topic }) => {
+      const resolvedRoom = resolveRoomId(room) || 1;
+      const roomInfo = MEETING_ROOMS[resolvedRoom];
+      const roomName = roomInfo ? roomInfo.fullName : `Room ${resolvedRoom}`;
       const res = await apiCall('/api/agents/meet', 'POST', {
         names: agents,
-        room,
+        room: resolvedRoom,
         topic
       });
       if (res.queued) {
         return {
           content: [{
             type: 'text',
-            text: `⏳ Room ${room} is FULL (8/8). Agents [${res.queueItem.names.join(', ')}] have been placed in WAITING QUEUE #${res.queuePosition} (ID: ${res.queueItem.id}). They will auto-admit when room is freed!`
+            text: `⏳ ${roomName} is FULL (8/8). Agents [${res.queueItem?.names?.join(', ') || agents.join(', ')}] placed in WAITING QUEUE #${res.position} (ID: ${res.queueItem?.id}). They will auto-admit when room is freed!`
           }]
         };
       }
       return {
         content: [{
           type: 'text',
-          text: `📋 Meeting started in Room ${res.room.id} (${res.room.name}): "${res.room.topic}" with attendees: [${res.room.attendees.map((a: any) => a.name).join(', ')}] (${res.room.attendees.length}/8 seats).`
+          text: `📋 Meeting started in ${roomName}: "${topic || roomName}" with attendees: [${agents.join(', ')}] (${agents.length}/8 seats).`
         }]
       };
     }
@@ -248,15 +252,18 @@ STRICT RULES:
   // 6. END MEETING
   server.tool(
     'office_end_meeting',
-    'End a meeting in a conference room. Attendees leave with 8-bit smoke puff effect. Automatically admits any team waiting in queue for this room!',
+    'End a meeting in a conference suite (Sigma, Delta, Lambda, Omega, Infinity). Attendees leave with 8-bit smoke puff effect. Automatically admits any team waiting in queue!',
     {
-      room: z.number().min(1).max(5).optional().describe('Specific room number (1-5). If omitted, ends meetings in all rooms.')
+      room: z.union([z.number(), z.string()]).optional().describe('Specific room: 1-5, or symbol/name (sigma, delta, lambda, omega, infinity, Σ, Δ, λ, Ω, ∞). If omitted, ends meetings in all rooms.')
     },
     async ({ room }) => {
-      const res = await apiCall('/api/agents/end-meeting', 'POST', { room });
-      let text = `🚪 ${res.message}`;
-      if (res.admittedQueue) {
-        text += `\n🎉 Queue item [${res.admittedQueue.id}] Auto-Admitted into Room ${res.room.id}: [${res.admittedQueue.names.join(', ')}] ("${res.admittedQueue.topic}")`;
+      const resolvedRoom = resolveRoomId(room);
+      const res = await apiCall('/api/agents/end-meeting', 'POST', { room: resolvedRoom });
+      const roomDesc = resolvedRoom ? (MEETING_ROOMS[resolvedRoom]?.fullName || `Room ${resolvedRoom}`) : 'All Conference Suites';
+      let text = `🚪 [${roomDesc}] ended. ${res.removed?.length || 0} agents disappeared.`;
+      if (res.autoAdmitted) {
+        const admittedRoomName = MEETING_ROOMS[res.autoAdmitted.roomId]?.fullName || `Room ${res.autoAdmitted.roomId}`;
+        text += `\n🎉 Queue item [${res.autoAdmitted.queueItem.id}] Auto-Admitted into ${admittedRoomName.toUpperCase()}: [${res.autoAdmitted.queueItem.names.join(', ')}] ("${res.autoAdmitted.queueItem.topic}")`;
       }
       return {
         content: [{ type: 'text', text }]
@@ -379,35 +386,16 @@ STRICT RULES:
       roles: z.array(z.string()).optional().describe('Specific roles to spawn. If omitted, spawns the full 10-role squad.')
     },
     async ({ roles }) => {
-      const POTATO_ROLES = [
-        // 1. PRODUCT
-        { name: 'product-manager', title: 'PM', color: '#8a2be2', bench: 0, task: 'Drafting PRD & Criteria' },
-        { name: 'project-planner', title: 'PLANNER', color: '#2e8b57', bench: 0, task: 'Decomposing task DAG waves' },
-        // 2. DESIGNER
-        { name: 'ui-ux-designer', title: 'UI/UX', color: '#ff1493', bench: 1, task: 'Building IA & wireframe screen flow' },
-        { name: 'design-to-code', title: 'UI DEV', color: '#00ced1', bench: 1, task: 'Decomposing tokens to components' },
-        // 3. TECH (FRONTEND + BACKEND + QA)
-        { name: 'system-architect', title: 'ARCHITECT', color: '#1e90ff', bench: 2, task: 'Designing OpenAPI specs' },
-        { name: 'coder', title: 'CODER', color: '#ff8c00', bench: 2, task: 'Implementing production code' },
-        { name: 'code-reviewer', title: 'REVIEWER', color: '#dc143c', bench: 2, task: 'Verifying AST & security rules' },
-        { name: 'qa-tester', title: 'QA', color: '#ffd700', bench: 2, task: 'Synthesizing fuzz tests' },
-        // 4. DEVOPS
-        { name: 'devops-release', title: 'DEVOPS', color: '#00ffff', bench: 3, task: 'Canary rollout & deployment' },
-        { name: 'runtime-sre', title: 'SRE', color: '#ff69b4', bench: 3, task: 'Analyzing SLO telemetry' },
-        // 5. AI & DATA
-        { name: 'ai-engineer', title: 'AI ENG', color: '#9333ea', bench: 4, task: 'Training & fine-tuning RAG models' },
-        { name: 'data-engineer', title: 'DATA ENG', color: '#06b6d4', bench: 4, task: 'ETL pipeline & vector store indexing' }
-      ];
-
+      const allAgents: any[] = await apiCall('/api/potato-agents', 'GET');
       const targets = roles && roles.length > 0
-        ? POTATO_ROLES.filter(r => roles.includes(r.name))
-        : POTATO_ROLES;
+        ? allAgents.filter((r: any) => roles.includes(r.name) || roles.includes(r.role))
+        : allAgents;
 
       const spawned: string[] = [];
       for (const p of targets) {
         await apiCall('/api/agents/work', 'POST', {
           name: p.name,
-          task: p.task,
+          task: p.defaultTask || 'Executing task...',
           progress: 20
         });
         spawned.push(p.name);
@@ -416,7 +404,7 @@ STRICT RULES:
       return {
         content: [{
           type: 'text',
-          text: `🥔 Spawned ${spawned.length} agent(s) across the 5 Departments (Product, Designer, Tech, DevOps, AI & Data): [${spawned.join(', ')}]`
+          text: `🤖 Spawned ${spawned.length} agent(s) from agents/ across the 5 Department workbenches: [${spawned.join(', ')}]`
         }]
       };
     }
@@ -522,7 +510,8 @@ STRICT RULES:
       const c = res.ceremony;
       let text = `🎉 SPRINT CEREMONY #${c.phaseIndex}: ${c.name.toUpperCase()}\n📝 Description: ${c.description}\n🏷️ Topic: "${c.topic}"`;
       if (c.room) {
-        text += `\n🏢 Location: Meeting Room ${c.room}\n👥 Attendees: [${c.attendees.join(', ')}]`;
+        const roomName = MEETING_ROOMS[c.room]?.fullName || `Meeting Room ${c.room}`;
+        text += `\n🏢 Location: ${roomName}\n👥 Attendees: [${c.attendees.join(', ')}]`;
       } else {
         text += `\n💻 Location: Open-Space Workbenches (All agents actively coding at desks)`;
       }
@@ -542,7 +531,8 @@ STRICT RULES:
       const c = res.ceremony;
       let text = `⏩ ADVANCED TO SPRINT CEREMONY #${c.phaseIndex}: ${c.name.toUpperCase()}\n📝 Description: ${c.description}\n🏷️ Topic: "${c.topic}"`;
       if (c.room) {
-        text += `\n🏢 Location: Meeting Room ${c.room}\n👥 Attendees: [${c.attendees.join(', ')}]`;
+        const roomName = MEETING_ROOMS[c.room]?.fullName || `Meeting Room ${c.room}`;
+        text += `\n🏢 Location: ${roomName}\n👥 Attendees: [${c.attendees.join(', ')}]`;
       } else {
         text += `\n💻 Location: Open-Space Workbenches (All agents coding at desks)`;
       }
@@ -588,7 +578,8 @@ STRICT RULES:
       if (s.activeCeremony) {
         lines.push(`🔔 Active Ceremony: "${s.activeCeremony.topic}"`);
         if (s.activeCeremony.room) {
-          lines.push(`   Room: ${s.activeCeremony.room} | Attendees: [${s.activeCeremony.attendees.join(', ')}]`);
+          const roomName = MEETING_ROOMS[s.activeCeremony.room]?.fullName || `Room ${s.activeCeremony.room}`;
+          lines.push(`   Location: ${roomName} | Attendees: [${s.activeCeremony.attendees.join(', ')}]`);
         }
       }
 

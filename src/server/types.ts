@@ -52,40 +52,40 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentInfo> = {
     name: 'PRODUCT',
     benchIndex: 0,
     color: '#8a2be2',
-    description: 'Product Managers, Project Planners, and Business Analysts',
-    roles: ['product-manager', 'project-planner', 'product', 'pm', 'planner', 'po', 'scrum-master', 'ba']
+    description: 'Product Managers, Project Planners, Product Owners, and Scrum Masters',
+    roles: ['product-manager', 'project-planner', 'product-owner', 'scrum-master', 'product', 'pm', 'planner', 'po']
   },
   designer: {
     id: 'designer',
     name: 'DESIGNER',
     benchIndex: 1,
     color: '#ff1493',
-    description: 'UI/UX Designers, Design Systems, and Design-to-Code Specialists',
-    roles: ['ui-ux-designer', 'design-to-code', 'designer', 'ui', 'ux', 'ux-designer']
+    description: 'UI/UX Designers and Design-to-Code Specialists',
+    roles: ['ui-ux-designer', 'design-to-code', 'designer', 'ui', 'ux']
   },
   tech: {
     id: 'tech',
     name: 'TECH (FRONTEND + BACKEND + QA)',
     benchIndex: 2,
     color: '#38bdf8',
-    description: 'Software Engineers (Frontend & Backend), System Architects, and QA Testers',
-    roles: ['coder', 'code-reviewer', 'system-architect', 'qa-tester', 'dev', 'frontend', 'backend', 'qa', 'tech']
+    description: 'System Architects, Coders, Code Reviewers, and QA Testers',
+    roles: ['system-architect', 'coder', 'code-reviewer', 'qa-tester', 'dev', 'frontend', 'backend', 'qa', 'tech']
   },
   devops: {
     id: 'devops',
     name: 'DEVOPS',
     benchIndex: 3,
     color: '#00ffff',
-    description: 'Release Engineers, Runtime SRE, Platform and Cloud Infrastructure',
-    roles: ['devops-release', 'runtime-sre', 'devops', 'sre', 'infra', 'platform']
+    description: 'DevOps Release Engineers, Infrastructure SRE, and Platform Engineers',
+    roles: ['devops-release', 'devops-engineer', 'runtime-sre', 'devops', 'sre', 'infra', 'platform']
   },
   ai_data: {
     id: 'ai_data',
     name: 'AI & DATA',
     benchIndex: 4,
     color: '#a855f7',
-    description: 'AI/ML Engineers, Data Engineers, and Data Scientists',
-    roles: ['ai-engineer', 'data-engineer', 'data-scientist', 'data-analyst', 'ai', 'data', 'ml', 'mle']
+    description: 'AI & Data Engineers, RAG/LLM Pipeline Specialists',
+    roles: ['ai-engineer', 'ai', 'data', 'ml']
   }
 };
 
@@ -196,5 +196,87 @@ export type WSMessage =
   | { type: 'STATE_UPDATE'; payload: ServerState }
   | { type: 'AGENT_EVENT'; payload: { event: 'spawn' | 'sleep' | 'work' | 'talk' | 'wait' | 'walk' | 'disappear'; agent: Agent } }
   | { type: 'SPRINT_UPDATE'; payload: SprintState };
+
+export interface MeetingRoomInfo {
+  id: number; // 1 to 5
+  name: string; // e.g. "Sigma (Σ)"
+  symbol: string; // e.g. "Σ"
+  fullName: string; // e.g. "Sigma Room (Σ)"
+  subtitle: string;
+  domain: 'math' | 'physics';
+  concept: string; // e.g. "Summation & Statistical Physics"
+  primaryCeremony?: string; // e.g. "2. Backlog Grooming"
+}
+
+export const MEETING_ROOMS: Record<number, MeetingRoomInfo> = {
+  1: {
+    id: 1,
+    name: 'Sigma (Σ)',
+    symbol: 'Σ',
+    fullName: 'Sigma Room (Σ)',
+    subtitle: 'Math: Summation / Physics: Pauli Spin Matrix',
+    domain: 'math',
+    concept: 'Summation & Statistical Physics',
+    primaryCeremony: '2. Backlog Grooming & Point Estimation'
+  },
+  2: {
+    id: 2,
+    name: 'Delta (Δ)',
+    symbol: 'Δ',
+    fullName: 'Delta Room (Δ)',
+    subtitle: 'Math: Differential & Laplacian / Physics: Uncertainty Principle',
+    domain: 'physics',
+    concept: 'Rate of Change & Quantum Variance',
+    primaryCeremony: '1. Story Validation & 6. UAT Sign-Off'
+  },
+  3: {
+    id: 3,
+    name: 'Lambda (λ)',
+    symbol: 'λ',
+    fullName: 'Lambda Room (λ)',
+    subtitle: 'Math: Lambda Calculus & Eigenvalues / Physics: Wavelength',
+    domain: 'math',
+    concept: 'Functional Computation & Wave Dynamics',
+    primaryCeremony: '5. Sprint Feature Demo'
+  },
+  4: {
+    id: 4,
+    name: 'Omega (Ω)',
+    symbol: 'Ω',
+    fullName: 'Omega Room (Ω)',
+    subtitle: 'Physics: Electrical Resistance (Ohm) & Cosmology / Math: Asymptotics',
+    domain: 'physics',
+    concept: 'Ohmic Resistance & Ultimate State',
+    primaryCeremony: '7. Production Release & Canary Rollout'
+  },
+  5: {
+    id: 5,
+    name: 'Infinity (∞)',
+    symbol: '∞',
+    fullName: 'Infinity Boardroom (∞)',
+    subtitle: 'Math: Infinity / Physics: Infinite Space-Time & Renormalization',
+    domain: 'math',
+    concept: 'Infinite Scalability & Synergy',
+    primaryCeremony: '3. Sprint Planning & 8. Retrospective'
+  }
+};
+
+export function resolveRoomId(input: string | number | undefined | null): number | undefined {
+  if (input === undefined || input === null) return undefined;
+  if (typeof input === 'number') {
+    return input >= 1 && input <= 5 ? input : undefined;
+  }
+  const clean = input.trim().toLowerCase();
+  if (/^[1-5]$/.test(clean)) {
+    return parseInt(clean, 10);
+  }
+  if (clean.includes('sigma') || clean === 'σ' || clean === 'Σ') return 1;
+  if (clean.includes('delta') || clean === 'δ' || clean === 'Δ') return 2;
+  if (clean.includes('lambda') || clean === 'λ' || clean === 'Λ') return 3;
+  if (clean.includes('omega') || clean === 'ω' || clean === 'Ω') return 4;
+  if (clean.includes('infinity') || clean === '∞' || clean.includes('boardroom') || clean === 'board') return 5;
+  return undefined;
+}
+
 
 

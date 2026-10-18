@@ -22,13 +22,20 @@
   ],
   "skills": ["./skills/"],
   "agents": [
-    "./agents/scrum-master.md",
-    "./agents/product-owner.md",
-    "./agents/ui-ux-designer.md",
-    "./agents/system-architect.md",
-    "./agents/qa-tester.md",
+    "./agents/ai-engineer.md",
+    "./agents/code-reviewer.md",
+    "./agents/coder.md",
+    "./agents/design-to-code.md",
     "./agents/devops-engineer.md",
-    "./agents/ai-engineer.md"
+    "./agents/devops-release.md",
+    "./agents/product-manager.md",
+    "./agents/product-owner.md",
+    "./agents/project-planner.md",
+    "./agents/qa-tester.md",
+    "./agents/runtime-sre.md",
+    "./agents/scrum-master.md",
+    "./agents/system-architect.md",
+    "./agents/ui-ux-designer.md"
   ],
   "hooks": "./hooks/hooks.json"
 }

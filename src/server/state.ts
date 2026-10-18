@@ -1,4 +1,4 @@
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
 
@@ -363,16 +363,7 @@ export class StateManager {
    * Get real-time status of meeting rooms (1..5)
    */
   public getRoomStatus(targetRoomId?: number): RoomStatusInfo[] {
-    const roomNames = [
-      '',
-      'Executive Suite 1',
-      'Executive Suite 2',
-      'Executive Suite 3',
-      'Executive Suite 4',
-      'Main Boardroom'
-    ];
     const results: RoomStatusInfo[] = [];
-
     const roomIds = targetRoomId ? [Math.max(1, Math.min(5, targetRoomId))] : [1, 2, 3, 4, 5];
 
     for (const rId of roomIds) {
@@ -385,10 +376,12 @@ export class StateManager {
       const isOccupied = occupancy > 0;
       const isFull = occupancy >= capacity;
       const topic = this.meetingTopics.get(rId);
+      const roomInfo = MEETING_ROOMS[rId];
+      const roomName = roomInfo ? roomInfo.fullName : `Room ${rId}`;
 
       results.push({
         roomId: rId,
-        name: roomNames[rId],
+        name: roomName,
         occupancy,
         capacity,
         isFull,
@@ -404,10 +397,12 @@ export class StateManager {
   /**
    * Enqueue agents waiting for a meeting room
    */
-  public enqueueMeeting(names: string[], topic?: string, targetRoomId?: number): { queueItem: MeetingQueueItem; position: number; agents: Agent[] } {
+  public enqueueMeeting(names: string[], topic?: string, targetRoomId?: number | string): { queueItem: MeetingQueueItem; position: number; agents: Agent[] } {
     const cleanNames = names.map(n => n.trim().toLowerCase()).filter(Boolean);
-    const resolvedRoomId = targetRoomId ? Math.max(1, Math.min(5, targetRoomId)) : undefined;
-    const meetingTopic = topic || (resolvedRoomId ? `Meeting Room ${resolvedRoomId}` : 'Conference Sync');
+    const resolvedRoomId = resolveRoomId(targetRoomId);
+    const roomInfo = resolvedRoomId ? MEETING_ROOMS[resolvedRoomId] : undefined;
+    const roomLabel = roomInfo ? roomInfo.fullName : (resolvedRoomId ? `Room ${resolvedRoomId}` : 'Meeting');
+    const meetingTopic = topic || (roomInfo ? roomInfo.fullName : (resolvedRoomId ? `Meeting Room ${resolvedRoomId}` : 'Conference Sync'));
     const queueId = `Q-${Math.floor(100 + Math.random() * 900)}`;
 
     const waitingAgents: Agent[] = [];
@@ -415,10 +410,10 @@ export class StateManager {
     for (const rawName of cleanNames) {
       let agent = this.agents.get(rawName);
       if (!agent) {
-        agent = this.spawn(rawName, 'waiting', `⏳ Waiting for ${resolvedRoomId ? `Room ${resolvedRoomId}` : 'Meeting'}`);
+        agent = this.spawn(rawName, 'waiting', `⏳ Waiting for ${roomLabel}`);
       } else {
         agent.status = 'waiting';
-        agent.message = `⏳ Waiting for ${resolvedRoomId ? `Room ${resolvedRoomId}` : 'Meeting'}: ${meetingTopic}`;
+        agent.message = `⏳ Waiting for ${roomLabel}: ${meetingTopic}`;
         agent.updatedAt = Date.now();
       }
       waitingAgents.push(agent);
@@ -484,7 +479,9 @@ export class StateManager {
     position?: number;
     message?: string;
   } {
-    const roomId = Math.max(1, Math.min(5, targetRoomId));
+    const roomId = (typeof targetRoomId === 'string' ? resolveRoomId(targetRoomId) : targetRoomId) || 1;
+    const roomInfo = MEETING_ROOMS[roomId];
+    const roomDisplayName = roomInfo ? roomInfo.fullName : `Room ${roomId}`;
     const autoQueue = options?.autoQueueIfFull !== false;
 
     // Check current occupancy in target room
@@ -497,28 +494,28 @@ export class StateManager {
     // If room is full or cannot fit all requested agents
     if (availableSeats < names.length) {
       if (autoQueue) {
-        const queued = this.enqueueMeeting(names, topic || `Meeting Room ${roomId}`, roomId);
+        const queued = this.enqueueMeeting(names, topic || roomDisplayName, roomId);
         return {
           started: false,
           queued: true,
           roomId,
           queueItem: queued.queueItem,
           position: queued.position,
-          message: `Meeting Room ${roomId} is full (${currentOccupants.length}/8 seats taken). Agents queued at position #${queued.position}.`
+          message: `${roomDisplayName} is full (${currentOccupants.length}/8 seats taken). Agents queued at position #${queued.position}.`
         };
       } else {
         return {
           started: false,
           queued: false,
           roomId,
-          message: `Meeting Room ${roomId} is full (${currentOccupants.length}/8 seats taken, requested ${names.length}).`
+          message: `${roomDisplayName} is full (${currentOccupants.length}/8 seats taken, requested ${names.length}).`
         };
       }
     }
 
     // Room has available seats: admit them now!
     const modified: Agent[] = [];
-    this.meetingTopics.set(roomId, topic || `Meeting Room ${roomId}`);
+    this.meetingTopics.set(roomId, topic || roomDisplayName);
 
     // Remove them from meeting queue if they were waiting
     this.meetingQueue = this.meetingQueue.filter(

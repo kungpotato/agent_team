@@ -13,14 +13,14 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
 
 | Phase # | Ceremony Name | Location | Required Attendees | Primary Objective & Deliverable |
 |---|---|---|---|---|
-| **1** | `validation` | 🚪 Room 2 (Suite 2) | `product-manager`, `system-architect`, `coder` | PO presents story card; Architect & Dev validate feasibility and refine Acceptance Criteria (AC). |
-| **2** | `grooming` | 🚪 Room 1 (Suite 1) | `coder`, `qa-tester`, `code-reviewer`, `product-manager`, `system-architect` | Team analyzes edge cases, test vectors, and estimates Story Points (Fibonacci: 1, 2, 3, 5, 8, 13). |
-| **3** | `planning` | 🏛️ Room 5 (Boardroom) | All 8 Leads & Specialists | Decompose task DAG waves, define dependencies, and commit to sprint backlog distribution. |
+| **1** | `validation` | 🚪 Room 2: Delta Room (Δ) | `product-manager`, `system-architect`, `coder` | PO presents story card; Architect & Dev validate feasibility and refine Acceptance Criteria (AC). |
+| **2** | `grooming` | 🚪 Room 1: Sigma Room (Σ) | `coder`, `qa-tester`, `code-reviewer`, `product-manager`, `system-architect` | Team analyzes edge cases, test vectors, and estimates Story Points (Fibonacci: 1, 2, 3, 5, 8, 13). |
+| **3** | `planning` | 🏛️ Room 5: Infinity Boardroom (∞) | All 8 Leads & Specialists | Decompose task DAG waves, define dependencies, and commit to sprint backlog distribution. |
 | **4** | `working` | 💻 Open Space Desks | All Agents across 5 Departments | Agents seated at their designated department workbenches (Product, Designer, Tech, DevOps, AI & DATA) implementing features, UI, tests, infra, and models with live progress HUDs. |
-| **5** | `demo` | 🚪 Room 3 (Suite 3) | `coder`, `ui-ux-designer`, `qa-tester`, `product-manager` | Dev team demonstrates working software live to PO and stakeholders for initial validation. |
-| **6** | `uat` | 🚪 Room 2 (Suite 2) | `product-manager`, `qa-tester`, `coder`, `system-architect` | **Formal UAT Verification & Sign-Off**. PO and QA execute acceptance tests. Formal sign-off is MANDATORY before release. |
-| **7** | `release` | 🚪 Room 4 (Suite 4) | `devops-release`, `runtime-sre`, `coder`, `system-architect` | Production deployment, CI/CD pipeline execution, and automated canary SLO telemetry verification. |
-| **8** | `retro` | 🏛️ Room 5 (Boardroom) | All 8 Leads & Specialists | Sprint Retrospective: Analyze issues encountered, extract lessons learned, and log action items for continuous improvement. |
+| **5** | `demo` | 🚪 Room 3: Lambda Room (λ) | `coder`, `ui-ux-designer`, `qa-tester`, `product-manager` | Dev team demonstrates working software live to PO and stakeholders for initial validation. |
+| **6** | `uat` | 🚪 Room 2: Delta Room (Δ) | `product-manager`, `qa-tester`, `coder`, `system-architect` | **Formal UAT Verification & Sign-Off**. PO and QA execute acceptance tests. Formal sign-off is MANDATORY before release. |
+| **7** | `release` | 🚪 Room 4: Omega Room (Ω) | `devops-release`, `runtime-sre`, `coder`, `system-architect` | Production deployment, CI/CD pipeline execution, and automated canary SLO telemetry verification. |
+| **8** | `retro` | 🏛️ Room 5: Infinity Boardroom (∞) | All 8 Leads & Specialists | Sprint Retrospective: Analyze issues encountered, extract lessons learned, and log action items for continuous improvement. |
 
 ---
 
@@ -39,7 +39,7 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
 - Product Owner (`product-manager`) and QA Tester (`qa-tester`) MUST sign off on acceptance criteria before any code reaches production.
 
 ### Rule 4: Retrospective Is Non-Negotiable (Phase 8 Mandatory)
-- After every production release, Claude must assemble the team in the Boardroom (Room 5) for Phase 8 (`retro`) to document lessons learned before concluding the sprint cycle.
+- After every production release, Claude must assemble the team in the Infinity Boardroom (∞ / Room 5) for Phase 8 (`retro`) to document lessons learned before concluding the sprint cycle.
 
 ### Rule 5: Continuous Sprint Lifecycle & Story Card Backlog (Taskwarrior Default & Jira)
 - **Default Card Backlog Provider**: Sprints and ceremonies work with story cards sourced from **Taskwarrior (Kanban)** by default, or optionally from **Jira**.
@@ -79,13 +79,13 @@ When Claude operates via MCP or terminal CLI:
 
 When the user asks Claude: *"Implement user password reset via email"*:
 1. Claude runs `office_sprint_start` with story `"AUTH-201: Password Reset by Email"`.
-2. Claude calls `office_sprint_ceremony({ phase: "validation" })` (Room 2).
-3. Claude calls `office_sprint_ceremony({ phase: "grooming", points: 5 })` (Room 1).
-4. Claude calls `office_sprint_ceremony({ phase: "planning" })` (Room 5 Boardroom).
+2. Claude calls `office_sprint_ceremony({ phase: "validation" })` (Room 2: Delta Room Δ).
+3. Claude calls `office_sprint_ceremony({ phase: "grooming", points: 5 })` (Room 1: Sigma Room Σ).
+4. Claude calls `office_sprint_ceremony({ phase: "planning" })` (Room 5: Infinity Boardroom ∞).
 5. Claude calls `office_sprint_ceremony({ phase: "working" })` and updates tasks/progress.
-6. Claude calls `office_sprint_ceremony({ phase: "demo" })` (Room 3).
-7. Claude calls `office_sprint_ceremony({ phase: "uat" })` (Room 2) to sign off criteria.
-8. Claude calls `office_sprint_ceremony({ phase: "release" })` (Room 4) for canary deployment.
-9. Claude calls `office_sprint_ceremony({ phase: "retro" })` (Room 5) for lessons learned.
+6. Claude calls `office_sprint_ceremony({ phase: "demo" })` (Room 3: Lambda Room λ).
+7. Claude calls `office_sprint_ceremony({ phase: "uat" })` (Room 2: Delta Room Δ) to sign off criteria.
+8. Claude calls `office_sprint_ceremony({ phase: "release" })` (Room 4: Omega Room Ω) for canary deployment.
+9. Claude calls `office_sprint_ceremony({ phase: "retro" })` (Room 5: Infinity Boardroom ∞) for lessons learned.
 10. Claude calls `office_sprint_complete({ summary: "Password reset deployed with 100% tests passing" })` to archive Sprint #1.
 11. When new work arrives, Claude calls `office_sprint_start` to kick off Sprint #2!

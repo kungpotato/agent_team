@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { stateManager } from './state.js';
 import { potatoAgentRegistry, getAllPotatoRoles } from './potato-agents.js';
 import { cardManager } from './cards.js';
-import { WSMessage, DEPARTMENTS, DepartmentId, Agent } from './types.js';
+import { WSMessage, DEPARTMENTS, DepartmentId, Agent, MEETING_ROOMS, resolveRoomId } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,14 +98,14 @@ export function createServer() {
     if (!Array.isArray(names) || names.length === 0) {
       return res.status(400).json({ error: 'Array of agent names is required' });
     }
-    const targetRoom = Number(room || roomId || 1);
+    const targetRoom = resolveRoomId(room || roomId) || 1;
     const result = stateManager.startMeeting(names, topic, targetRoom, { autoQueueIfFull: forceQueue !== false });
     res.json({ success: true, ...result, topic, roomId: targetRoom });
   });
 
   app.post('/api/agents/end-meeting', (req, res) => {
     const { names, room, roomId } = req.body;
-    const targetRoom = room || roomId ? Number(room || roomId) : undefined;
+    const targetRoom = resolveRoomId(room || roomId);
     const { removed, autoAdmitted } = stateManager.endMeeting({ roomId: targetRoom, names });
     res.json({ success: true, removed, autoAdmitted, roomId: targetRoom });
   });
@@ -113,13 +113,14 @@ export function createServer() {
   // Meeting Room Status & Reservation Queue Endpoints
   app.get('/api/meeting-rooms/status', (req, res) => {
     const { roomId } = req.query;
-    const rId = roomId ? Number(roomId) : undefined;
+    const rId = resolveRoomId(roomId as string);
     const rooms = stateManager.getRoomStatus(rId);
     const state = stateManager.getState();
     res.json({
       success: true,
       rooms,
-      queue: state.meetingQueue
+      queue: state.meetingQueue,
+      meetingRoomsInfo: Object.values(MEETING_ROOMS)
     });
   });
 
@@ -128,7 +129,7 @@ export function createServer() {
     if (!Array.isArray(names) || names.length === 0) {
       return res.status(400).json({ error: 'Array of agent names is required' });
     }
-    const targetRoom = room || roomId ? Number(room || roomId) : undefined;
+    const targetRoom = resolveRoomId(room || roomId);
     const result = stateManager.enqueueMeeting(names, topic, targetRoom);
     res.json({ success: true, ...result });
   });

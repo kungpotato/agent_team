@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { startServer } from '../server/server.js';
+import { resolveRoomId, MEETING_ROOMS } from '../server/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -264,18 +265,19 @@ program
   .alias('meet-status')
   .alias('rooms')
   .alias('status')
-  .description('Check real-time meeting room occupancy (Rooms 1-5, max 8 seats/room) and waiting queue')
+  .description('Check real-time meeting room occupancy (Rooms 1-5: Sigma, Delta, Lambda, Omega, Infinity) and waiting queue')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (roomNumber, options) => {
     try {
       const port = parseInt(options.port, 10);
-      const query = roomNumber ? `?roomId=${roomNumber}` : '';
+      const resolvedRoom = resolveRoomId(roomNumber);
+      const query = resolvedRoom ? `?roomId=${resolvedRoom}` : '';
       const data = await apiCall(`/api/meeting-rooms/status${query}`, 'GET', undefined, port);
 
-      console.log('\n🏢 MEETING ROOMS & RESERVATION STATUS (Capacity: 8 seats per room)');
-      console.log('═'.repeat(88));
-      console.log(`${'ROOM'.padEnd(6)} | ${'NAME'.padEnd(20)} | ${'STATUS'.padEnd(14)} | ${'SEATS'.padEnd(7)} | TOPIC / ATTENDEES`);
-      console.log('─'.repeat(88));
+      console.log('\n🏛️ CONFERENCE ROOMS (MATH & PHYSICS: Σ, Δ, λ, Ω, ∞ — Capacity: 8 seats/room)');
+      console.log('═'.repeat(96));
+      console.log(`${'ROOM'.padEnd(6)} | ${'NAME & SYMBOL'.padEnd(25)} | ${'STATUS'.padEnd(14)} | ${'SEATS'.padEnd(7)} | TOPIC / ATTENDEES`);
+      console.log('─'.repeat(96));
 
       for (const r of data.rooms) {
         let statusBadge = '🟢 AVAILABLE';
@@ -289,21 +291,21 @@ program
         const attendeesStr = r.attendees.length > 0 ? ` -> [${r.attendees.join(', ')}]` : '';
         const roomLabel = `RM ${r.roomId}`;
 
-        console.log(`${roomLabel.padEnd(6)} | ${r.name.padEnd(20)} | ${statusBadge.padEnd(14)} | ${seatStr.padEnd(7)} | ${topicStr}${attendeesStr}`);
+        console.log(`${roomLabel.padEnd(6)} | ${r.name.padEnd(25)} | ${statusBadge.padEnd(14)} | ${seatStr.padEnd(7)} | ${topicStr}${attendeesStr}`);
       }
-      console.log('═'.repeat(88));
+      console.log('═'.repeat(96));
 
       if (data.queue && data.queue.length > 0) {
         console.log(`\n⏳ MEETING WAITING QUEUE (${data.queue.length} meeting request${data.queue.length > 1 ? 's' : ''} waiting):`);
-        console.log('─'.repeat(88));
+        console.log('─'.repeat(96));
         data.queue.forEach((q: any, idx: number) => {
-          const roomTarget = q.targetRoomId ? `Room ${q.targetRoomId}` : 'First Free Room';
+          const roomTarget = q.targetRoomId ? (MEETING_ROOMS[q.targetRoomId]?.fullName || `Room ${q.targetRoomId}`) : 'First Free Room';
           const waitMins = Math.round((Date.now() - q.queuedAt) / 1000 / 60);
           const timeStr = waitMins === 0 ? 'just now' : `${waitMins}m ago`;
-          console.log(`  #${idx + 1} [${q.id}] Target: ${roomTarget.padEnd(16)} | Topic: "${q.topic}"`);
+          console.log(`  #${idx + 1} [${q.id}] Target: ${roomTarget.padEnd(25)} | Topic: "${q.topic}"`);
           console.log(`     Waiting Agents: [${q.names.join(', ')}] (Queued: ${timeStr})`);
         });
-        console.log('─'.repeat(88));
+        console.log('─'.repeat(96));
         console.log('💡 Note: When a room is freed (via "agent-team end-meeting <room>"), the next waiting team is automatically admitted!\n');
       } else {
         console.log('\n⏳ Waiting Queue: (No meetings currently waiting in queue)\n');
@@ -316,28 +318,30 @@ program
 // MEET COMMAND
 program
   .command('meet <names...>')
-  .description('Move agents to a meeting room (1-5). If full (8 seats), automatically queues request.')
-  .option('-r, --room <number>', 'Meeting room number (1 to 5)', '1')
+  .description('Move agents to a meeting room (1-5: Sigma, Delta, Lambda, Omega, Infinity). If full, automatically queues request.')
+  .option('-r, --room <room>', 'Meeting room: 1-5, or symbol/name (sigma, delta, lambda, omega, infinity, Σ, Δ, λ, Ω, ∞)', '1')
   .option('-t, --topic <topic>', 'Meeting topic/agenda')
   .option('--no-queue', 'Do not place in queue if full, abort instead')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (names, options) => {
     try {
       const port = parseInt(options.port, 10);
-      const room = Math.max(1, Math.min(5, parseInt(options.room, 10) || 1));
+      const room = resolveRoomId(options.room) || 1;
+      const roomInfo = MEETING_ROOMS[room];
+      const roomName = roomInfo ? roomInfo.fullName : `Room ${room}`;
       const forceQueue = options.queue !== false;
       const res = await apiCall('/api/agents/meet', 'POST', { names, topic: options.topic, room, forceQueue }, port);
 
       if (res.queued) {
-        console.log(`\n⚠️  [Meeting Room ${room}] is currently FULL (8/8 seats occupied)!`);
+        console.log(`\n⚠️  [${roomName}] is currently FULL (8/8 seats occupied)!`);
         console.log(`⏳ Agents [${names.join(', ')}] placed in WAITING QUEUE:`);
         console.log(`   - Queue ID: ${res.queueItem?.id}`);
         console.log(`   - Position: #${res.position} in line`);
-        console.log(`   - Topic: "${options.topic || `Meeting Room ${room}`}"`);
-        console.log(`💡 They will wait at their desks and automatically enter Room ${room} once the current meeting finishes.`);
+        console.log(`   - Topic: "${options.topic || roomName}"`);
+        console.log(`💡 They will wait at their desks and automatically enter ${roomName} once the current meeting finishes.`);
         console.log(`💡 Check queue status anytime: "agent-team room-status"\n`);
       } else {
-        console.log(`📋 Meeting started in [Meeting Room ${room}]: "${options.topic || `Meeting Room ${room}`}" with [${names.join(', ')}]`);
+        console.log(`📋 Meeting started in [${roomName}]: "${options.topic || roomName}" with [${names.join(', ')}]`);
       }
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
@@ -349,15 +353,15 @@ program
   .command('queue-meeting <names...>')
   .alias('q-meet')
   .description('Queue agents waiting for a meeting room (or any available room)')
-  .option('-r, --room <number>', 'Specific meeting room number (1 to 5, or omit for first available)')
+  .option('-r, --room <room>', 'Specific meeting room (1-5 or sigma, delta, lambda, omega, infinity, Σ, Δ, λ, Ω, ∞)')
   .option('-t, --topic <topic>', 'Meeting topic/agenda')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (names, options) => {
     try {
       const port = parseInt(options.port, 10);
-      const room = options.room ? Math.max(1, Math.min(5, parseInt(options.room, 10))) : undefined;
+      const room = resolveRoomId(options.room);
       const res = await apiCall('/api/meeting-rooms/queue', 'POST', { names, topic: options.topic, room }, port);
-      const targetStr = room ? `Room ${room}` : 'Any Available Room';
+      const targetStr = room ? (MEETING_ROOMS[room]?.fullName || `Room ${room}`) : 'Any Available Room';
       console.log(`\n⏳ Agents [${names.join(', ')}] placed in WAITING QUEUE:`);
       console.log(`   - Queue ID: ${res.queueItem?.id}`);
       console.log(`   - Position: #${res.position} for ${targetStr}`);
@@ -391,19 +395,20 @@ program
 // END MEETING COMMAND
 program
   .command('end-meeting [args...]')
-  .description('End meeting - agents in meeting room disappear (specify room number 1-5 or agent names)')
-  .option('-r, --room <number>', 'Specific meeting room number (1 to 5)')
+  .description('End meeting - agents in meeting room disappear (specify room number 1-5, room symbol/name, or agent names)')
+  .option('-r, --room <room>', 'Specific meeting room (1-5 or sigma, delta, lambda, omega, infinity, Σ, Δ, λ, Ω, ∞)')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (args, options) => {
     try {
       const port = parseInt(options.port, 10);
-      let targetRoom = options.room ? parseInt(options.room, 10) : undefined;
+      let targetRoom = resolveRoomId(options.room);
       let names: string[] = [];
 
-      // Check if first arg is a room number
+      // Check if first arg is a room number or room name
       if (args && args.length > 0) {
-        if (/^[1-5]$/.test(args[0]) && !targetRoom) {
-          targetRoom = parseInt(args[0], 10);
+        const resolved = resolveRoomId(args[0]);
+        if (resolved && !targetRoom) {
+          targetRoom = resolved;
           names = args.slice(1);
         } else {
           names = args;
@@ -412,14 +417,15 @@ program
 
       const res = await apiCall('/api/agents/end-meeting', 'POST', { room: targetRoom, names: names.length > 0 ? names : undefined }, port);
       const removedNames = res.removed.map((a: any) => a.name).join(', ') || 'none';
-      const roomDesc = targetRoom ? `Meeting Room ${targetRoom}` : 'All Meeting Rooms';
+      const roomDesc = targetRoom ? (MEETING_ROOMS[targetRoom]?.fullName || `Room ${targetRoom}`) : 'All Meeting Rooms';
       console.log(`🚪 [${roomDesc}] ended. Agents disappeared: [${removedNames}]`);
       if (res.autoAdmitted) {
-        console.log(`\n🎉 AUTO-ADMITTED NEXT QUEUE INTO ROOM ${res.autoAdmitted.roomId}:`);
+        const admittedRoomName = MEETING_ROOMS[res.autoAdmitted.roomId]?.fullName || `Room ${res.autoAdmitted.roomId}`;
+        console.log(`\n🎉 AUTO-ADMITTED NEXT QUEUE INTO ${admittedRoomName.toUpperCase()}:`);
         console.log(`   - Queue ID: ${res.autoAdmitted.queueItem.id}`);
         console.log(`   - Topic: "${res.autoAdmitted.queueItem.topic}"`);
         console.log(`   - Agents: [${res.autoAdmitted.queueItem.names.join(', ')}]`);
-        console.log(`   💡 Meeting is now active in Room ${res.autoAdmitted.roomId}!\n`);
+        console.log(`   💡 Meeting is now active in ${admittedRoomName}!\n`);
       }
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
@@ -514,25 +520,27 @@ program
     }
   });
 
-// POTATO-LIST COMMAND
+// AGENTS-LIST / POTATO-LIST COMMAND
 program
   .command('potato-list')
-  .description('List all discovered Potato-Skill agents (/Users/kittisak/workspace/potato-skill/agents)')
+  .alias('agent-list')
+  .alias('roles')
+  .description('List all discovered agent roles from /Users/kittisak/workspace/agent_team/agents')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
     try {
       const port = parseInt(options.port, 10);
       const agents: any[] = await apiCall('/api/potato-agents', 'GET', undefined, port);
-      console.log(`\n🥔 POTATO-SKILL AGENTS (${agents.length} available):`);
-      console.log('---------------------------------------------------------------------------------------------------');
-      console.log(`${'ROLE'.padEnd(18)} | ${'COLOR'.padEnd(8)} | ${'DEFAULT BENCH'.padEnd(16)} | DESCRIPTION`);
-      console.log('---------------------------------------------------------------------------------------------------');
+      console.log(`\n🤖 AGENT TEAM ROSTER (${agents.length} agents from agents/):`);
+      console.log('─'.repeat(100));
+      console.log(`${'ROLE / NAME'.padEnd(20)} | ${'COLOR'.padEnd(8)} | ${'WORKBENCH'.padEnd(16)} | DESCRIPTION`);
+      console.log('─'.repeat(100));
       for (const a of agents) {
         const benchName = `Bench ${a.targetBench + 1}`;
-        console.log(`${a.name.padEnd(18)} | ${a.color.padEnd(8)} | ${benchName.padEnd(16)} | ${a.description.substring(0, 50)}...`);
+        console.log(`${a.name.padEnd(20)} | ${a.color.padEnd(8)} | ${benchName.padEnd(16)} | ${a.description.substring(0, 50)}...`);
       }
-      console.log('---------------------------------------------------------------------------------------------------\n');
-      console.log('💡 Quick command: "agent-team spawn-potato" to spawn the full squad into the office!\n');
+      console.log('─'.repeat(100));
+      console.log('💡 Quick command: "agent-team spawn-potato" to spawn all agents into their department workbenches!\n');
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
     }
@@ -590,17 +598,19 @@ program
     }
   });
 
-// SPAWN-POTATO COMMAND
+// SPAWN-POTATO / SPAWN-ALL COMMAND
 program
   .command('spawn-potato [roles...]')
-  .description('Spawn Potato-Skill agents (e.g. "coder", "qa-tester" or omit to spawn all 10)')
+  .alias('spawn-all')
+  .alias('spawn-squad')
+  .description('Spawn agents from /Users/kittisak/workspace/agent_team/agents (omit to spawn all agents)')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (roles, options) => {
     try {
       const port = parseInt(options.port, 10);
       if (!roles || roles.length === 0 || roles.includes('all') || roles.includes('team')) {
         const res = await apiCall('/api/potato-agents/spawn-squad', 'POST', undefined, port);
-        console.log(`🥔 Spawned full Potato Squad (${res.count} agents) across the Startup Benches!`);
+        console.log(`🤖 Spawned complete agent team (${res.count} agents from agents/) across the Startup Benches!`);
         for (const a of res.agents) {
           const benchNum = Math.floor(a.slot / 8) + 1;
           const seatNum = (a.slot % 8) + 1;
@@ -630,20 +640,20 @@ program
       const wf = workflow.toLowerCase();
       if (wf === 'review') {
         await apiCall('/api/agents/meet', 'POST', { names: ['coder1', 'code-reviewer1'], room: 1, topic: 'AST & Security Code Review' }, port);
-        console.log(`📋 Potato Workflow [review]: coder1 & code-reviewer1 are in Room 1!`);
+        console.log(`📋 Potato Workflow [review]: coder1 & code-reviewer1 are in Sigma Room (Σ)!`);
       } else if (wf === 'arch') {
         await apiCall('/api/agents/meet', 'POST', { names: ['product-manager1', 'system-architect1'], room: 2, topic: 'PRD to Architecture Contract' }, port);
-        console.log(`📋 Potato Workflow [arch]: product-manager1 & system-architect1 are in Room 2!`);
+        console.log(`📋 Potato Workflow [arch]: product-manager1 & system-architect1 are in Delta Room (Δ)!`);
       } else if (wf === 'qa') {
         await apiCall('/api/agents/meet', 'POST', { names: ['qa-tester1', 'devops-release1'], room: 3, topic: 'QA Attestation & Canary Rollout' }, port);
-        console.log(`📋 Potato Workflow [qa]: qa-tester1 & devops-release1 are in Room 3!`);
+        console.log(`📋 Potato Workflow [qa]: qa-tester1 & devops-release1 are in Lambda Room (λ)!`);
       } else if (wf === 'triage') {
         await apiCall('/api/agents/meet', 'POST', { names: ['runtime-sre1', 'coder1'], room: 4, topic: 'Runtime Incident RCA & Hotfix' }, port);
-        console.log(`📋 Potato Workflow [triage]: runtime-sre1 & coder1 are in Room 4!`);
+        console.log(`📋 Potato Workflow [triage]: runtime-sre1 & coder1 are in Omega Room (Ω)!`);
       } else if (wf === 'all-hands') {
         const team = ['project-planner1', 'product-manager1', 'system-architect1', 'coder1', 'code-reviewer1', 'qa-tester1', 'devops-release1', 'runtime-sre1'];
         await apiCall('/api/agents/meet', 'POST', { names: team, room: 5, topic: 'Sprint DAG Wave Planning' }, port);
-        console.log(`📋 Potato Workflow [all-hands]: Full squad (8 agents) in Room 5 Boardroom!`);
+        console.log(`📋 Potato Workflow [all-hands]: Full squad (8 agents) in Infinity Boardroom (∞)!`);
       } else {
         console.log(`Unknown workflow "${workflow}". Available: review | arch | qa | triage | all-hands`);
       }

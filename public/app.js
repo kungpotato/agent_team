@@ -59,8 +59,9 @@ const OFFICE_LAYOUT = {
   // 5 MEETING ROOMS (Right Wing: X: 760 to 1440) - 8 SEATS EACH
   meetingRooms: {
     1: {
-      name: 'ROOM 1',
-      subtitle: 'Alpha Suite (8 Seats)',
+      name: '[Σ] SIGMA',
+      symbol: 'Σ',
+      subtitle: 'Sigma Room (Summation - 8 Seats)',
       x: 780, y: 45, w: 310, h: 220,
       tableX: 935, tableY: 158, tableW: 190, tableH: 48,
       slots: [
@@ -75,8 +76,9 @@ const OFFICE_LAYOUT = {
       ]
     },
     2: {
-      name: 'ROOM 2',
-      subtitle: 'Beta Suite (8 Seats)',
+      name: '[Δ] DELTA',
+      symbol: 'Δ',
+      subtitle: 'Delta Room (Differential - 8 Seats)',
       x: 1110, y: 45, w: 310, h: 220,
       tableX: 1265, tableY: 158, tableW: 190, tableH: 48,
       slots: [
@@ -91,8 +93,9 @@ const OFFICE_LAYOUT = {
       ]
     },
     3: {
-      name: 'ROOM 3',
-      subtitle: 'Gamma Suite (8 Seats)',
+      name: '[λ] LAMBDA',
+      symbol: 'λ',
+      subtitle: 'Lambda Room (Calculus - 8 Seats)',
       x: 780, y: 285, w: 310, h: 220,
       tableX: 935, tableY: 398, tableW: 190, tableH: 48,
       slots: [
@@ -107,8 +110,9 @@ const OFFICE_LAYOUT = {
       ]
     },
     4: {
-      name: 'ROOM 4',
-      subtitle: 'Delta Suite (8 Seats)',
+      name: '[Ω] OMEGA',
+      symbol: 'Ω',
+      subtitle: 'Omega Room (Resistance - 8 Seats)',
       x: 1110, y: 285, w: 310, h: 220,
       tableX: 1265, tableY: 398, tableW: 190, tableH: 48,
       slots: [
@@ -123,8 +127,9 @@ const OFFICE_LAYOUT = {
       ]
     },
     5: {
-      name: 'ROOM 5',
-      subtitle: 'Executive Boardroom (8 Seats)',
+      name: '[∞] INFINITY BOARDROOM',
+      symbol: '∞',
+      subtitle: 'Infinity Boardroom (All-Hands - 8 Seats)',
       x: 780, y: 525, w: 640, h: 295,
       tableX: 1100, tableY: 670, tableW: 380, tableH: 64,
       slots: [
@@ -655,7 +660,7 @@ function drawMeetingRooms() {
   ctx.font = '10px "Press Start 2P", monospace';
   ctx.fillStyle = '#ffbb00';
   ctx.textAlign = 'left';
-  ctx.fillText('📋 5 CONFERENCE ROOMS (ROOMS 1 - 5)', 785, 25);
+  ctx.fillText('📋 5 CONFERENCE SUITES (MATH & PHYSICS: Σ, Δ, λ, Ω, ∞)', 785, 25);
 
   // If there are meetings in waiting queue, show stylish cyber queue ticker
   if (meetingQueue && meetingQueue.length > 0) {
@@ -696,7 +701,7 @@ function drawSingleMeetingRoom(rId, room) {
   const roomAgents = agents.filter(a => a.room === 'meeting' && (a.meetingRoomId === rId || (!a.meetingRoomId && rId === 1)));
   const isOccupied = roomAgents.length > 0;
   const isFull = roomAgents.length >= 8;
-  const topic = meetingTopics[rId] || (isOccupied ? `Meeting Room ${rId}` : 'AVAILABLE');
+  const topic = meetingTopics[rId] || (isOccupied ? (room.name || `Meeting Room ${rId}`) : 'AVAILABLE');
 
   // Check if any meetings in queue are targeting this room
   const waitingForThisRoom = (meetingQueue || []).filter(q => q.targetRoomId === rId);
@@ -741,18 +746,19 @@ function drawSingleMeetingRoom(rId, room) {
   ctx.font = 'bold 6px "Silkscreen", monospace';
   const capText = isFull ? '[8/8 FULL]' : isOccupied ? `[${roomAgents.length}/8]` : '[0/8 FREE]';
   ctx.fillStyle = isFull ? '#ef4444' : isOccupied ? '#fbbf24' : '#22c55e';
-  ctx.fillText(capText, room.x + 80, room.y + 12.5);
+  const capX = isBoardroom ? (room.x + 205) : (room.x + 100);
+  ctx.fillText(capText, capX, room.y + 12.5);
 
   // Queue indicator if agents are waiting specifically for this room
-  let topicOffset = 138;
+  let topicOffset = isBoardroom ? 260 : 150;
   if (waitingForThisRoom.length > 0) {
     ctx.fillStyle = '#f59e0b';
-    ctx.fillText(`⏳ Q:${waitingForThisRoom.length}`, room.x + 138, room.y + 12.5);
-    topicOffset = 175;
+    ctx.fillText(`⏳ Q:${waitingForThisRoom.length}`, room.x + topicOffset, room.y + 12.5);
+    topicOffset += 38;
   }
 
   // Subtitle / Topic banner (neatly truncated so it never overflows)
-  const maxChars = isBoardroom ? 45 : (waitingForThisRoom.length > 0 ? 12 : 16);
+  const maxChars = isBoardroom ? 45 : (waitingForThisRoom.length > 0 ? 12 : 18);
   const displayTopic = topic.length > maxChars ? topic.substring(0, maxChars - 2) + '..' : topic;
   ctx.font = '7px "Silkscreen", monospace';
   ctx.fillStyle = isOccupied ? '#94a3b8' : '#64748b';
