@@ -4,13 +4,18 @@
  * (http://localhost:3333), the other half of sync-agent-team.js (which handles dispatch).
  * Fires when ANY subagent (coder, code-reviewer, etc.) finishes — foreground or background.
  *
- * Known agent_types map to a dedicated, stable desk. An UNKNOWN agent_type falls back to its
- * own name plus a real running number (`${agentType}${n}`) from a counter file shared with
- * sync-agent-team.js's dispatch-side counter — NOT hardcoded to 1 — so repeated completions of
- * an unmapped type get distinct desks instead of overwriting one shared slot. Note: without a
- * shared correlation id between the dispatch-time tool_use_id and this event's agent_id, this
- * can't guarantee landing on the exact same numbered desk the dispatch hook assigned to that
- * specific instance — it's a best-effort approximation, not a precise 1:1 map.
+ * Known agent_types map to a dedicated, stable desk. A genuinely custom (but real) agent_type
+ * falls back to its own name plus a running number (`${agentType}${n}`) from a counter file
+ * shared with sync-agent-team.js's dispatch-side counter.
+ *
+ * agent_type literally "claude" is deliberately IGNORED (no desk created/updated at all) —
+ * every real dispatch in this project always passes an explicit subagent_type (coder,
+ * code-reviewer, system-architect, ...), so a SubagentStop event reporting the generic "claude"
+ * catch-all type is never one of ours; it's an internal/meta event (observed recurring in
+ * practice, e.g. "claude1" ghost desks with messages like "checking task status"). Treating it
+ * as unknown-but-real and inventing claude1/claude2/... desks for it was the actual bug — this
+ * is the root-cause fix, not a wall-clock workaround (see office-stale-cleanup.js for that,
+ * which still exists as a safety net for whatever this doesn't catch).
  *
  * Never blocks or fails the real session: all errors are swallowed, always exits 0.
  */
@@ -62,6 +67,8 @@ async function main() {
   }
 
   const agentType = payload.agent_type || 'claude';
+  if (agentType === 'claude') process.exit(0); // never one of our real dispatches — see header
+
   const officeName = SUBAGENT_TO_OFFICE_NAME[agentType]
     || `${agentType}${currentCounter(agentType)}`;
   const lastMessage = String(payload.last_assistant_message || '').trim();
