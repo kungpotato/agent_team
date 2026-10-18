@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agent-team": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/agent-team-mcp.js"]
+    }
+  }
+}

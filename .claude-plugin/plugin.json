@@ -1,0 +1,31 @@
+{
+  "name": "agent-team",
+  "displayName": "Agent Team: 8-Bit Office & Agile Ceremonies",
+  "version": "1.0.0",
+  "description": "8-bit Virtual Office & Agile Sprint Ceremonies Governance (validation, grooming, planning, working, demo, uat, release, retro) for AI agents with Taskwarrior (default) and Jira backlog support",
+  "author": {
+    "name": "kittisak",
+    "url": "https://github.com/kungpotato/agent_team"
+  },
+  "homepage": "https://github.com/kungpotato/agent_team",
+  "repository": "https://github.com/kungpotato/agent_team",
+  "license": "MIT",
+  "keywords": [
+    "ai-agents",
+    "agile-sprint",
+    "ceremonies",
+    "taskwarrior",
+    "jira",
+    "kanban",
+    "8bit",
+    "virtual-office"
+  ],
+  "skills": ["./skills/"],
+  "agents": [
+    "./agents/scrum-master.md",
+    "./agents/product-owner.md",
+    "./agents/system-architect.md",
+    "./agents/qa-tester.md"
+  ],
+  "hooks": "./hooks/hooks.json"
+}

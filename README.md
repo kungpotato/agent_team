@@ -117,6 +117,49 @@ node bin/agent-team.js start --open
 
 ---
 
+## 🧩 Claude Code Plugin Architecture
+
+`agent-team` is fully packaged as a **native Claude Code plugin** complying with the official [Claude Code Plugin Specification](https://code.claude.com/docs/en/plugins/overview).
+
+```
+agent_team/
+├── .claude-plugin/
+│   └── plugin.json            # Plugin manifest (name, version, metadata, components)
+├── .mcp.json                  # MCP Server declaration (19 office & sprint tools)
+├── skills/
+│   ├── sprint/SKILL.md        # /agent-team:sprint (8-phase Agile sprint ceremony governance)
+│   ├── backlog/SKILL.md       # /agent-team:backlog (Taskwarrior default & Jira cards)
+│   ├── office/SKILL.md        # /agent-team:office (Desk visits, meetings, rooms 1-5, clock out)
+│   └── governance/SKILL.md    # /agent-team:governance (Mandatory sprint policy enforcement)
+├── agents/
+│   ├── scrum-master.md        # @agent-team:scrum-master (Agile ceremony facilitator)
+│   ├── product-owner.md       # @agent-team:product-owner (Story AC validation & UAT sign-off)
+│   ├── system-architect.md    # @agent-team:system-architect (Contract validation & canary rollout)
+│   └── qa-tester.md           # @agent-team:qa-tester (Edge-cases & acceptance testing)
+├── hooks/
+│   └── hooks.json             # Lifecycle hooks (SessionStart sprint status checks)
+└── bin/                       # Executables placed on PATH when plugin is active
+```
+
+### Loading the Plugin in Claude Code
+
+You can run Claude Code with the plugin loaded immediately without publishing:
+
+```bash
+# Load for a single session
+claude --plugin-dir /Users/kittisak/workspace/agent_team
+
+# Validate the plugin anytime
+claude plugin validate /Users/kittisak/workspace/agent_team
+```
+
+Once loaded:
+- **Skills** become available as `/agent-team:sprint`, `/agent-team:backlog`, `/agent-team:office`, `/agent-team:governance`
+- **Subagents** become available as `@agent-team:scrum-master`, `@agent-team:product-owner`, etc.
+- **MCP Server** (`plugin:agent-team:agent-team`) automatically connects all 19 office simulation tools.
+
+---
+
 ## 🔌 Model Context Protocol (MCP) Integration for Claude
 
 The fastest and most reliable way for Claude to control the office is via MCP.
