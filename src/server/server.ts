@@ -133,6 +133,24 @@ export function createServer() {
     });
   });
 
+  app.get('/api/sessions/:id', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    res.json({
+      success: true,
+      session: sm.sessionId,
+      summary: sm.getSummary(),
+      state: sm.getState()
+    });
+  });
+
+  app.post('/api/sessions/:id/reset', (req, res) => {
+    const sm = sessionManager.getSession(req.params.id);
+    if (!sm) return res.status(404).json({ error: `Session "${req.params.id}" not found` });
+    const result = sm.reset();
+    res.json({ success: true, session: sm.sessionId, count: result.count });
+  });
+
   app.delete('/api/sessions/:id', (req, res) => {
     const success = sessionManager.deleteSession(req.params.id);
     res.json({ success, sessions: sessionManager.listSessions() });

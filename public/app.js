@@ -1008,6 +1008,35 @@ window.promptNewSession = function() {
   }
 };
 
+window.promptResetSession = function() {
+  if (confirm(`Reset session "${currentSessionId}"? All agents and sprint state in this session will be cleared.`)) {
+    fetch(`/api/sessions/${encodeURIComponent(currentSessionId)}/reset`, { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        fetchSessionState(currentSessionId);
+      })
+      .catch(err => console.error('Failed to reset session:', err));
+  }
+};
+
+window.promptDeleteSession = function() {
+  if (knownSessions.length <= 1) {
+    alert('Cannot delete the only remaining session.');
+    return;
+  }
+  if (confirm(`Delete session "${currentSessionId}"? This cannot be undone.`)) {
+    fetch(`/api/sessions/${encodeURIComponent(currentSessionId)}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        const remaining = data.sessions || [];
+        if (remaining.length > 0) {
+          window.switchSession(remaining[0].id);
+        }
+      })
+      .catch(err => console.error('Failed to delete session:', err));
+  }
+};
+
 async function fetchSessionsList() {
   try {
     const res = await fetch('/api/sessions');

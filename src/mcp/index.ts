@@ -64,9 +64,14 @@ async function ensureServer(port: number = DEFAULT_PORT): Promise<void> {
   console.error(`[agent-team MCP] Warning: Server launch initiated, but port ${port} is not yet responding.`);
 }
 
+let mcpActiveSessionOverride: string | undefined;
+
 function resolveSession(sessionArg?: string): string {
   if (sessionArg && typeof sessionArg === 'string' && sessionArg.trim()) {
     return sessionArg.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  }
+  if (mcpActiveSessionOverride) {
+    return mcpActiveSessionOverride;
   }
   const envSession = process.env.AGENT_TEAM_SESSION || process.env.CLAUDE_PROJECT_DIR;
   if (envSession && envSession.trim()) {
@@ -733,6 +738,85 @@ STRICT RULES:
         content: [{
           type: 'text',
           text: `📁 CURRENT CLAUDE PROJECT SESSION: "${current}"\n👥 Active Agents: ${res.agents?.length || 0}\n🏃 Sprint: #${sprint.sprintNumber || 1} (${sprint.phase?.toUpperCase() || 'IDLE'})\n📋 Current Story: "${sprint.story || '-'}" (${sprint.storyPoints || 0} pts)\n🌐 Web UI: http://localhost:3333?session=${current}`
+        }]
+      };
+    }
+  );
+
+  // 22. CREATE PROJECT SESSION
+  server.tool(
+    'office_create_session',
+    'Create or connect to a new project directory session.',
+    {
+      name: z.string().describe('Directory session name (e.g. "mobile-app", "ecommerce-backend")')
+    },
+    async ({ name }) => {
+      const res = await apiCall('/api/sessions', 'POST', { name });
+      return {
+        content: [{
+          type: 'text',
+          text: `✨ Project session created / connected: "${res.session}"\n👥 Agents: ${res.summary?.agentCount || 0}\n🏃 Sprint: #${res.summary?.sprintNumber || 1} (${res.summary?.sprintPhase?.toUpperCase() || 'IDLE'})\n🌐 Web UI: http://localhost:3333?session=${res.session}`
+        }]
+      };
+    }
+  );
+
+  // 23. SWITCH ACTIVE SESSION
+  server.tool(
+    'office_switch_session',
+    'Switch the active project directory session context for Claude MCP calls.',
+    {
+      session: z.string().describe('Project session name to switch to (e.g. "agent_team", "mobile-app")')
+    },
+    async ({ session }) => {
+      const clean = session.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      mcpActiveSessionOverride = clean;
+      const res = await apiCall('/api/agents', 'GET', undefined, DEFAULT_PORT, clean);
+      return {
+        content: [{
+          type: 'text',
+          text: `🔄 Switched active Claude project session to: "${clean}"\n👥 Active Agents: ${res.agents?.length || 0}\n🏃 Sprint: #${res.sprint?.sprintNumber || 1} (${res.sprint?.phase?.toUpperCase() || 'IDLE'})\n🌐 Web UI: http://localhost:3333?session=${clean}`
+        }]
+      };
+    }
+  );
+
+  // 24. RESET SESSION
+  server.tool(
+    'office_reset_session',
+    'Reset all agents, meetings, and sprint state for a specific project directory session.',
+    {
+      session: z.string().optional().describe('Project session to reset. Defaults to currently active session.')
+    },
+    async ({ session }) => {
+      const target = resolveSession(session);
+      const res = await apiCall(`/api/sessions/${encodeURIComponent(target)}/reset`, 'POST');
+      return {
+        content: [{
+          type: 'text',
+          text: `🔄 Session "${target}" reset successfully! Cleared ${res.count} agents and reset sprint to idle.`
+        }]
+      };
+    }
+  );
+
+  // 25. DELETE SESSION
+  server.tool(
+    'office_delete_session',
+    'Delete / archive an inactive project directory session.',
+    {
+      session: z.string().describe('Session name to delete')
+    },
+    async ({ session }) => {
+      const clean = session.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      const res = await apiCall(`/api/sessions/${encodeURIComponent(clean)}`, 'DELETE');
+      if (mcpActiveSessionOverride === clean) {
+        mcpActiveSessionOverride = undefined;
+      }
+      return {
+        content: [{
+          type: 'text',
+          text: `🗑️ Session "${clean}" deleted: ${res.success}. Remaining sessions: ${res.sessions?.length || 0}`
         }]
       };
     }

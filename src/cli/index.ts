@@ -55,6 +55,47 @@ async function ensureServer(port: number = DEFAULT_PORT): Promise<void> {
   console.warn(`[agent-team] Warning: Server launch initiated, but port ${port} is not yet responding. Check /tmp/agent-team.err.log`);
 }
 
+import os from 'os';
+
+const CONFIG_DIR = path.join(os.homedir(), '.agent-team');
+const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+
+function getPersistentSession(): string | undefined {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      return data.activeSession;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+function setPersistentSession(session?: string): void {
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+    let data: any = {};
+    if (fs.existsSync(CONFIG_FILE)) {
+      try {
+        data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      } catch {
+        data = {};
+      }
+    }
+    if (session) {
+      data.activeSession = session;
+    } else {
+      delete data.activeSession;
+    }
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to update session config:', err);
+  }
+}
+
 function resolveSession(sessionArg?: string): string {
   if (sessionArg && typeof sessionArg === 'string' && sessionArg.trim()) {
     return sessionArg.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
@@ -62,6 +103,10 @@ function resolveSession(sessionArg?: string): string {
   const envSession = process.env.AGENT_TEAM_SESSION || process.env.CLAUDE_PROJECT_DIR;
   if (envSession && envSession.trim()) {
     return envSession.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  }
+  const persistent = getPersistentSession();
+  if (persistent && persistent.trim()) {
+    return persistent.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
   }
   const dirName = path.basename(process.cwd());
   return dirName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'default';
@@ -1168,6 +1213,35 @@ program
   });
 
 // SESSIONS COMMANDS
+async function renderSessionsList(port: number) {
+  const res = await apiCall('/api/sessions', 'GET', undefined, port);
+  const current = resolveSession(program.opts().session);
+  const persistent = getPersistentSession();
+  const persistentNote = persistent ? ` [PERSISTENT OVERRIDE: "${persistent}"]` : ' [AUTO-DIR TRACKING]';
+  console.log(`\n📁 ACTIVE PROJECT SESSIONS (Current: "${current}"${persistentNote})`);
+  console.log('═'.repeat(95));
+  console.log(
+    'SESSION NAME'.padEnd(25) + ' | ' +
+    'AGENTS'.padEnd(16) + ' | ' +
+    'SPRINT'.padEnd(14) + ' | ' +
+    'PHASE'.padEnd(16) + ' | ' +
+    'CURRENT STORY'
+  );
+  console.log('─'.repeat(95));
+  for (const s of res.sessions || []) {
+    const isCurrent = s.id === current;
+    const prefix = isCurrent ? '👉 ' : '   ';
+    const nameCol = (prefix + s.name).padEnd(25);
+    const agentsCol = `${s.agentCount} (${s.workingCount}w / ${s.meetingCount}m)`.padEnd(16);
+    const sprintCol = `Sprint #${s.sprintNumber}`.padEnd(14);
+    const phaseCol = s.sprintPhase.toUpperCase().padEnd(16);
+    const storyCol = (s.story || '-').slice(0, 22);
+    console.log(`${nameCol} | ${agentsCol} | ${sprintCol} | ${phaseCol} | ${storyCol}`);
+  }
+  console.log('═'.repeat(95));
+  console.log(`💡 Switch persistent session with: "agent-team session switch <name>" or target once with: "-S <name>"\n`);
+}
+
 program
   .command('sessions')
   .alias('session-list')
@@ -1175,31 +1249,7 @@ program
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
     try {
-      const port = parseInt(options.port, 10);
-      const res = await apiCall('/api/sessions', 'GET', undefined, port);
-      const current = resolveSession(program.opts().session);
-      console.log(`\n📁 ACTIVE PROJECT SESSIONS (Current: "${current}")`);
-      console.log('═'.repeat(95));
-      console.log(
-        'SESSION NAME'.padEnd(25) + ' | ' +
-        'AGENTS'.padEnd(16) + ' | ' +
-        'SPRINT'.padEnd(14) + ' | ' +
-        'PHASE'.padEnd(16) + ' | ' +
-        'CURRENT STORY'
-      );
-      console.log('─'.repeat(95));
-      for (const s of res.sessions || []) {
-        const isCurrent = s.id === current;
-        const prefix = isCurrent ? '👉 ' : '   ';
-        const nameCol = (prefix + s.name).padEnd(25);
-        const agentsCol = `${s.agentCount} (${s.workingCount}w / ${s.meetingCount}m)`.padEnd(16);
-        const sprintCol = `Sprint #${s.sprintNumber}`.padEnd(14);
-        const phaseCol = s.sprintPhase.toUpperCase().padEnd(16);
-        const storyCol = (s.story || '-').slice(0, 22);
-        console.log(`${nameCol} | ${agentsCol} | ${sprintCol} | ${phaseCol} | ${storyCol}`);
-      }
-      console.log('═'.repeat(95));
-      console.log(`💡 Switch project session with: "agent-team -S <session> <command>" or select in Web UI at http://localhost:${port}\n`);
+      await renderSessionsList(parseInt(options.port, 10));
     } catch (err: any) {
       console.error(`❌ Failed to list sessions: ${err.message}`);
     }
@@ -1207,10 +1257,17 @@ program
 
 program
   .command('session-current')
-  .description('Print the currently active session name (derived from current project dir or env)')
+  .description('Print the currently active session name (derived from current project dir, env, or persistent override)')
   .action(() => {
     const session = resolveSession(program.opts().session);
-    console.log(`📁 Current directory session: "${session}" (from directory "${path.basename(process.cwd())}")`);
+    const persistent = getPersistentSession();
+    console.log(`📁 Current active session: "${session}"`);
+    if (persistent) {
+      console.log(`📌 Source: Persistent override from ~/.agent-team/config.json ("${persistent}")`);
+      console.log(`💡 Run "agent-team session auto" to revert to directory auto-tracking.`);
+    } else {
+      console.log(`📌 Source: Current working directory "${path.basename(process.cwd())}"`);
+    }
   });
 
 program
@@ -1229,8 +1286,139 @@ program
   });
 
 program
+  .command('session-switch <name>')
+  .alias('session-use')
+  .description('Switch the default persistent active session for CLI commands')
+  .action((name) => {
+    const clean = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    setPersistentSession(clean);
+    console.log(`🔄 Switched persistent active session to: "${clean}"`);
+    console.log(`💡 All CLI commands will now target "${clean}". Run "agent-team session auto" to revert to directory auto-tracking.`);
+  });
+
+program
+  .command('session-auto')
+  .alias('session-unuse')
+  .description('Clear persistent session override and revert to automatic directory name detection')
+  .action(() => {
+    setPersistentSession(undefined);
+    console.log(`🔄 Reverted to directory auto-tracking. Current directory session: "${path.basename(process.cwd())}"`);
+  });
+
+program
+  .command('session-reset <name>')
+  .description('Reset all agents, meetings, and sprint state for a specific session')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (name, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const clean = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      const res = await apiCall(`/api/sessions/${encodeURIComponent(clean)}/reset`, 'POST', undefined, port);
+      console.log(`🔄 Session "${clean}" reset: cleared ${res.count} agents and reset sprint.`);
+    } catch (err: any) {
+      console.error(`❌ Failed to reset session: ${err.message}`);
+    }
+  });
+
+program
   .command('session-delete <name>')
   .description('Delete a project directory session')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (name, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall(`/api/sessions/${encodeURIComponent(name)}`, 'DELETE', undefined, port);
+      console.log(`🗑️ Session "${name}" deleted: ${res.success}`);
+    } catch (err: any) {
+      console.error(`❌ Failed to delete session: ${err.message}`);
+    }
+  });
+
+// SESSION SUBCOMMAND GROUP
+const sessionGroup = program
+  .command('session')
+  .description('Manage project directory sessions (list, current, create, switch, auto, reset, delete)');
+
+sessionGroup
+  .command('list')
+  .alias('ls')
+  .description('List all project directory sessions')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (options) => {
+    try {
+      await renderSessionsList(parseInt(options.port, 10));
+    } catch (err: any) {
+      console.error(`❌ Failed to list sessions: ${err.message}`);
+    }
+  });
+
+sessionGroup
+  .command('current')
+  .description('Show the currently active project session')
+  .action(() => {
+    const session = resolveSession(program.opts().session);
+    const persistent = getPersistentSession();
+    console.log(`📁 Current active session: "${session}"`);
+    if (persistent) {
+      console.log(`📌 Source: Persistent override from ~/.agent-team/config.json ("${persistent}")`);
+    } else {
+      console.log(`📌 Source: Current working directory "${path.basename(process.cwd())}"`);
+    }
+  });
+
+sessionGroup
+  .command('create <name>')
+  .description('Create or connect to a project directory session')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (name, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const res = await apiCall('/api/sessions', 'POST', { name }, port);
+      console.log(`✨ Project session created / connected: "${res.session}"`);
+      console.log(`💡 View in browser at http://localhost:${port}?session=${res.session}`);
+    } catch (err: any) {
+      console.error(`❌ Failed to create session: ${err.message}`);
+    }
+  });
+
+sessionGroup
+  .command('switch <name>')
+  .alias('use')
+  .description('Switch the default active session')
+  .action((name) => {
+    const clean = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    setPersistentSession(clean);
+    console.log(`🔄 Switched persistent active session to: "${clean}"`);
+  });
+
+sessionGroup
+  .command('auto')
+  .alias('unuse')
+  .description('Revert to automatic directory detection')
+  .action(() => {
+    setPersistentSession(undefined);
+    console.log(`🔄 Reverted to directory auto-tracking. Current directory session: "${path.basename(process.cwd())}"`);
+  });
+
+sessionGroup
+  .command('reset <name>')
+  .description('Reset a session')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (name, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const clean = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      const res = await apiCall(`/api/sessions/${encodeURIComponent(clean)}/reset`, 'POST', undefined, port);
+      console.log(`🔄 Session "${clean}" reset: cleared ${res.count} agents and reset sprint.`);
+    } catch (err: any) {
+      console.error(`❌ Failed to reset session: ${err.message}`);
+    }
+  });
+
+sessionGroup
+  .command('delete <name>')
+  .alias('rm')
+  .description('Delete a session')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (name, options) => {
     try {

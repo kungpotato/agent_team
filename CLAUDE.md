@@ -63,8 +63,12 @@ When Claude operates via MCP or terminal CLI:
 
 | Sprint Step | MCP Tool Call | CLI Command Shortcut |
 |---|---|---|
-| List Directory Sessions | `office_list_sessions({})` | `agent-team sessions` |
-| Current Session Info | `office_get_session({})` | `agent-team session-current` |
+| List Directory Sessions | `office_list_sessions({})` | `agent-team session list` |
+| Current Session Info | `office_get_session({})` | `agent-team session current` |
+| Create Session | `office_create_session({ name: "..." })` | `agent-team session create <name>` |
+| Switch Session Context | `office_switch_session({ session: "..." })` | `agent-team session switch <name>` |
+| Reset Session | `office_reset_session({ session: "..." })` | `agent-team session reset <name>` |
+| Delete Session | `office_delete_session({ session: "..." })` | `agent-team session delete <name>` |
 | View Card Backlog | `office_get_cards({ source: "taskwarrior" })` | `agent-team cards` or `agent-team backlog` |
 | Add Story Card | `office_add_card({ title, points, tags, priority })` | `agent-team card-add <title> -p <pts>` |
 | Initialize Sprint | `office_sprint_start({ card_id, source: "taskwarrior", sprint_number, story, points })` | `agent-team sprint start [-c id] [-s tw]` |

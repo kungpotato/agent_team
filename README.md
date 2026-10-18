@@ -236,20 +236,32 @@ Whenever Claude or any AI agent uses this project or its MCP tools, **it is stri
 
 ## 📖 CLI Command Reference
 
-### 0. 📁 Project Directory Sessions
+### 0. 📁 Project Directory Sessions Management (CLI & MCP)
 
-#### `agent-team sessions`
-> **Aliases:** `session-list`
-
-List all active project directory sessions, showing agent counts, current sprint number, phase, and story ticket:
+Comprehensive session management across CLI, MCP, and Web UI:
 ```bash
 # List all active project sessions
-agent-team sessions
+agent-team session list         # (alias: agent-team sessions)
 
-# Check which session is active for the current directory
-agent-team session-current
+# Show current session name (auto-dir or persistent override)
+agent-team session current      # (alias: agent-team session-current)
 
-# Explicitly target a session for any CLI command via -S
+# Create / connect to a new project directory session
+agent-team session create <name>
+
+# Switch default active session persistently for your terminal
+agent-team session switch <name> # (alias: agent-team session use <name>)
+
+# Revert to automatic directory name detection
+agent-team session auto          # (alias: agent-team session unuse)
+
+# Reset agents and sprint state for a specific session
+agent-team session reset <name>
+
+# Delete / archive an inactive session
+agent-team session delete <name>
+
+# One-off target a specific session with -S flag on any command
 agent-team -S mobile-app sprint status
 agent-team -S mobile-app spawn-potato
 agent-team -S ecommerce-backend meet -r sigma dev1 dev2
