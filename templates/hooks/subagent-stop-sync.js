@@ -4,38 +4,35 @@
  * (http://localhost:3333), the other half of sync-agent-team.js (which handles dispatch).
  * Fires when ANY subagent (coder, code-reviewer, etc.) finishes — foreground or background.
  *
- * Known agent_types map to a dedicated, stable desk. A genuinely custom (but real) agent_type
- * falls back to its own name plus a running number (`${agentType}${n}`) from a counter file
- * shared with sync-agent-team.js's dispatch-side counter.
+ * agent_type literally "claude" is deliberately IGNORED (no desk touched) — every real
+ * dispatch in this project passes an explicit subagent_type, so a SubagentStop event reporting
+ * the generic "claude" catch-all type is never one of ours (confirmed recurring in practice as
+ * ghost desks before this fix).
  *
- * agent_type literally "claude" is deliberately IGNORED (no desk created/updated at all) —
- * every real dispatch in this project always passes an explicit subagent_type (coder,
- * code-reviewer, system-architect, ...), so a SubagentStop event reporting the generic "claude"
- * catch-all type is never one of ours; it's an internal/meta event (observed recurring in
- * practice, e.g. "claude1" ghost desks with messages like "checking task status"). Treating it
- * as unknown-but-real and inventing claude1/claude2/... desks for it was the actual bug — this
- * is the root-cause fix, not a wall-clock workaround (see office-stale-cleanup.js for that,
- * which still exists as a safety net for whatever this doesn't catch).
+ * sync-agent-team.js assigns the LOWEST FREE number for a type's base desk name on every
+ * dispatch (so N concurrent coders show as coder1..coderN, not one shared/overwritten slot).
+ * This hook has no reliable way to know exactly WHICH numbered instance just finished (no
+ * shared id between the dispatch-time tool_use_id and this event's agent_id) — as a best-effort
+ * heuristic it marks the OLDEST currently-busy desk of that base name as done (first dispatched
+ * assumed to finish first), freeing that slot for reuse. This is an approximation, not a
+ * precise 1:1 map; it's still strictly better than always targeting a single fixed name, which
+ * would silently clobber one of several concurrent desks' status.
  *
  * Never blocks or fails the real session: all errors are swallowed, always exits 0.
  */
 
-import fs from 'node:fs';
-
-const SUBAGENT_TO_OFFICE_NAME = {
-  coder: 'coder1',
-  'code-reviewer': 'reviewer1',
-  'project-planner': 'project-planner1',
-  'system-architect': 'system-architect1',
-  'product-manager': 'product-manager1',
-  'ui-ux-designer': 'ui-ux-designer1',
-  'design-to-code': 'design-to-code1',
-  'qa-tester': 'qa-tester1',
-  'runtime-sre': 'runtime-sre1',
-  'devops-release': 'devops-release1',
+const BASE_NAME = {
+  coder: 'coder',
+  'code-reviewer': 'reviewer',
+  'project-planner': 'project-planner',
+  'system-architect': 'system-architect',
+  'product-manager': 'product-manager',
+  'ui-ux-designer': 'ui-ux-designer',
+  'design-to-code': 'design-to-code',
+  'qa-tester': 'qa-tester',
+  'runtime-sre': 'runtime-sre',
+  'devops-release': 'devops-release',
 };
-
-const COUNTER_FILE = '/tmp/claude-agent-team-type-counters.json';
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -47,13 +44,26 @@ function readStdin() {
   });
 }
 
-/** Latest running number already assigned to this type (by the dispatch-side hook), if any. */
-function currentCounter(agentType) {
+/** Name of the oldest-updated currently-busy desk for this base name, or `${baseName}1` if none. */
+async function oldestBusyDesk(baseName) {
   try {
-    const counters = JSON.parse(fs.readFileSync(COUNTER_FILE, 'utf8'));
-    return counters[agentType] || 1;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch('http://localhost:3333/api/agents', { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return `${baseName}1`;
+    const data = await res.json();
+    const agents = Array.isArray(data.agents) ? data.agents : [];
+    const re = new RegExp(`^${baseName}(\\d+)$`);
+    let oldest = null;
+    for (const a of agents) {
+      if (re.test(a.name) && a.status === 'working' && a.progress !== 100) {
+        if (!oldest || (a.updatedAt || 0) < (oldest.updatedAt || 0)) oldest = a;
+      }
+    }
+    return oldest ? oldest.name : `${baseName}1`;
   } catch {
-    return 1;
+    return `${baseName}1`;
   }
 }
 
@@ -69,8 +79,8 @@ async function main() {
   const agentType = payload.agent_type || 'claude';
   if (agentType === 'claude') process.exit(0); // never one of our real dispatches — see header
 
-  const officeName = SUBAGENT_TO_OFFICE_NAME[agentType]
-    || `${agentType}${currentCounter(agentType)}`;
+  const baseName = BASE_NAME[agentType] || agentType;
+  const officeName = await oldestBusyDesk(baseName);
   const lastMessage = String(payload.last_assistant_message || '').trim();
   const snippet = lastMessage.slice(0, 140) || 'done';
   const task = `✅ done: ${snippet}`;

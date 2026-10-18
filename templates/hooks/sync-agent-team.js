@@ -4,31 +4,29 @@
  * agent-team office dashboard (http://localhost:3333) automatically, so it never silently
  * drifts from what Claude Code is actually doing in this session.
  *
- * Known subagent_types map to a dedicated, stable desk (coder -> coder1, code-reviewer ->
- * reviewer1, etc.). An UNKNOWN subagent_type falls back to its own name plus a real running
- * number (`${subagentType}${n}`), n assigned fresh per dispatch from a shared counter file —
- * NOT hardcoded to 1 — so that several concurrent/sequential dispatches of the same unmapped
- * type get distinct desks instead of overwriting each other's status on one shared slot.
+ * Every subagent_type gets a base desk name (coder -> "coder", code-reviewer -> "reviewer",
+ * etc; an unrecognized type uses its own string as the base). On EVERY dispatch — even for a
+ * type that already has a known base name — this queries the live office roster and assigns
+ * the LOWEST free number for that base name (a desk not currently "working"), e.g. dispatching
+ * two coders at once gives coder1 AND coder2, not two writes to the same coder1 slot. Once both
+ * finish and their desks are marked done/dismissed, the next solo dispatch reuses coder1 again
+ * — bounded growth, no persistent ever-incrementing counter needed.
  *
  * Never blocks or fails the real tool call: all errors are swallowed and this always exits 0.
  */
 
-import fs from 'node:fs';
-
-const SUBAGENT_TO_OFFICE_NAME = {
-  coder: 'coder1',
-  'code-reviewer': 'reviewer1',
-  'project-planner': 'project-planner1',
-  'system-architect': 'system-architect1',
-  'product-manager': 'product-manager1',
-  'ui-ux-designer': 'ui-ux-designer1',
-  'design-to-code': 'design-to-code1',
-  'qa-tester': 'qa-tester1',
-  'runtime-sre': 'runtime-sre1',
-  'devops-release': 'devops-release1',
+const BASE_NAME = {
+  coder: 'coder',
+  'code-reviewer': 'reviewer',
+  'project-planner': 'project-planner',
+  'system-architect': 'system-architect',
+  'product-manager': 'product-manager',
+  'ui-ux-designer': 'ui-ux-designer',
+  'design-to-code': 'design-to-code',
+  'qa-tester': 'qa-tester',
+  'runtime-sre': 'runtime-sre',
+  'devops-release': 'devops-release',
 };
-
-const COUNTER_FILE = '/tmp/claude-agent-team-type-counters.json';
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -40,22 +38,30 @@ function readStdin() {
   });
 }
 
-/** Next running number for an unmapped subagent_type, persisted across hook invocations. */
-function nextCounter(subagentType) {
-  let counters = {};
+/** Lowest positive integer N such that `${baseName}${N}` is not a currently-busy desk. */
+async function lowestFreeSlot(baseName) {
   try {
-    counters = JSON.parse(fs.readFileSync(COUNTER_FILE, 'utf8'));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch('http://localhost:3333/api/agents', { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return 1;
+    const data = await res.json();
+    const agents = Array.isArray(data.agents) ? data.agents : [];
+    const taken = new Set();
+    const re = new RegExp(`^${baseName}(\\d+)$`);
+    for (const a of agents) {
+      const m = re.exec(a.name);
+      if (m && a.status === 'working' && a.progress !== 100) {
+        taken.add(Number(m[1]));
+      }
+    }
+    let n = 1;
+    while (taken.has(n)) n += 1;
+    return n;
   } catch {
-    // first run / corrupt file — start fresh
+    return 1; // agent-team unreachable — degrade to the simple default, dispatch hook fails open anyway
   }
-  const n = (counters[subagentType] || 0) + 1;
-  counters[subagentType] = n;
-  try {
-    fs.writeFileSync(COUNTER_FILE, JSON.stringify(counters));
-  } catch {
-    // best-effort only
-  }
-  return n;
 }
 
 async function main() {
@@ -71,8 +77,9 @@ async function main() {
 
   const input = payload.tool_input || {};
   const subagentType = input.subagent_type || 'claude';
-  const officeName = SUBAGENT_TO_OFFICE_NAME[subagentType]
-    || `${subagentType}${nextCounter(subagentType)}`;
+  const baseName = BASE_NAME[subagentType] || subagentType;
+  const slot = await lowestFreeSlot(baseName);
+  const officeName = `${baseName}${slot}`;
   const task = String(input.description || input.prompt || 'working').slice(0, 160);
 
   try {
