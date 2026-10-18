@@ -30,6 +30,34 @@ function resolveTaskEnv(): NodeJS.ProcessEnv {
 }
 
 /**
+ * Resolves the real Taskwarrior binary, never the bare `task` on PATH. On some machines (this
+ * project's own CLAUDE.md documents the case) `task` resolves to go-task, a build tool with a
+ * completely different CLI — `task export`/`task --version` either errors or returns unrelated
+ * output, which this file's own try/catch swallows and silently falls back to canned demo
+ * cards (AUTH-101/PAYMENT-201/NOTIF-301). That failure was completely silent: no error surfaced
+ * anywhere, a sprint just quietly started on a fake card. Checked once and cached for the
+ * process lifetime (the installed binary doesn't move mid-session).
+ */
+let cachedTaskBinary: string | undefined;
+function resolveTaskBinary(): string {
+  if (cachedTaskBinary) return cachedTaskBinary;
+  const candidates = [
+    '/opt/homebrew/bin/task',
+    '/usr/local/bin/task',
+    '/usr/bin/task',
+    'task', // last resort: PATH resolution, may be the wrong "task" on some machines
+  ];
+  for (const candidate of candidates) {
+    if (candidate === 'task' || existsSync(candidate)) {
+      cachedTaskBinary = candidate;
+      return candidate;
+    }
+  }
+  cachedTaskBinary = 'task';
+  return cachedTaskBinary;
+}
+
+/**
  * Taskwarrior Provider (Default Kanban Card Source)
  */
 export class TaskwarriorProvider {
@@ -71,7 +99,7 @@ export class TaskwarriorProvider {
    */
   public async isAvailable(): Promise<boolean> {
     try {
-      await execFileAsync('task', ['--version'], { env: resolveTaskEnv() });
+      await execFileAsync(resolveTaskBinary(), ['--version'], { env: resolveTaskEnv() });
       return true;
     } catch {
       return false;
@@ -88,7 +116,7 @@ export class TaskwarriorProvider {
     }
 
     try {
-      const { stdout } = await execFileAsync('task', ['export'], { env: resolveTaskEnv() });
+      const { stdout } = await execFileAsync(resolveTaskBinary(), ['export'], { env: resolveTaskEnv() });
       const rawTasks = JSON.parse(stdout || '[]');
       if (!Array.isArray(rawTasks) || rawTasks.length === 0) {
         return [...this.fallbackCards];
@@ -145,7 +173,7 @@ export class TaskwarriorProvider {
 
   public async startCard(id: string): Promise<void> {
     try {
-      await execFileAsync('task', [id, 'start'], { env: resolveTaskEnv() });
+      await execFileAsync(resolveTaskBinary(), [id, 'start'], { env: resolveTaskEnv() });
     } catch {
       const fb = this.fallbackCards.find(c => c.id === id);
       if (fb) fb.status = 'in_progress';
@@ -154,7 +182,7 @@ export class TaskwarriorProvider {
 
   public async completeCard(id: string): Promise<void> {
     try {
-      await execFileAsync('task', [id, 'done'], { env: resolveTaskEnv() });
+      await execFileAsync(resolveTaskBinary(), [id, 'done'], { env: resolveTaskEnv() });
     } catch {
       const fb = this.fallbackCards.find(c => c.id === id);
       if (fb) fb.status = 'done';
@@ -170,7 +198,7 @@ export class TaskwarriorProvider {
     try {
       const args = ['add', title, `project:${project}`, `priority:${priority}`, `+${pts}pts`];
       for (const t of tags) args.push(`+${t}`);
-      await execFileAsync('task', args, { env: resolveTaskEnv() });
+      await execFileAsync(resolveTaskBinary(), args, { env: resolveTaskEnv() });
 
       const cards = await this.getCards();
       const created = cards.find(c => c.title.includes(title));
