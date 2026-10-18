@@ -1442,10 +1442,12 @@ sessionGroup
 program
   .command('install-hooks [targetDir]')
   .description(
-    'Install the PostToolUse/SubagentStop/Stop sync hooks into a host project\'s .claude/ ' +
-    'directory, so its office dashboard and story-continuation behavior are structurally ' +
-    'guaranteed rather than dependent on Claude remembering to call office_set_work or re-read ' +
-    'CLAUDE.md every turn. Safe to re-run (idempotent, merges rather than clobbers existing hooks).'
+    'Install the PostToolUse/SubagentStop/UserPromptSubmit/Stop sync hooks into a host ' +
+    'project\'s .claude/ directory, so its office dashboard and story-continuation behavior ' +
+    'are structurally guaranteed rather than dependent on Claude remembering to call ' +
+    'office_set_work or re-read CLAUDE.md every turn. The UserPromptSubmit hook auto-dismisses ' +
+    'any desk stuck "working" for 10+ minutes (a TTL safety net for completion events whose ' +
+    'name mapping missed). Safe to re-run (idempotent, merges rather than clobbers existing hooks).'
   )
   .option('--skip-stop-hook', 'Only install the dashboard-sync hooks (PostToolUse/SubagentStop), skip the Stop story-continue-guard')
   .action((targetDirArg: string | undefined, options: { skipStopHook?: boolean }) => {
@@ -1462,7 +1464,7 @@ program
 
     fs.mkdirSync(hooksDestDir, { recursive: true });
 
-    const filesToCopy = ['sync-agent-team.js', 'subagent-stop-sync.js'];
+    const filesToCopy = ['sync-agent-team.js', 'subagent-stop-sync.js', 'office-stale-cleanup.js'];
     if (!options.skipStopHook) filesToCopy.push('story-continue-guard.cjs');
 
     for (const file of filesToCopy) {
@@ -1515,6 +1517,11 @@ function buildHookEntries(skipStopHook?: boolean) {
     SubagentStop: [
       {
         hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/subagent-stop-sync.js'], timeout: 5 }],
+      },
+    ],
+    UserPromptSubmit: [
+      {
+        hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/office-stale-cleanup.js'], timeout: 5 }],
       },
     ],
   };
