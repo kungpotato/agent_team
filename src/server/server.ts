@@ -5,7 +5,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { stateManager } from './state.js';
-import { potatoAgentRegistry } from './potato-agents.js';
+import { potatoAgentRegistry, getAllPotatoRoles } from './potato-agents.js';
 import { cardManager } from './cards.js';
 import { WSMessage, DEPARTMENTS, DepartmentId, Agent } from './types.js';
 
@@ -194,6 +194,16 @@ export function createServer() {
 
   app.get('/api/potato-agents', (req, res) => {
     res.json(Array.from(potatoAgentRegistry.values()));
+  });
+
+  app.post('/api/potato-agents/spawn-squad', (req, res) => {
+    const roles = getAllPotatoRoles();
+    const spawned: Agent[] = [];
+    for (const role of roles) {
+      const agent = stateManager.spawn(role);
+      spawned.push(agent);
+    }
+    res.json({ success: true, count: spawned.length, agents: spawned });
   });
 
   app.get('/api/departments', (req, res) => {

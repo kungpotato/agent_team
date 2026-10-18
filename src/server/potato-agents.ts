@@ -161,3 +161,7 @@ export function loadPotatoAgents(dirPath: string = DEFAULT_POTATO_DIR): Map<stri
 }
 
 export const potatoAgentRegistry = loadPotatoAgents();
+
+export function getAllPotatoRoles(): string[] {
+  return Array.from(potatoAgentRegistry.keys());
+}
