@@ -600,16 +600,24 @@ program
     }
   });
 
-// RESET COMMAND
+// RESET / CLOCK-OUT COMMAND (Everyone go home / End of day)
 program
   .command('reset')
-  .description('Clear all agents')
+  .alias('clock-out')
+  .alias('clockout')
+  .alias('go-home')
+  .alias('gohome')
+  .alias('off-work')
+  .alias('end-day')
+  .alias('clear')
+  .description('Clock out / End shift: all agents pack up, leave the office, and go home')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (options) => {
     try {
       const port = parseInt(options.port, 10);
-      await apiCall('/api/reset', 'POST', undefined, port);
-      console.log(`🧹 All agents cleared.`);
+      const res = await apiCall('/api/reset', 'POST', undefined, port);
+      console.log(`\n🏠 Shift ended! All agents clocked out and went home.`);
+      console.log(`🧹 The office is clear, lights are dimmed, and ready for tomorrow!\n`);
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
     }

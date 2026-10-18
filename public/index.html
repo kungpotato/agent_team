@@ -111,6 +111,7 @@
         <code>agent-team meet dev1 dev2 -r 1</code>
         <code>agent-team meet dev3 dev4 -r 2</code>
         <code>agent-team end-meeting 1</code>
+        <code>agent-team clock-out</code>
       </div>
       <div class="quick-actions">
         <button class="action-btn" onclick="quickAction('spawn', 'dev')">+ Dev</button>
@@ -126,6 +127,7 @@
         </select>
         <button class="action-btn meeting-btn" onclick="quickMeetSelected()">📋 Meet</button>
         <button class="action-btn leave-btn" onclick="quickEndSelected()">🚪 End Meet</button>
+        <button class="action-btn reset-btn" onclick="quickAction('reset')">🏠 Clock Out</button>
       </div>
     </footer>
   </div>

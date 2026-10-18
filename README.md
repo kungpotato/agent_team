@@ -309,12 +309,12 @@ agent-team talk pm1 "Let's review the sprint goals!"
 
 ---
 
-### 6. 🚪 Dismiss & Reset
+### 6. 🚪 Dismiss, Reset & Clock Out (End of Day)
 
 #### `agent-team dismiss [names...] [--idle] [--sleeping]`
 > **Aliases:** `remove`, `leave`, `despawn`
 
-Dismiss agents with an 8-bit smoke puff animation:
+Dismiss specific or filtered agents with an 8-bit smoke puff animation:
 ```bash
 # Dismiss specific agents
 agent-team dismiss dev1 dev2
@@ -326,9 +326,16 @@ agent-team dismiss --idle
 agent-team dismiss --sleeping
 ```
 
-#### `agent-team reset`
-Clear all agents, meetings, and queues:
+#### `agent-team clock-out`
+> **Aliases:** `reset`, `clockout`, `go-home`, `gohome`, `end-day`, `off-work`, `clear`
+
+End shift: all agents pack up, clock out, and leave the office to go home. Clears all desks, conference rooms, and waiting queues:
 ```bash
+# Everyone clocks out and goes home
+agent-team clock-out
+
+# Alternatively using aliases:
+agent-team go-home
 agent-team reset
 ```
 

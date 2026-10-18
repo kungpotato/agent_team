@@ -187,8 +187,8 @@ export function createServer() {
   });
 
   app.post('/api/reset', (req, res) => {
-    stateManager.reset();
-    res.json({ success: true });
+    const result = stateManager.reset();
+    res.json({ success: true, count: result.count });
   });
 
   app.get('/api/potato-agents', (req, res) => {

@@ -385,17 +385,17 @@ export function createOfficeMcpServer(): McpServer {
     }
   );
 
-  // 12. RESET
+  // 12. RESET / CLOCK-OUT
   server.tool(
     'office_reset',
-    'Reset the entire office, clearing all agents and meetings.',
+    'Clock out / end shift for all agents: resets the entire office, sending everyone home, clearing desks, queues, and conference rooms.',
     {},
     async () => {
       await apiCall('/api/reset', 'POST');
       return {
         content: [{
           type: 'text',
-          text: `🧹 Office reset successfully. All desks and meeting rooms are clear.`
+          text: `🏠 Shift ended! All agents clocked out and went home. The office is clear and ready for tomorrow.`
         }]
       };
     }

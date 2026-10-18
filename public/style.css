@@ -264,6 +264,11 @@ body {
   color: #e74c3c;
 }
 
+.reset-btn:hover {
+  border-color: #ec4899;
+  color: #f43f5e;
+}
+
 /* MODAL STYLES FOR ASSETS GALLERY */
 .modal-overlay {
   position: fixed;

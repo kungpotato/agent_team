@@ -684,11 +684,13 @@ export class StateManager {
   }
 
   /**
-   * Reset / clear all agents
+   * Reset / clear all agents and queues (Clock Out / Go Home)
    */
-  public reset(): void {
+  public reset(): { count: number } {
+    const count = this.agents.size;
     this.agents.clear();
     this.meetingTopics.clear();
+    this.meetingQueue = [];
     this.visits.clear();
     const dummyAgent: Agent = {
       id: '_all',
@@ -701,6 +703,7 @@ export class StateManager {
       updatedAt: Date.now()
     };
     this.notify({ type: 'disappear', agent: dummyAgent });
+    return { count };
   }
 
   public getAgent(name: string): Agent | undefined {

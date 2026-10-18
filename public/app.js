@@ -1008,6 +1008,11 @@ async function quickAction(type, arg) {
           body: JSON.stringify({ name: a.name })
         });
       }
+    } else if (type === 'reset') {
+      await fetch('/api/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
   } catch (err) {
     console.error('Quick action failed:', err);
