@@ -336,7 +336,7 @@ STRICT RULES:
         ``,
         `💻 Active Roster:`,
         ...res.agents.map((a: any) =>
-          `  - ${a.name.padEnd(16)} | Status: ${a.status.padEnd(9)} | Progress: ${String(a.progress ?? 0).padStart(3)}% | Task: "${a.task || 'None'}"`
+          `  - ${a.name.padEnd(16)} | Status: ${a.status.padEnd(9)} | Progress: ${String(a.progress ?? 0).padStart(3)}% | Task: "${a.message || 'None'}"`
         )
       ];
 
