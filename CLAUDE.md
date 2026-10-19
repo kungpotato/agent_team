@@ -77,6 +77,27 @@ Every task, feature, or user story lifecycle MUST advance through these 8 phases
   3. **The Point:** Core technical fact, blocker, test outcome, or specific proposal.
   4. **Next Steps:** Actionable ask mentioning specific agents using `@agent-name`.
 - **Thread History & Claude Code Channels**: AI agents must query thread history (`office_get_thread`) before entering a meeting or making decisions, ensuring full conversational context and autonomous multi-agent handoffs.
+- **For this to be real, not decorative**: a dispatched subagent can only read-before-write into
+  threads if its own `tools:` frontmatter (in the host project's `.claude/agents/*.md`) actually
+  lists the thread MCP tools (`office_post_thread`, `office_reply_thread`, `office_get_thread`,
+  `office_get_threads`, `office_ask_agent`) — they are not granted by default. Add them plus an
+  explicit "read before you post" instruction to each agent definition that should participate.
+  Verified: without this, threads only ever contain whatever the *orchestrating* Claude session
+  posts on an agent's behalf, which is not the same as the agent team actually talking to itself.
+
+### Rule 9: Escalation Blocks Must Reach a Thread Automatically, Not Just Depend on Memory
+- Install the 5th sync hook, `needs-input-watcher.js` (`SubagentStop`, see
+  [`docs/agent-team-sync-hooks.md`](docs/agent-team-sync-hooks.md)), alongside the two from Rule 7
+  — it auto-posts every `NEEDS_PM`/`NEEDS_ARCH`/`NEEDS_PLANNER`/`NEEDS_DESIGN`/`NEEDS_INPUT` block
+  a subagent returns to a dashboard thread the moment that subagent stops, so an open question is
+  never silently lost waiting for the orchestrator to notice.
+- That hook only logs the question — it cannot call the `Agent` tool to dispatch whoever should
+  answer it. Claude (the orchestrating session) still MUST, on seeing any such block, immediately
+  dispatch the matching role (`product-manager` for `NEEDS_PM`, `system-architect` for
+  `NEEDS_ARCH`, `project-planner` for `NEEDS_PLANNER`, `ui-ux-designer` for `NEEDS_DESIGN`) with
+  instructions to read that same thread first, decide, and reply in it. `NEEDS_INPUT` is
+  human-only — escalate to the user, never guess an answer on their behalf or route it to another
+  agent.
 
 
 ---

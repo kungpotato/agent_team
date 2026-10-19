@@ -772,5 +772,70 @@ agent_team/
 
 ---
 
+## 🩹 Troubleshooting / Known Gotchas (found in real production use)
+
+These were all found and fixed while running this server against a real host project over a
+long multi-day session — reproducible on any machine that happens to share the same conditions,
+so check them first before assuming a new bug when reconfiguring this server for another project.
+
+### "Sprint picked a totally fake/unrelated story card"
+`office_sprint_start`/`office_sprint_ceremony` silently fell back to 3 hardcoded demo cards
+(`AUTH-101`, `PAYMENT-201`, `NOTIF-301`, see `TaskwarriorProvider.fallbackCards` in
+`src/server/cards.ts`) whenever the real Taskwarrior lookup failed for ANY reason — with zero
+error surfaced anywhere. Two independent root causes have been found and fixed so far; if a third
+host project hits this again, the bug is almost certainly another silent `catch {}` in
+`cards.ts` swallowing a real failure:
+1. **Wrong `task` binary.** `cards.ts` used to call the bare `task` command via `execFile`. On a
+   machine where something else on `PATH` is also named `task` (e.g. [go-task](https://taskfile.dev),
+   a build tool completely unrelated to Taskwarrior — confirmed happening on a real dev machine),
+   `task export`/`task --version` either errors or returns unrelated output, both silently caught
+   and replaced with the fallback cards. Fixed: `resolveTaskBinary()` now checks common absolute
+   install paths (`/opt/homebrew/bin/task`, `/usr/local/bin/task`, `/usr/bin/task`) before ever
+   falling back to bare `task` on `PATH`, cached once per process. **If you add this server to a
+   new machine and sprints keep landing on fake cards, check `which task` there first** — it may
+   need a new absolute path added to that candidate list.
+2. **Exact-id lookups losing to a substring-title match.** `getCard(id)` used to combine an
+   exact-id check and a title-substring fallback inside one `.find()` predicate — array order,
+   not match quality, decided the winner. A `done` card whose title happened to contain the
+   lookup id (extremely easy to hit with small numeric ids like `"1"` against any title
+   containing a stray `"1"` — a page number, a version, anything) could shadow the real pending
+   card with that exact id if it came first in `task export`'s own ordering. Fixed: exact-id is
+   now checked across the WHOLE list first, in its own pass, before any title-substring fallback
+   is even attempted.
+3. **The standalone server process itself is long-running and env-sensitive.** The dashboard
+   (`dist/server/standalone.js`, port 3333 by default) is a daemon the MCP layer auto-spawns on
+   first use (`ensureServer()` in `src/mcp/index.ts`) — when it does, it correctly inherits
+   `CLAUDE_PROJECT_DIR` from the spawning process, which `resolveTaskEnv()` needs to find the
+   right project's `.taskrc`/`.task` folder. **If you ever restart this server manually** (e.g.
+   `kill $(lsof -ti:3333); node dist/server/standalone.js 3333`) **you must export
+   `CLAUDE_PROJECT_DIR` first**, or it falls back to `process.cwd()` and silently reads the wrong
+   (or no) project's Taskwarrior data. Prefer letting `ensureServer()` auto-respawn it (just kill
+   the old process and let the next MCP tool call start a fresh one) over starting it by hand.
+
+### "Dashboard roster always shows `Task: "None"`, even for agents with real work assigned"
+`office_get_status`'s formatter (`src/mcp/index.ts`) read `a.task`, a field that has never
+existed on the `Agent` model (`src/server/types.ts`) — real task/status text is written to
+`message` by `setWorking()`/`setProgress()`. Fixed by reading `a.message`. Verified via a direct
+REST call to `/api/agents` that the underlying data was always correct — this was purely a
+formatter bug, not a data-loss bug, so no state was ever actually wrong, just displayed wrong.
+
+### "Office threads only ever contain what the orchestrating session posted, never real agent replies"
+Not a bug — by default, subagent definitions in a host project's `.claude/agents/*.md` don't list
+any `mcp__agent-team__office_*` tools, so a dispatched coder/reviewer/qa-tester subagent has no
+way to call `office_post_thread`/`office_reply_thread` even if you want it to. Add those tool
+names to the relevant agents' `tools:` frontmatter (see Rule 8 in [`CLAUDE.md`](CLAUDE.md)) and
+instruct them to read the thread before posting — otherwise the "Slack feed" is a one-way mirror
+of your own orchestrator, not a sign of agents actually talking to each other.
+
+### After changing this server's own source
+Both the MCP stdio process (restarted by the Claude Code session each turn/reconnect) **and** the
+separate standalone HTTP daemon on port 3333 (a long-running background process, NOT restarted by
+an MCP reconnect) need to pick up a new build. Run `npm run build`, then kill whatever's listening
+on port 3333 (`lsof -ti:3333 | xargs kill`) and let `ensureServer()` auto-respawn it on the next
+tool call — reconnecting the MCP client alone is not enough, since it's a different process from
+the dashboard daemon the actual business logic (card lookups, ceremony state, etc.) runs in.
+
+---
+
 ## 📄 License
 MIT License

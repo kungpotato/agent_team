@@ -319,6 +319,41 @@ Add `real-desks-state.js` and `ceremony-cleanup.js` to the files copied into
 (`agent-team install-hooks` already does all of this automatically as of this fix — re-run it
 on an existing host project to pick up the new hook pair.)
 
+## 5th hook: `needs-input-watcher.js` — log every escalation block to a thread automatically
+
+Every agent definition in a host project's `.claude/agents/*.md` ends with a standing protocol:
+when a subagent hits a question it can't answer alone, it returns a `NEEDS_PM`/`NEEDS_ARCH`/
+`NEEDS_PLANNER`/`NEEDS_DESIGN`/`NEEDS_INPUT` block instead of guessing. Relying on the
+orchestrating session to notice that block and relay it has the same "depends on memory" failure
+mode as the dashboard-sync problem the first two hooks fixed — found live when a real escalation
+sat unaddressed for a while before the session caught it.
+
+`needs-input-watcher.js` (`SubagentStop`, alongside `subagent-stop-sync.js`) scans the just-
+finished subagent's `last_assistant_message` for any of those 5 block headers and, if found,
+posts the block verbatim to the office dashboard's Slack-like thread system (`POST /api/threads`)
+immediately — before the orchestrating session even sees the result. This only guarantees the
+question is **logged**; hooks cannot call the `Agent` tool, so they cannot dispatch the role that
+should answer it. The orchestrating session still owns that half: on seeing a `NEEDS_*` block
+(whether from the hook's thread or the subagent's own return value), it must dispatch the
+corresponding role — product-manager for `NEEDS_PM`, system-architect for `NEEDS_ARCH`,
+project-planner for `NEEDS_PLANNER`, ui-ux-designer for `NEEDS_DESIGN` — with instructions to read
+that same thread first and reply in it. `NEEDS_INPUT` is human-only and goes to the user, never
+to another agent. Document this pairing explicitly in the host project's own CLAUDE.md (see
+T-CAMPFolio's "Escalation block → thread → dispatch, every time" rule) — it is a process
+convention this package cannot enforce by itself.
+
+For an agent's own dispatched threads to be genuinely useful rather than decorative, the agent's
+`tools:` frontmatter must include `mcp__agent-team__office_post_thread`,
+`mcp__agent-team__office_reply_thread`, `mcp__agent-team__office_get_thread`,
+`mcp__agent-team__office_get_threads`, and ideally `mcp__agent-team__office_ask_agent` — and its
+prompt must instruct it to **read before writing** (call `office_get_thread(s)` before posting, so
+its reply actually accounts for what's already there instead of talking past it). Verified live in
+T-CAMPFolio: a code-reviewer subagent's reply explicitly said *"escalates review's accepted 'low
+risk' MINOR finding to a confirmed crash"* — proof it had read the prior message, not just posted
+blind, since it could not otherwise have known a "low risk" finding existed to escalate.
+
+`agent-team install-hooks` copies this hook and registers it automatically as of this fix.
+
 ## Known limitations
 
 - A *resumed* agent (via `SendMessage`, e.g. to fix a stale-worktree issue mid-task) does not

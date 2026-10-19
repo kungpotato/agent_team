@@ -1498,7 +1498,7 @@ program
 
     fs.mkdirSync(hooksDestDir, { recursive: true });
 
-    const filesToCopy = ['sync-agent-team.js', 'subagent-stop-sync.js', 'office-stale-cleanup.js', 'real-desks-state.js', 'ceremony-cleanup.js'];
+    const filesToCopy = ['sync-agent-team.js', 'subagent-stop-sync.js', 'office-stale-cleanup.js', 'real-desks-state.js', 'ceremony-cleanup.js', 'needs-input-watcher.js'];
     if (!options.skipStopHook) filesToCopy.push('story-continue-guard.cjs');
 
     for (const file of filesToCopy) {
@@ -1554,7 +1554,10 @@ function buildHookEntries(skipStopHook?: boolean) {
     ],
     SubagentStop: [
       {
-        hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/subagent-stop-sync.js'], timeout: 5 }],
+        hooks: [
+          { type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/subagent-stop-sync.js'], timeout: 5 },
+          { type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/.claude/hooks/needs-input-watcher.js'], timeout: 5 },
+        ],
       },
     ],
     UserPromptSubmit: [
