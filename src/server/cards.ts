@@ -166,9 +166,21 @@ export class TaskwarriorProvider {
     }
   }
 
+  /**
+   * Exact id match always wins over the title-substring fallback, checked as a separate pass
+   * over the WHOLE list first — not combined into one `||` inside a single `.find()`. A single
+   * combined predicate lets array order decide the winner: a `done` card whose title happens to
+   * contain the lookup id (e.g. id "1" against any title containing "...หมวด 1") can shadow the
+   * real pending card with that exact id if it appears earlier in the array. Found live: looking
+   * up Taskwarrior id "1" (the real next pending card) returned an unrelated completed card
+   * instead, because its title contained "1" and it came first in `task export`'s own ordering.
+   */
   public async getCard(id: string): Promise<StoryCard | undefined> {
     const cards = await this.getCards();
-    return cards.find(c => c.id === id || c.id.toLowerCase() === id.toLowerCase() || c.title.toLowerCase().includes(id.toLowerCase()));
+    const lowerId = id.toLowerCase();
+    const exact = cards.find(c => c.id.toLowerCase() === lowerId);
+    if (exact) return exact;
+    return cards.find(c => c.title.toLowerCase().includes(lowerId));
   }
 
   public async startCard(id: string): Promise<void> {
@@ -303,9 +315,14 @@ export class JiraProvider {
     return [...this.mockJiraCards];
   }
 
+  /** Same exact-id-before-title-substring ordering fix as TaskwarriorProvider.getCard — see its
+   *  comment for why a single combined `.find()` predicate is unsafe. */
   public async getCard(id: string): Promise<StoryCard | undefined> {
     const cards = await this.getCards();
-    return cards.find(c => c.id.toLowerCase() === id.toLowerCase() || c.title.toLowerCase().includes(id.toLowerCase()));
+    const lowerId = id.toLowerCase();
+    const exact = cards.find(c => c.id.toLowerCase() === lowerId);
+    if (exact) return exact;
+    return cards.find(c => c.title.toLowerCase().includes(lowerId));
   }
 
   public async startCard(id: string): Promise<void> {
