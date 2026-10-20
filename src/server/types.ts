@@ -69,7 +69,7 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentInfo> = {
     benchIndex: 2,
     color: '#38bdf8',
     description: 'System Architects, Coders, Code Reviewers, and QA Testers',
-    roles: ['system-architect', 'coder', 'code-reviewer', 'qa-tester', 'engineering-manager', 'em', 'dev', 'frontend', 'backend', 'qa', 'tech']
+    roles: ['system-architect', 'coder', 'code-reviewer', 'qa-tester', 'developer-experience', 'devex', 'dx', 'engineering-manager', 'em', 'dev', 'frontend', 'backend', 'qa', 'tech']
   },
   devops: {
     id: 'devops',
@@ -91,7 +91,7 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentInfo> = {
 
 export function resolveDepartmentByRole(role: string): DepartmentInfo {
   const r = role.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-  if (r.includes('engineering') || r.includes('engmanager') || r === 'em') {
+  if (r.includes('devex') || r === 'dx' || r.includes('developerexperience') || r.includes('engineering') || r.includes('engmanager') || r === 'em') {
     return DEPARTMENTS.tech;
   }
   if (r.includes('product') || r.includes('plan') || r === 'pm' || r === 'po' || r.includes('scrum') || r === 'ba') {
@@ -169,10 +169,21 @@ export interface DoraMetricItem {
   description: string;
 }
 
+export interface DevExDirective {
+  id: string;
+  directive: string;
+  category: 'batch_size' | 'wip_limits' | 'testing' | 'automation' | 'telemetry' | 'architecture';
+  stage: SprintPhase;
+  mandate: string; // What everyone must do
+  status: 'mandated' | 'compliant' | 'improved' | 'flagged';
+  measuredImpact?: string; // Measured outcome on DORA metrics
+}
+
 export interface DoraMetricsSummary {
   sprintNumber: number;
   story: string;
   calculatedAt: number;
+  evaluatedBy: string; // e.g. "Developer Experience (DevEx)"
   overallTier: DoraPerformanceTier;
   deploymentFrequency: DoraMetricItem;
   leadTimeForChanges: DoraMetricItem;
@@ -190,6 +201,14 @@ export interface DoraMetricsSummary {
     status: 'Adopted' | 'In Progress' | 'Recommended';
     impact: string;
   }[];
+  devexDirectives: DevExDirective[];
+  historicalComparison?: {
+    previousSprint: number;
+    leadTimeDelta: string;
+    throughputTrend: string;
+    stabilityTrend: string;
+    directivesComplianceRate: string;
+  };
 }
 
 export interface SprintRecord {
@@ -203,6 +222,7 @@ export interface SprintRecord {
   sourceCard?: StoryCard;
   reportPath?: string;
   doraMetrics?: DoraMetricsSummary;
+  devexDirectives?: DevExDirective[];
 }
 
 export interface SprintState {
@@ -216,6 +236,7 @@ export interface SprintState {
   activeCeremony?: SprintCeremonyInfo;
   sourceCard?: StoryCard;
   doraMetrics?: DoraMetricsSummary;
+  devexDirectives?: DevExDirective[];
   history: {
     phase: SprintPhase;
     timestamp: number;

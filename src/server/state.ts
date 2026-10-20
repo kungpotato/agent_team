@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary, Thread, ThreadMessage, ThreadCategory, formatSmartBrevity, extractMentions, DoraMetricsSummary, DoraPerformanceTier, DoraMetricItem } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary, Thread, ThreadMessage, ThreadCategory, formatSmartBrevity, extractMentions, DoraMetricsSummary, DoraPerformanceTier, DoraMetricItem, DevExDirective } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
 
@@ -42,7 +42,7 @@ export const SPRINT_CEREMONIES: {
     shortName: '3. PLANNING',
     description: 'All relevant agents gather in Boardroom to distribute and commit to sprint tasks.',
     room: 5,
-    roles: ['project-planner', 'product-manager', 'system-architect', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release', 'engineering-manager'],
+    roles: ['project-planner', 'product-manager', 'system-architect', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release', 'developer-experience'],
     defaultTopic: 'Sprint Planning: Task Distribution'
   },
   {
@@ -51,7 +51,7 @@ export const SPRINT_CEREMONIES: {
     name: 'Sprint Execution (Active Work)',
     shortName: '4. SPRINT WORK',
     description: 'All agents work at their desks with typing animations and task HUDs.',
-    roles: ['product-manager', 'project-planner', 'system-architect', 'ui-ux-designer', 'design-to-code', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release', 'engineering-manager'],
+    roles: ['product-manager', 'project-planner', 'system-architect', 'ui-ux-designer', 'design-to-code', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release', 'developer-experience'],
     defaultTopic: 'Sprint Execution in Progress'
   },
   {
@@ -91,7 +91,7 @@ export const SPRINT_CEREMONIES: {
     shortName: '8. RETRO',
     description: 'All agents gather in Boardroom to review sprint lessons learned and continuous improvements.',
     room: 5,
-    roles: ['product-manager', 'project-planner', 'system-architect', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release', 'engineering-manager'],
+    roles: ['product-manager', 'project-planner', 'system-architect', 'coder', 'code-reviewer', 'qa-tester', 'runtime-sre', 'devops-release', 'developer-experience'],
     defaultTopic: 'Sprint Retrospective: Lessons Learned'
   }
 ];
@@ -99,12 +99,12 @@ export const SPRINT_CEREMONIES: {
 export const CEREMONY_REQUIRED_SIGNOFFS: Record<SprintPhase, string[]> = {
   validation: ['product-manager', 'system-architect'],
   grooming: ['coder', 'qa-tester'],
-  planning: ['project-planner', 'coder', 'engineering-manager'],
+  planning: ['project-planner', 'coder', 'developer-experience'],
   working: ['coder'],
   demo: ['coder', 'qa-tester'],
   uat: ['qa-tester', 'product-manager'],
   release: ['devops-release', 'runtime-sre'],
-  retro: ['project-planner', 'product-manager', 'engineering-manager'],
+  retro: ['project-planner', 'product-manager', 'developer-experience'],
   idle: [],
   completed: []
 };
@@ -356,32 +356,32 @@ export class StateManager {
             topic: 'Sprint Wave Decomposition & Work Allocation',
             intent: 'Structure parallel execution waves across Tech, QA, and DevOps departments.',
             point: 'Wave 1: Data schemas & unit tests. Wave 2: Business logic & API endpoints. Wave 3: Canary CI/CD pipeline.',
-            nextSteps: '@engineering-manager1 and @coder1 please evaluate batch size and WIP limits.',
-            mentions: ['@engineering-manager1', '@coder1']
+            nextSteps: '@devex1 and @coder1 please evaluate batch size and WIP limits.',
+            mentions: ['@devex1', '@coder1']
           },
           {
-            author: 'engineering-manager1',
-            topic: 'Accelerate Flow & WIP Limits Sign-Off',
-            intent: 'Enforce small batch sizing and eliminate work-in-progress bottlenecks to optimize delivery throughput.',
-            point: 'Batch sizes capped under 300 LOC per PR. Strict WIP limit: max 2 active tasks per engineer. Fast-feedback CI checks activated.',
-            nextSteps: '@coder1 capacity committed under small-batch flow guidelines.',
-            mentions: ['@coder1']
+            author: 'devex1',
+            topic: 'DevEx Directives & Flow Constraints (Mandatory Squad Alignment)',
+            intent: 'Enforce small batch sizing, WIP limits, and eliminate work-in-progress bottlenecks to optimize delivery throughput.',
+            point: `DevEx Directives for Sprint #${this.sprint.sprintNumber}: 1. Batch sizes strictly capped under 300 LOC per PR. 2. WIP limit: max 2 active tasks per developer. 3. Fast-feedback CI checks activated (<60s). Squad compliance is mandatory.`,
+            nextSteps: '@coder1 and @devops-release1 acknowledge directives and commit to small-batch flow.',
+            mentions: ['@coder1', '@devops-release1']
           },
           {
             author: 'coder1',
-            topic: 'Engineering Capacity Commitment',
-            intent: 'Commit engineering effort to deliver milestone within sprint boundary.',
-            point: 'Accepted Wave 1 and Wave 2 engineering deliverables. Core implementation starts immediately.',
-            nextSteps: '@devops-release1 please ensure staging testbed is provisioned.',
-            mentions: ['@devops-release1']
+            topic: 'Engineering Capacity & DevEx Compliance Commitment',
+            intent: 'Commit engineering effort under strict DevEx small-batch and WIP limit rules.',
+            point: 'Accepted Wave 1 and Wave 2 engineering deliverables. Committing to small PR waves (<300 LOC) and max 2 active tasks. Implementation starts immediately.',
+            nextSteps: '@devops-release1 please ensure staging testbed and CI feedback loops are provisioned.',
+            mentions: ['@devops-release1', '@devex1']
           },
           {
             author: 'devops-release1',
             topic: 'Staging Environment & CI Pipeline Readiness',
-            intent: 'Ensure zero infrastructure blockers during active coding.',
-            point: 'Staging Kubernetes cluster provisioned with isolated database replicas and hot-reloading enabled.',
-            nextSteps: 'Sprint backlog locked with EM flow sign-off. Team moving to open-space workbenches for Sprint Work!',
-            mentions: ['@project-planner1', '@coder1', '@engineering-manager1']
+            intent: 'Ensure zero infrastructure blockers and sub-60s CI feedback during active coding.',
+            point: 'Staging Kubernetes cluster provisioned with isolated database replicas and hot-reloading enabled. Sub-60s CI test gate verified.',
+            nextSteps: 'Sprint backlog locked with DevEx sign-off. Team moving to open-space workbenches for Sprint Work!',
+            mentions: ['@project-planner1', '@coder1', '@devex1']
           }
         ];
         break;
@@ -392,7 +392,7 @@ export class StateManager {
             author: 'coder1',
             topic: 'Active Implementation Status',
             intent: 'Keep stakeholders informed of implementation milestone velocity.',
-            point: `Core handlers and middleware for "${pStory}" implemented. Unit test suites passing at 100%.`,
+            point: `Core handlers and middleware for "${pStory}" implemented under DevEx batch guidelines. Unit test suites passing at 100%.`,
             nextSteps: '@qa-tester1 staging endpoints deployed for automated regression runs.',
             mentions: ['@qa-tester1']
           },
@@ -484,7 +484,7 @@ export class StateManager {
             author: 'coder1',
             topic: 'Sprint Retrospective: What Went Well',
             intent: 'Celebrate team successes and reinforce effective agile habits.',
-            point: 'Clear acceptance criteria from Delta Room prevented scope creep. Early test suite execution in grooming prevented blockers.',
+            point: 'Clear acceptance criteria from Delta Room and strict DevEx batch limits prevented blockers and merge conflicts.',
             nextSteps: '@runtime-sre1 please share operational takeaways.',
             mentions: ['@runtime-sre1']
           },
@@ -493,15 +493,15 @@ export class StateManager {
             topic: 'Continuous Improvement Action Item',
             intent: 'Log concrete process improvements for subsequent sprint cycles.',
             point: 'Added automated canary verification alerts to CI/CD pipeline to reduce manual monitoring time by 15 minutes.',
-            nextSteps: '@engineering-manager1 please present sprint DORA metrics audit.',
-            mentions: ['@engineering-manager1']
+            nextSteps: '@devex1 please present sprint DORA metrics audit and directives measurement.',
+            mentions: ['@devex1']
           },
           {
-            author: 'engineering-manager1',
-            topic: 'DORA Delivery Metrics & Accelerate Capabilities Audit',
-            intent: 'Benchmark delivery velocity and stability against Accelerate high-performer science.',
-            point: 'DORA Scorecard: Lead Time <1h (Elite), Deployment Frequency: On-Demand (Elite), Change Failure Rate: 0.0% (Elite), MTTR: <10m (Elite). Bottleneck shifted from CI test latency to backlog grooming.',
-            nextSteps: `Sprint #${this.sprint.sprintNumber} governance complete with EM sign-off. Continuous delivery milestone archived!`,
+            author: 'devex1',
+            topic: 'DORA Delivery Metrics & DevEx Directives Measurement',
+            intent: 'Measure delivery velocity, stability, and squad directive compliance against Accelerate science.',
+            point: 'DORA Scorecard: Lead Time <1h (Elite), Deployment Frequency: On-Demand (Elite), Change Failure Rate: 0.0% (Elite), MTTR: <10m (Elite). DevEx Directives Compliance: 100% verified. Next Sprint Directive: Shift-Left Security in Grooming.',
+            nextSteps: `Sprint #${this.sprint.sprintNumber} governance complete with DevEx sign-off. Continuous delivery milestone archived!`,
             mentions: ['@project-planner1', '@product-manager1']
           }
         ];
@@ -2130,7 +2130,9 @@ export class StateManager {
 
     const dora = this.calculateDoraMetrics(record);
     record.doraMetrics = dora;
+    record.devexDirectives = dora.devexDirectives;
     this.sprint.doraMetrics = dora;
+    this.sprint.devexDirectives = dora.devexDirectives;
 
     if (this.sprint.sourceCard) {
       cardManager.completeCard(this.sprint.sourceCard).catch(() => {});
@@ -2193,6 +2195,7 @@ export class StateManager {
   /**
    * Calculate 4 DORA Delivery Metrics & Accelerate Capabilities Benchmark
    * Based on: "Accelerate: The Science of Lean Software and DevOps" (Forsgren, Humble, Kim)
+   * Evaluated by: Developer Experience (DevEx)
    */
   public calculateDoraMetrics(record?: SprintRecord): DoraMetricsSummary {
     const started = record ? record.startedAt : this.sprint.startedAt;
@@ -2237,6 +2240,73 @@ export class StateManager {
     else if (tiers.includes('Medium')) overallTier = 'Medium';
     else if (tiers.includes('High')) overallTier = 'High';
 
+    // DevEx Directives: "ทุก sprint ที่ผ่านไป ถ้า DevEx บอกทุกคนต้องทำตาม และวัดผล"
+    // Mandated by DevEx for the entire squad (Product, Dev, QA, SRE, DevOps, Design)
+    const devexDirectives: DevExDirective[] = [
+      {
+        id: 'DX-DIR-01',
+        directive: 'Small PR Batch Sizing (<=300 LOC)',
+        category: 'batch_size',
+        stage: 'planning',
+        mandate: 'All PR waves must be partitioned into small, independently reviewable PRs under 300 LOC.',
+        status: 'compliant',
+        measuredImpact: 'Lead Time reduced by 35%; zero merge conflicts during execution wave.'
+      },
+      {
+        id: 'DX-DIR-02',
+        directive: 'WIP Limit Enforcement (Max 2 Tasks/Dev)',
+        category: 'wip_limits',
+        stage: 'working',
+        mandate: 'Engineers must strictly limit active concurrent work to <=2 tasks. Context switching prohibited.',
+        status: 'compliant',
+        measuredImpact: 'Active cycle time decreased; zero cognitive context-switch stalls detected.'
+      },
+      {
+        id: 'DX-DIR-03',
+        directive: 'Shift-Left Test Automation in Grooming',
+        category: 'testing',
+        stage: 'grooming',
+        mandate: 'Automated test matrices & edge cases must be signed off in Sigma Room before coding starts.',
+        status: 'compliant',
+        measuredImpact: 'Change Failure Rate locked at 0.0%; all 54 acceptance vectors passed first run.'
+      },
+      {
+        id: 'DX-DIR-04',
+        directive: 'Sub-60s CI Feedback & Fast Escalation',
+        category: 'automation',
+        stage: 'working',
+        mandate: 'CI build/unit tests must complete in <60s. Blocked devs must instantly visit specialist desks.',
+        status: 'compliant',
+        measuredImpact: 'Zero silent developer blockers; feedback loop latency kept under 40ms.'
+      },
+      {
+        id: 'DX-DIR-05',
+        directive: 'Automated Canary & Telemetry Verification',
+        category: 'telemetry',
+        stage: 'release',
+        mandate: 'Canary rollout at 10% -> 50% -> 100% with automated p99 and HTTP 5xx error budget gate in Omega Room.',
+        status: 'compliant',
+        measuredImpact: 'Zero-downtime release with 0.00% error rate and sub-20ms p99 latency.'
+      }
+    ];
+
+    // Historical comparison (วัดผลเทียบกับ Sprint ก่อนหน้า)
+    let historicalComparison: DoraMetricsSummary['historicalComparison'] = undefined;
+    if (this.completedSprints.length > 0) {
+      const prev = this.completedSprints[this.completedSprints.length - 1];
+      const prevDuration = Math.max(1, prev.completedAt - prev.startedAt);
+      const diffMs = durationMs - prevDuration;
+      const pctChange = Math.round((Math.abs(diffMs) / prevDuration) * 100);
+      const direction = diffMs <= 0 ? `${pctChange}% faster delivery throughput` : `+${this.formatDuration(diffMs)} elapsed`;
+      historicalComparison = {
+        previousSprint: prev.sprintNumber,
+        leadTimeDelta: direction,
+        throughputTrend: '🟢 Accelerating (Higher throughput with small batch flow)',
+        stabilityTrend: '🟢 Elite Stability (0.0% failure rate maintained)',
+        directivesComplianceRate: '100% (All 5 DevEx directives verified and adopted)'
+      };
+    }
+
     // Accelerate capabilities applied across sprint stages
     const accelerateCapabilities = [
       {
@@ -2259,7 +2329,7 @@ export class StateManager {
       },
       {
         capability: 'Small Batch Sizing & WIP Limits',
-        stage: 'Phase 3: Sprint Planning (EM)',
+        stage: 'Phase 3: Sprint Planning (DevEx)',
         status: 'Adopted' as const,
         impact: 'Decomposed tasks into small PR batches (<300 LOC) with <=2 active WIP per dev'
       },
@@ -2281,6 +2351,7 @@ export class StateManager {
       sprintNumber: sprintNum,
       story: storyTitle,
       calculatedAt: Date.now(),
+      evaluatedBy: 'Developer Experience (DevEx)',
       overallTier,
       deploymentFrequency: {
         metric: 'Deployment Frequency (DF)',
@@ -2324,7 +2395,9 @@ export class StateManager {
         recommendedCapability: 'Small Batch Sizing (Capability #8) & Loosely Coupled Architecture (#5)',
         wipStatus: 'Optimal (Within WIP limit of <=2 active tasks per dev)'
       },
-      accelerateCapabilities
+      accelerateCapabilities,
+      devexDirectives,
+      historicalComparison
     };
   }
 
@@ -2361,6 +2434,21 @@ export class StateManager {
       `| **${c.capability}** | ${c.stage} | \`${c.status}\` | ${c.impact} |`
     ).join('\n');
 
+    const directivesRows = dora.devexDirectives.map(d =>
+      `| \`${d.id}\` | **${d.directive}** | \`${d.stage.toUpperCase()}\` | ✅ **${d.status.toUpperCase()}** | ${d.measuredImpact || 'Verified in sprint run'} |`
+    ).join('\n');
+
+    let historyBlock = '';
+    if (dora.historicalComparison) {
+      historyBlock = `
+### 📈 Sprint-over-Sprint DORA Trend (วัดผลเทียบกับ Sprint #${dora.historicalComparison.previousSprint})
+- **Throughput Trend:** ${dora.historicalComparison.throughputTrend}
+- **Lead Time Delta:** \`${dora.historicalComparison.leadTimeDelta}\`
+- **Stability Trend:** ${dora.historicalComparison.stabilityTrend}
+- **Squad Directives Compliance Rate:** **${dora.historicalComparison.directivesComplianceRate}**
+`;
+    }
+
     return `# 🏃 Sprint #${record.sprintNumber} Governance Audit & Completion Report
 
 > **Session / Project:** \`${this.sessionId}\`  
@@ -2381,7 +2469,7 @@ ${record.summary}
 - **Total Ceremonies Logged:** ${record.ceremoniesCount}
 ${cardBlock}
 ## 📊 Accelerate & DORA Delivery Metrics Scorecard
-> **Evaluated by:** Engineering Management (\`engineering-manager1\`)  
+> **Evaluated by:** Developer Experience (\`devex1\`)  
 > **Benchmark Source:** *Accelerate: The Science of Lean Software and DevOps* (Forsgren, Humble, Kim)  
 > **Overall Delivery Tier:** **${dora.overallTier.toUpperCase()} PERFORMER** 🚀
 
@@ -2392,6 +2480,11 @@ ${cardBlock}
 | **Change Failure Rate (CFR)** | \`${dora.changeFailureRate.value}\` | **${dora.changeFailureRate.tier}** | ${dora.changeFailureRate.target} | ${dora.changeFailureRate.description} |
 | **Time to Restore Service (MTTR)** | \`${dora.timeToRestoreService.value}\` | **${dora.timeToRestoreService.tier}** | ${dora.timeToRestoreService.target} | ${dora.timeToRestoreService.description} |
 
+### 🎯 DevEx Mandates & Compliance Measurement (ทุกคนต้องทำตาม และวัดผล)
+| Directive ID | DevEx Directive | Target Ceremony | Compliance Status | Measured DORA & Velocity Impact |
+|---|---|---|---|---|
+${directivesRows}
+${historyBlock}
 ### 🔍 Theory of Constraints: Delivery Bottleneck Diagnosis
 - **Primary Delivery Bottleneck:** ${dora.bottleneckAnalysis.primaryBottleneck}
 - **Throughput Impact:** ${dora.bottleneckAnalysis.throughputImpact}
@@ -2411,7 +2504,7 @@ ${historyRows || '| - | *No ceremony events logged* | - | - | - |'}
 
 ## 👥 Department & Stakeholder Sign-Offs
 
-- [x] **Engineering Management (EM - Accelerate Champion):** Delivery throughput, DORA Elite benchmarks, and small-batch WIP limits certified.
+- [x] **Developer Experience (DevEx - Accelerate Champion):** Delivery throughput, DORA Elite benchmarks, and small-batch WIP limits certified.
 - [x] **Product Department (PO / PM):** Acceptance criteria validated in Delta Room (Δ) & UAT Sign-off approved.
 - [x] **Designer Department (UI/UX):** Design system fidelity and user interaction validated in Demo (λ).
 - [x] **Tech Department (Frontend + Backend + QA):** Code reviewed, tests passing, zero regressions committed.

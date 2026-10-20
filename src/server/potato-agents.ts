@@ -145,17 +145,17 @@ export function loadPotatoAgents(dirPath: string = DEFAULT_AGENTS_DIR): Map<stri
       defaultColor = 'purple';
       defaultTask = 'Designing RAG architectures & prompt chains';
       targetBench = 4; // Bench 5 (AI & DATA)
-    } else if (name === 'engineering-manager' || name === 'em') {
-      roleTitle = 'EM';
+    } else if (name === 'developer-experience' || name === 'devex' || name === 'dx' || name === 'engineering-manager' || name === 'em') {
+      roleTitle = 'DEVEX';
       defaultColor = 'blue';
-      defaultTask = 'Analyzing DORA delivery bottlenecks & Accelerate capabilities';
+      defaultTask = 'Eliminating delivery bottlenecks & measuring DORA velocity';
       targetBench = 2; // Bench 3 (TECH: Frontend + Backend + QA)
     }
 
     const assignedColor = colorMatch ? colorMatch[1].trim().toLowerCase() : defaultColor;
     const colorIndex = POTATO_PALETTE_MAP[assignedColor] ?? 0;
 
-    agentMap.set(name, {
+    const agentInfo = {
       name,
       role: name,
       roleTitle,
@@ -165,7 +165,15 @@ export function loadPotatoAgents(dirPath: string = DEFAULT_AGENTS_DIR): Map<stri
       defaultTask,
       targetBench,
       tools
-    });
+    };
+    agentMap.set(name, agentInfo);
+
+    if (name === 'developer-experience') {
+      agentMap.set('devex', { ...agentInfo, name: 'devex', role: 'devex' });
+      agentMap.set('dx', { ...agentInfo, name: 'dx', role: 'dx' });
+      agentMap.set('engineering-manager', { ...agentInfo, name: 'engineering-manager', role: 'engineering-manager' });
+      agentMap.set('em', { ...agentInfo, name: 'em', role: 'em' });
+    }
   }
 
   return agentMap;

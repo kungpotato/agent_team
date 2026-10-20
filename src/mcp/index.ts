@@ -658,10 +658,10 @@ STRICT RULES:
     }
   );
 
-  // 17b. DORA METRICS & ACCELERATE AUDIT
+  // 17b. DORA METRICS & DEVEX DIRECTIVES AUDIT
   server.tool(
     'office_get_dora_metrics',
-    'Get 4 DORA delivery metrics (Deployment Frequency, Lead Time for Changes, Change Failure Rate, Time to Restore Service) and Accelerate capabilities bottleneck audit evaluated by the Engineering Manager.',
+    'Get 4 DORA delivery metrics (Deployment Frequency, Lead Time for Changes, Change Failure Rate, Time to Restore Service), DevEx directives compliance, and bottleneck audit evaluated by Developer Experience (DevEx).',
     {
       sprint: z.number().optional().describe('Sprint number to inspect (defaults to current or most recently completed sprint)')
     },
@@ -671,6 +671,7 @@ STRICT RULES:
       const d = res.dora;
       const lines = [
         `📊 ACCELERATE & DORA METRICS SCORECARD (Sprint #${d.sprintNumber})`,
+        `   Evaluated by: Developer Experience (DevEx)`,
         `🎯 Story: "${d.story}"`,
         `🚀 Overall Delivery Performance: [${d.overallTier.toUpperCase()} PERFORMER]\n`,
         `1. Deployment Frequency (DF):      ${d.deploymentFrequency.value} [${d.deploymentFrequency.tier}]`,
@@ -681,16 +682,26 @@ STRICT RULES:
         `   Target: ${d.changeFailureRate.target}`,
         `4. Time to Restore Service (MTTR): ${d.timeToRestoreService.value} [${d.timeToRestoreService.tier}]`,
         `   Target: ${d.timeToRestoreService.target}\n`,
-        `🔍 BOTTLENECK DIAGNOSIS (Theory of Constraints):`,
-        `   Bottleneck:  ${d.bottleneckAnalysis.primaryBottleneck}`,
-        `   Impact:      ${d.bottleneckAnalysis.throughputImpact}`,
-        `   Capability:  ${d.bottleneckAnalysis.recommendedCapability}`,
-        `   WIP Status:  ${d.bottleneckAnalysis.wipStatus}\n`,
-        `🛠️ ACCELERATE CAPABILITIES:`
+        `🎯 DEVEX MANDATES & COMPLIANCE MEASUREMENT (ทุกคนต้องทำตาม และวัดผล):`
       ];
-      d.accelerateCapabilities.forEach((c: any) => {
-        lines.push(`   - [${c.status}] ${c.capability} (${c.stage}) ➔ ${c.impact}`);
-      });
+      if (d.devexDirectives && d.devexDirectives.length > 0) {
+        d.devexDirectives.forEach((dir: any) => {
+          lines.push(`   • [${dir.status.toUpperCase()}] ${dir.directive} (${dir.stage.toUpperCase()})`);
+          lines.push(`     Mandate: ${dir.mandate}`);
+          if (dir.measuredImpact) lines.push(`     Measured Impact: ${dir.measuredImpact}`);
+        });
+      }
+      if (d.historicalComparison) {
+        lines.push(`\n📈 SPRINT-OVER-SPRINT COMPARISON (Sprint #${d.historicalComparison.previousSprint}):`);
+        lines.push(`   Throughput Trend: ${d.historicalComparison.throughputTrend}`);
+        lines.push(`   Lead Time Delta:  ${d.historicalComparison.leadTimeDelta}`);
+        lines.push(`   Compliance Rate:  ${d.historicalComparison.directivesComplianceRate}`);
+      }
+      lines.push(`\n🔍 BOTTLENECK DIAGNOSIS (Theory of Constraints):`);
+      lines.push(`   Bottleneck:  ${d.bottleneckAnalysis.primaryBottleneck}`);
+      lines.push(`   Impact:      ${d.bottleneckAnalysis.throughputImpact}`);
+      lines.push(`   Capability:  ${d.bottleneckAnalysis.recommendedCapability}`);
+      lines.push(`   WIP Status:  ${d.bottleneckAnalysis.wipStatus}`);
       return {
         content: [{ type: 'text', text: lines.join('\n') }]
       };

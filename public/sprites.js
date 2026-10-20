@@ -29,8 +29,8 @@ function getAgentLabel(name) {
   if (clean.startsWith('ui-ux-designer')) return clean.replace('ui-ux-designer', 'ui-ux');
   if (clean.startsWith('design-to-code')) return clean.replace('design-to-code', 'ui-dev');
   if (clean.startsWith('devops-release')) return clean.replace('devops-release', 'devops');
-  if (clean.startsWith('runtime-sre')) return clean.replace('runtime-sre', 'sre');
-  if (clean.startsWith('engineering-manager')) return clean.replace('engineering-manager', 'em');
+  if (clean.startsWith('developer-experience')) return clean.replace('developer-experience', 'devex');
+  if (clean.startsWith('engineering-manager')) return clean.replace('engineering-manager', 'devex');
   return name;
 }
 

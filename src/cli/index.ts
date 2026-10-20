@@ -720,14 +720,14 @@ program
         await apiCall('/api/agents/meet', 'POST', { names: ['runtime-sre1', 'coder1'], room: 4, topic: 'Runtime Incident RCA & Hotfix' }, port);
         console.log(`📋 Potato Workflow [triage]: runtime-sre1 & coder1 are in Omega Room (Ω)!`);
       } else if (wf === 'all-hands') {
-        const team = ['project-planner1', 'product-manager1', 'system-architect1', 'coder1', 'code-reviewer1', 'qa-tester1', 'devops-release1', 'runtime-sre1', 'engineering-manager1'];
+        const team = ['project-planner1', 'product-manager1', 'system-architect1', 'coder1', 'code-reviewer1', 'qa-tester1', 'devops-release1', 'runtime-sre1', 'devex1'];
         await apiCall('/api/agents/meet', 'POST', { names: team, room: 5, topic: 'Sprint DAG Wave Planning' }, port);
         console.log(`📋 Potato Workflow [all-hands]: Full squad (9 agents) in Infinity Boardroom (∞)!`);
-      } else if (wf === 'em' || wf === 'dora') {
-        await apiCall('/api/agents/meet', 'POST', { names: ['engineering-manager1', 'project-planner1'], room: 5, topic: 'DORA Delivery Metrics & Accelerate Bottleneck Audit' }, port);
-        console.log(`📋 Potato Workflow [em]: engineering-manager1 & project-planner1 in Infinity Boardroom (∞)!`);
+      } else if (wf === 'devex' || wf === 'dx' || wf === 'em' || wf === 'dora') {
+        await apiCall('/api/agents/meet', 'POST', { names: ['devex1', 'project-planner1'], room: 5, topic: 'DORA Delivery Metrics & DevEx Bottleneck Audit' }, port);
+        console.log(`📋 Potato Workflow [devex]: devex1 & project-planner1 in Infinity Boardroom (∞)!`);
       } else {
-        console.log(`Unknown workflow "${workflow}". Available: review | arch | qa | triage | all-hands | em`);
+        console.log(`Unknown workflow "${workflow}". Available: review | arch | qa | triage | all-hands | devex`);
       }
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
@@ -939,7 +939,9 @@ sprintCmd
 sprintCmd
   .command('dora [sprintNumber]')
   .alias('accelerate')
-  .description('Display 4 DORA delivery metrics, Accelerate capabilities, and bottleneck diagnosis')
+  .alias('devex')
+  .alias('dx')
+  .description('Display 4 DORA delivery metrics, DevEx directives compliance, and bottleneck diagnosis')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (sprintNumber, options) => {
     try {
@@ -950,7 +952,7 @@ sprintCmd
 
       console.log(`\n══════════════════════════════════════════════════════════════════════`);
       console.log(`📊 ACCELERATE & DORA DELIVERY METRICS SCORECARD (Sprint #${d.sprintNumber})`);
-      console.log(`   Audited by: Engineering Manager (EM - Accelerate Champion)`);
+      console.log(`   Audited by: Developer Experience (DevEx - Accelerate Champion)`);
       console.log(`   Story: "${d.story}"`);
       console.log(`   Overall Rating: 🚀 [${d.overallTier.toUpperCase()} PERFORMER]`);
       console.log(`══════════════════════════════════════════════════════════════════════`);
@@ -963,6 +965,20 @@ sprintCmd
       console.log(`     Target: ${d.changeFailureRate.target}`);
       console.log(`  4. Time to Restore Service (MTTR):  ${d.timeToRestoreService.value} [${d.timeToRestoreService.tier}]`);
       console.log(`     Target: ${d.timeToRestoreService.target}`);
+      console.log(`\n🎯 DEVEX MANDATES & COMPLIANCE MEASUREMENT (ทุกคนต้องทำตาม และวัดผล):`);
+      if (d.devexDirectives && d.devexDirectives.length > 0) {
+        d.devexDirectives.forEach((dir: any) => {
+          console.log(`  • [${dir.status.toUpperCase()}] ${dir.directive} (${dir.stage.toUpperCase()})`);
+          console.log(`    Mandate: ${dir.mandate}`);
+          if (dir.measuredImpact) console.log(`    Measured Impact: ${dir.measuredImpact}`);
+        });
+      }
+      if (d.historicalComparison) {
+        console.log(`\n📈 SPRINT-OVER-SPRINT COMPARISON (Sprint #${d.historicalComparison.previousSprint}):`);
+        console.log(`  • Throughput Trend: ${d.historicalComparison.throughputTrend}`);
+        console.log(`  • Lead Time Delta:  ${d.historicalComparison.leadTimeDelta}`);
+        console.log(`  • Compliance Rate:  ${d.historicalComparison.directivesComplianceRate}`);
+      }
       console.log(`\n🔍 BOTTLENECK DIAGNOSIS (Theory of Constraints):`);
       console.log(`  • Primary Bottleneck:    ${d.bottleneckAnalysis.primaryBottleneck}`);
       console.log(`  • Throughput Impact:     ${d.bottleneckAnalysis.throughputImpact}`);
@@ -1113,7 +1129,9 @@ program
 program
   .command('dora [sprintNumber]')
   .alias('accelerate')
-  .description('Shortcut: Display 4 DORA delivery metrics & Accelerate capabilities scorecard')
+  .alias('devex')
+  .alias('dx')
+  .description('Shortcut: Display 4 DORA delivery metrics & DevEx directives scorecard')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (sprintNumber, options) => {
     try {
@@ -1123,7 +1141,7 @@ program
       const d = res.dora;
       console.log(`\n══════════════════════════════════════════════════════════════════════`);
       console.log(`📊 ACCELERATE & DORA DELIVERY METRICS SCORECARD (Sprint #${d.sprintNumber})`);
-      console.log(`   Audited by: Engineering Manager (EM - Accelerate Champion)`);
+      console.log(`   Audited by: Developer Experience (DevEx - Accelerate Champion)`);
       console.log(`   Story: "${d.story}"`);
       console.log(`   Overall Rating: 🚀 [${d.overallTier.toUpperCase()} PERFORMER]`);
       console.log(`══════════════════════════════════════════════════════════════════════`);
@@ -1132,6 +1150,18 @@ program
       console.log(`  2. Lead Time for Changes (LT):     ${d.leadTimeForChanges.value} [${d.leadTimeForChanges.tier}]`);
       console.log(`  3. Change Failure Rate (CFR):      ${d.changeFailureRate.value} [${d.changeFailureRate.tier}]`);
       console.log(`  4. Time to Restore Service (MTTR):  ${d.timeToRestoreService.value} [${d.timeToRestoreService.tier}]`);
+      console.log(`\n🎯 DEVEX MANDATES & COMPLIANCE MEASUREMENT (ทุกคนต้องทำตาม และวัดผล):`);
+      if (d.devexDirectives && d.devexDirectives.length > 0) {
+        d.devexDirectives.forEach((dir: any) => {
+          console.log(`  • [${dir.status.toUpperCase()}] ${dir.directive} (${dir.stage.toUpperCase()})`);
+          if (dir.measuredImpact) console.log(`    Measured Impact: ${dir.measuredImpact}`);
+        });
+      }
+      if (d.historicalComparison) {
+        console.log(`\n📈 SPRINT-OVER-SPRINT COMPARISON:`);
+        console.log(`  • Throughput Trend: ${d.historicalComparison.throughputTrend}`);
+        console.log(`  • Lead Time Delta:  ${d.historicalComparison.leadTimeDelta}`);
+      }
       console.log(`\n🔍 BOTTLENECK DIAGNOSIS:`);
       console.log(`  • Primary Bottleneck:    ${d.bottleneckAnalysis.primaryBottleneck}`);
       console.log(`  • Recommended Capability: ${d.bottleneckAnalysis.recommendedCapability}`);
