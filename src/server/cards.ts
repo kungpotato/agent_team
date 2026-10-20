@@ -16,8 +16,12 @@ const execFileAsync = promisify(execFile);
  * this is computed fresh on every call (not cached at server startup), since one long-running
  * `agent-team` daemon can serve multiple Claude project directories across its lifetime.
  */
-function resolveTaskEnv(): NodeJS.ProcessEnv {
-  let dir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+function resolveTaskEnv(projectDir?: string): NodeJS.ProcessEnv {
+  // `projectDir` is the real, un-sanitized path of the active Claude project, passed down
+  // from the HTTP layer (ultimately the MCP bridge's own correct CLAUDE_PROJECT_DIR/cwd) --
+  // use it when given, since this module's own `process.cwd()` belongs to the long-running
+  // standalone server, not to any particular project, and has no relation to it.
+  let dir = projectDir || process.env.CLAUDE_PROJECT_DIR || process.cwd();
   const home = homedir();
   while (dir !== dirname(dir) && dir !== home) {
     const candidate = join(dir, '.taskrc');
@@ -97,9 +101,9 @@ export class TaskwarriorProvider {
   /**
    * Check if task binary is available on PATH
    */
-  public async isAvailable(): Promise<boolean> {
+  public async isAvailable(projectDir?: string): Promise<boolean> {
     try {
-      await execFileAsync(resolveTaskBinary(), ['--version'], { env: resolveTaskEnv() });
+      await execFileAsync(resolveTaskBinary(), ['--version'], { env: resolveTaskEnv(projectDir) });
       return true;
     } catch {
       return false;
@@ -109,14 +113,14 @@ export class TaskwarriorProvider {
   /**
    * Export all tasks from Taskwarrior
    */
-  public async getCards(): Promise<StoryCard[]> {
-    const available = await this.isAvailable();
+  public async getCards(projectDir?: string): Promise<StoryCard[]> {
+    const available = await this.isAvailable(projectDir);
     if (!available) {
       return [...this.fallbackCards];
     }
 
     try {
-      const { stdout } = await execFileAsync(resolveTaskBinary(), ['export'], { env: resolveTaskEnv() });
+      const { stdout } = await execFileAsync(resolveTaskBinary(), ['export'], { env: resolveTaskEnv(projectDir) });
       const rawTasks = JSON.parse(stdout || '[]');
       if (!Array.isArray(rawTasks) || rawTasks.length === 0) {
         return [...this.fallbackCards];
@@ -175,33 +179,33 @@ export class TaskwarriorProvider {
    * up Taskwarrior id "1" (the real next pending card) returned an unrelated completed card
    * instead, because its title contained "1" and it came first in `task export`'s own ordering.
    */
-  public async getCard(id: string): Promise<StoryCard | undefined> {
-    const cards = await this.getCards();
+  public async getCard(id: string, projectDir?: string): Promise<StoryCard | undefined> {
+    const cards = await this.getCards(projectDir);
     const lowerId = id.toLowerCase();
     const exact = cards.find(c => c.id.toLowerCase() === lowerId);
     if (exact) return exact;
     return cards.find(c => c.title.toLowerCase().includes(lowerId));
   }
 
-  public async startCard(id: string): Promise<void> {
+  public async startCard(id: string, projectDir?: string): Promise<void> {
     try {
-      await execFileAsync(resolveTaskBinary(), [id, 'start'], { env: resolveTaskEnv() });
+      await execFileAsync(resolveTaskBinary(), [id, 'start'], { env: resolveTaskEnv(projectDir) });
     } catch {
       const fb = this.fallbackCards.find(c => c.id === id);
       if (fb) fb.status = 'in_progress';
     }
   }
 
-  public async completeCard(id: string): Promise<void> {
+  public async completeCard(id: string, projectDir?: string): Promise<void> {
     try {
-      await execFileAsync(resolveTaskBinary(), [id, 'done'], { env: resolveTaskEnv() });
+      await execFileAsync(resolveTaskBinary(), [id, 'done'], { env: resolveTaskEnv(projectDir) });
     } catch {
       const fb = this.fallbackCards.find(c => c.id === id);
       if (fb) fb.status = 'done';
     }
   }
 
-  public async addCard(title: string, options?: { points?: number; project?: string; tags?: string[] }): Promise<StoryCard> {
+  public async addCard(title: string, options?: { points?: number; project?: string; tags?: string[]; projectDir?: string }): Promise<StoryCard> {
     const pts = options?.points || 5;
     const project = options?.project || 'SPRINT';
     const tags = options?.tags || [];
@@ -210,9 +214,9 @@ export class TaskwarriorProvider {
     try {
       const args = ['add', title, `project:${project}`, `priority:${priority}`, `+${pts}pts`];
       for (const t of tags) args.push(`+${t}`);
-      await execFileAsync(resolveTaskBinary(), args, { env: resolveTaskEnv() });
+      await execFileAsync(resolveTaskBinary(), args, { env: resolveTaskEnv(options?.projectDir) });
 
-      const cards = await this.getCards();
+      const cards = await this.getCards(options?.projectDir);
       const created = cards.find(c => c.title.includes(title));
       if (created) return created;
     } catch {
@@ -344,39 +348,39 @@ export class CardManager {
   private jira = new JiraProvider();
   public defaultSource: CardSourceProvider = 'taskwarrior';
 
-  public async getCards(source: CardSourceProvider = this.defaultSource): Promise<StoryCard[]> {
+  public async getCards(source: CardSourceProvider = this.defaultSource, projectDir?: string): Promise<StoryCard[]> {
     if (source === 'jira') {
       return this.jira.getCards();
     }
-    return this.tw.getCards();
+    return this.tw.getCards(projectDir);
   }
 
-  public async getCard(id: string, source?: CardSourceProvider): Promise<StoryCard | undefined> {
+  public async getCard(id: string, source?: CardSourceProvider, projectDir?: string): Promise<StoryCard | undefined> {
     if (source === 'jira' || (id && id.toUpperCase().startsWith('JIRA-'))) {
       return this.jira.getCard(id);
     }
-    const twCard = await this.tw.getCard(id);
+    const twCard = await this.tw.getCard(id, projectDir);
     if (twCard) return twCard;
     return this.jira.getCard(id);
   }
 
-  public async startCard(card: StoryCard): Promise<void> {
+  public async startCard(card: StoryCard, projectDir?: string): Promise<void> {
     if (card.source === 'jira') {
       await this.jira.startCard(card.id);
     } else {
-      await this.tw.startCard(card.id);
+      await this.tw.startCard(card.id, projectDir);
     }
   }
 
-  public async completeCard(card: StoryCard): Promise<void> {
+  public async completeCard(card: StoryCard, projectDir?: string): Promise<void> {
     if (card.source === 'jira') {
       await this.jira.completeCard(card.id);
     } else {
-      await this.tw.completeCard(card.id);
+      await this.tw.completeCard(card.id, projectDir);
     }
   }
 
-  public async addCard(title: string, options?: { points?: number; project?: string; tags?: string[]; source?: CardSourceProvider }): Promise<StoryCard> {
+  public async addCard(title: string, options?: { points?: number; project?: string; tags?: string[]; source?: CardSourceProvider; projectDir?: string }): Promise<StoryCard> {
     const src = options?.source || this.defaultSource;
     if (src === 'jira') {
       const newCard: StoryCard = {

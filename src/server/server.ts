@@ -34,7 +34,18 @@ export function createServer() {
     const rawId = sessionQuery || sessionHeader || sessionBody;
     const sessionId = sessionManager.sanitizeSessionName(rawId || sessionManager.getDefaultSessionId());
     (req as any).sessionId = sessionId;
-    (req as any).stateManager = sessionManager.getOrCreateSession(sessionId);
+    const sm = sessionManager.getOrCreateSession(sessionId);
+    // `x-project-dir`: the real, un-sanitized Claude project path, sent by the MCP bridge
+    // (which has it correctly via its own CLAUDE_PROJECT_DIR/cwd) on every call. `sessionId`
+    // alone can't be used for filesystem lookups (slashes are sanitized out of it) -- see
+    // StateManager.projectDir's own comment for why this is needed (Taskwarrior card
+    // resolution). Sticky per session once set, so a client that only sends it on some
+    // calls doesn't un-set it on later ones.
+    const projectDirHeader = req.headers['x-project-dir'] as string | undefined;
+    if (projectDirHeader && projectDirHeader.trim()) {
+      sm.projectDir = projectDirHeader.trim();
+    }
+    (req as any).stateManager = sm;
     next();
   });
 
@@ -517,8 +528,9 @@ export function createServer() {
   // Story Cards API (Taskwarrior default, or Jira)
   app.get('/api/cards', async (req, res) => {
     try {
+      const sm: StateManager = (req as any).stateManager;
       const source = (req.query.source as any) || 'taskwarrior';
-      const cards = await cardManager.getCards(source);
+      const cards = await cardManager.getCards(source, sm.projectDir);
       res.json({ success: true, source, count: cards.length, cards });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -527,8 +539,9 @@ export function createServer() {
 
   app.get('/api/cards/:id', async (req, res) => {
     try {
+      const sm: StateManager = (req as any).stateManager;
       const source = (req.query.source as any) || 'taskwarrior';
-      const card = await cardManager.getCard(req.params.id, source);
+      const card = await cardManager.getCard(req.params.id, source, sm.projectDir);
       if (!card) return res.status(404).json({ error: `Card ${req.params.id} not found in ${source}` });
       res.json({ success: true, card });
     } catch (err: any) {
@@ -538,11 +551,13 @@ export function createServer() {
 
   app.post('/api/cards/add', async (req, res) => {
     try {
+      const sm: StateManager = (req as any).stateManager;
       const { title, points, tags, priority, source } = req.body || {};
       const card = await cardManager.addCard(title, {
         points: points ? Number(points) : undefined,
         tags: Array.isArray(tags) ? tags : (tags ? [tags] : undefined),
-        source: source || 'taskwarrior'
+        source: source || 'taskwarrior',
+        projectDir: sm.projectDir
       });
       res.json({ success: true, card });
     } catch (err: any) {

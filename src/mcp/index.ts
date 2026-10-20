@@ -84,6 +84,12 @@ function resolveSession(sessionArg?: string): string {
 async function apiCall(endpoint: string, method: string = 'GET', body?: any, port: number = DEFAULT_PORT, session?: string): Promise<any> {
   await ensureServer(port);
   const resolvedSession = resolveSession(session || (body && body.session));
+  // The real, un-sanitized project path -- this bridge process (unlike the long-running
+  // standalone server it talks to) IS freshly spawned per Claude Code session with the
+  // correct cwd/CLAUDE_PROJECT_DIR, so it's the only place that reliably has this. Sent on
+  // every call so the server can resolve project-local resources (e.g. Taskwarrior's
+  // .taskrc/.task, see StateManager.projectDir) without guessing from its own cwd.
+  const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
   const base = getBaseUrl(port);
   const url = new URL(`${base}${endpoint}`);
   if (!url.searchParams.has('session')) {
@@ -93,7 +99,8 @@ async function apiCall(endpoint: string, method: string = 'GET', body?: any, por
     method,
     headers: {
       'Content-Type': 'application/json',
-      'x-session-id': resolvedSession
+      'x-session-id': resolvedSession,
+      'x-project-dir': projectDir
     },
     body: body ? JSON.stringify(body) : undefined
   });

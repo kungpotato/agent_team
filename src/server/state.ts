@@ -113,6 +113,17 @@ export class StateManager {
   public readonly sessionId: string;
   public readonly createdAt: number = Date.now();
   public updatedAt: number = Date.now();
+  /** The real, un-sanitized filesystem path of the Claude project this session represents
+   *  (e.g. `/Users/x/workspace/my-project`). `sessionId` is a sanitized slug derived from
+   *  this (slashes replaced with `_`), unusable for filesystem lookups like resolving
+   *  `.taskrc`. Set from the `x-project-dir` header by the server's session middleware,
+   *  which the MCP stdio bridge (src/mcp/index.ts) sends on every call using its OWN
+   *  `CLAUDE_PROJECT_DIR`/cwd -- correct because Claude Code spawns that bridge process
+   *  freshly per session, unlike this long-running standalone server, whose own cwd is
+   *  wherever `agent-team` itself was started from and has no relation to any particular
+   *  Claude project. Without this, TaskwarriorProvider (cards.ts) silently resolved the
+   *  wrong (or no) `.taskrc`/`.task` directory and fell back to canned demo cards. */
+  public projectDir?: string;
   private agents: Map<string, Agent> = new Map();
   private meetingTopics: Map<number, string> = new Map();
   private meetingQueue: MeetingQueueItem[] = [];
@@ -1882,11 +1893,11 @@ export class StateManager {
 
     let card: StoryCard | undefined;
     if (opts.cardId) {
-      card = await cardManager.getCard(opts.cardId, cardSrc);
+      card = await cardManager.getCard(opts.cardId, cardSrc, this.projectDir);
     } else if (!opts.story) {
       // Default to Taskwarrior Kanban: pick the first pending card
       try {
-        const pendingCards = await cardManager.getCards(cardSrc);
+        const pendingCards = await cardManager.getCards(cardSrc, this.projectDir);
         const todoCard = pendingCards.find(c => c.status === 'todo');
         if (todoCard) {
           card = todoCard;
@@ -1897,7 +1908,7 @@ export class StateManager {
     }
 
     if (card) {
-      await cardManager.startCard(card).catch(() => {});
+      await cardManager.startCard(card, this.projectDir).catch(() => {});
     }
 
     const storyTitle = opts.story || (card ? card.title : (isCompleted ? `FEATURE-${num}01: Continuous Delivery Increment #${num}` : (this.sprint.story || 'AUTH-101: Implement OAuth2 & JWT Security')));
@@ -2201,7 +2212,7 @@ export class StateManager {
     this.sprint.devexAudit = pendingAudit;
 
     if (this.sprint.sourceCard) {
-      cardManager.completeCard(this.sprint.sourceCard).catch(() => {});
+      cardManager.completeCard(this.sprint.sourceCard, this.projectDir).catch(() => {});
     }
 
     this.completedSprints.push(record);
