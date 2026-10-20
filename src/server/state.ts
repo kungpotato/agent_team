@@ -2059,35 +2059,18 @@ export class StateManager {
 
       this.startMeeting(attendeeNames, topic, target.room);
     } else {
-      // Phase 4: SPRINT WORK (everyone back to desks)
+      // Phase 4: SPRINT WORK (everyone back to desks).
+      //
+      // Deliberately does NOT auto-spawn/set-working every role in `target.roles` with
+      // canned flavor text and a fixed, fake progress number. That previously made
+      // office_get_status's "Active Roster" show every ceremony-eligible role as
+      // "working" at a made-up percentage regardless of whether any real agent was
+      // actually dispatched for this sprint -- misleading, since the real orchestrating
+      // session may have only dispatched one or two of those roles. Real agents already
+      // report their own status via office_set_work/office_update_progress (per the
+      // read-then-write dashboard protocol in each agent's own definition); the roster
+      // should reflect only those genuine calls, not this ceremony transition.
       this.endMeeting(); // Free meeting rooms
-
-      const SPRINT_TASKS: Record<string, { task: string; progress: number }> = {
-        'product-manager': { task: 'Tracking acceptance criteria', progress: 40 },
-        'project-planner': { task: 'Monitoring DAG wave execution', progress: 50 },
-        'system-architect': { task: 'Verifying OpenAPI specs', progress: 60 },
-        'ui-ux-designer': { task: 'Polishing interactive UI design', progress: 55 },
-        'design-to-code': { task: 'Translating tokens to components', progress: 65 },
-        'coder': { task: 'Implementing core logic & unit tests', progress: 75 },
-        'code-reviewer': { task: 'AST security rules verification', progress: 70 },
-        'qa-tester': { task: 'Synthesizing fuzz test suite', progress: 65 },
-        'runtime-sre': { task: 'Analyzing latency telemetry SLO', progress: 80 },
-        'devops-release': { task: 'Configuring Canary rollout pipeline', progress: 60 }
-      };
-
-      for (const role of target.roles) {
-        const lower = role.toLowerCase();
-        let agent = Array.from(this.agents.values()).find(a =>
-          a.name.toLowerCase() === lower ||
-          a.role.toLowerCase() === lower ||
-          a.name.toLowerCase().startsWith(lower)
-        );
-        if (!agent) {
-          agent = this.spawn(role, 'working', 'Coding...');
-        }
-        const taskInfo = SPRINT_TASKS[role] || { task: 'Sprint Task Execution', progress: 50 };
-        this.setWorking(agent.name, taskInfo.task, taskInfo.progress);
-      }
     }
 
     const ceremonyInfo: SprintCeremonyInfo = {
