@@ -1581,72 +1581,268 @@ sessionGroup
 // own control flow (especially the Stop hook) can be refused by Claude Code's own permission
 // system as "Self-Modification" when Claude tries to do it itself. A plain CLI command you run
 // has no such restriction.
+function resolveSourceAgentsDir(): string {
+  const candidates = [
+    path.resolve(__dirname, '../../agents'),
+    path.resolve(__dirname, '../agents'),
+    path.resolve(process.cwd(), 'agents'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c) && fs.statSync(c).isDirectory()) {
+      return c;
+    }
+  }
+  return candidates[0];
+}
+
+function copyAgentsToProject(
+  targetDir: string,
+  options: { replace?: boolean; clean?: boolean; move?: boolean } = {}
+): { count: number; destDir: string } {
+  const sourceAgentsDir = resolveSourceAgentsDir();
+  const destDir = path.join(targetDir, '.claude', 'agents');
+
+  if (!fs.existsSync(sourceAgentsDir)) {
+    throw new Error(`Source agents directory not found at: ${sourceAgentsDir}`);
+  }
+
+  fs.mkdirSync(destDir, { recursive: true });
+
+  if (options.clean) {
+    const existing = fs.readdirSync(destDir);
+    for (const f of existing) {
+      if (f.endsWith('.md')) {
+        fs.unlinkSync(path.join(destDir, f));
+      }
+    }
+    console.log(`🧹 Cleaned existing ${destDir} directory`);
+  }
+
+  const files = fs.readdirSync(sourceAgentsDir).filter((f) => f.endsWith('.md'));
+  let count = 0;
+
+  for (const file of files) {
+    const src = path.join(sourceAgentsDir, file);
+    const dest = path.join(destDir, file);
+    const exists = fs.existsSync(dest);
+
+    if (options.move) {
+      fs.copyFileSync(src, dest);
+      fs.unlinkSync(src);
+      console.log(`📦 Moved .claude/agents/${file}`);
+    } else {
+      fs.copyFileSync(src, dest);
+      if (exists || options.replace) {
+        console.log(`🔄 Replaced .claude/agents/${file}`);
+      } else {
+        console.log(`📄 Installed .claude/agents/${file}`);
+      }
+    }
+    count++;
+  }
+
+  return { count, destDir };
+}
+
+function installHooksToProject(
+  targetDir: string,
+  options: { skipStopHook?: boolean } = {}
+): void {
+  const templatesDir = path.resolve(__dirname, '../../templates/hooks');
+  const hooksDestDir = path.join(targetDir, '.claude', 'hooks');
+  const settingsPath = path.join(targetDir, '.claude', 'settings.json');
+
+  if (!fs.existsSync(targetDir)) {
+    throw new Error(`Target directory does not exist: ${targetDir}`);
+  }
+
+  fs.mkdirSync(hooksDestDir, { recursive: true });
+
+  const filesToCopy = [
+    'sync-agent-team.js',
+    'subagent-stop-sync.js',
+    'office-stale-cleanup.js',
+    'real-desks-state.js',
+    'ceremony-cleanup.js',
+    'needs-input-watcher.js',
+  ];
+  if (!options.skipStopHook) filesToCopy.push('story-continue-guard.cjs');
+
+  for (const file of filesToCopy) {
+    const src = path.join(templatesDir, file);
+    const dest = path.join(hooksDestDir, file);
+    fs.copyFileSync(src, dest);
+    fs.chmodSync(dest, 0o755);
+    console.log(`📄 Installed .claude/hooks/${file}`);
+  }
+
+  let settings: any = {};
+  if (fs.existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    } catch {
+      console.error(
+        `❌ ${settingsPath} exists but is not valid JSON — not touching it. Merge these hooks in by hand:`
+      );
+      console.error(JSON.stringify(buildHookEntries(options.skipStopHook), null, 2));
+      throw new Error(`Invalid JSON in ${settingsPath}`);
+    }
+  }
+
+  settings.hooks = settings.hooks || {};
+  const entries = buildHookEntries(options.skipStopHook);
+  for (const [event, newEntries] of Object.entries(entries)) {
+    const existing: any[] = Array.isArray(settings.hooks[event])
+      ? settings.hooks[event]
+      : [];
+    const alreadyPresent = (entry: any) =>
+      existing.some((e) => JSON.stringify(e) === JSON.stringify(entry));
+    const toAdd = (newEntries as any[]).filter((e) => !alreadyPresent(e));
+    settings.hooks[event] = [...existing, ...toAdd];
+  }
+
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+  console.log(`⚙️  Updated ${settingsPath}`);
+  console.log(
+    `✅ Hooks installed. Dashboard dispatch/completion sync is now automatic` +
+      (options.skipStopHook
+        ? '.'
+        : ', and session cannot silently stop mid-story.')
+  );
+}
+
+// INSTALL AGENTS COMMAND
+program
+  .command('install-agents [targetDir]')
+  .alias('sync-agents')
+  .alias('replace-agents')
+  .alias('move-agents')
+  .description(
+    'Copy, replace, or move all agent markdown definitions into ./.claude/agents of the target project'
+  )
+  .option('-r, --replace', 'Replace / overwrite all existing agents in ./.claude/agents')
+  .option('-c, --clean', 'Clean / purge target ./.claude/agents directory before installing')
+  .option('-m, --move', 'Move agent files into ./.claude/agents instead of copying')
+  .action((targetDirArg: string | undefined, options: { replace?: boolean; clean?: boolean; move?: boolean }) => {
+    try {
+      const targetDir = path.resolve(targetDirArg || process.cwd());
+      if (!fs.existsSync(targetDir)) {
+        console.error(`❌ Target directory does not exist: ${targetDir}`);
+        process.exitCode = 1;
+        return;
+      }
+      const { count, destDir } = copyAgentsToProject(targetDir, options);
+      const actionWord = options.move
+        ? 'Moved'
+        : options.clean || options.replace
+        ? 'Replaced'
+        : 'Installed';
+      console.log(`\n✅ ${actionWord} ${count} agent definitions into ${destDir}`);
+      console.log(
+        `💡 Claude Code will now automatically discover these agents as specialized subagents under ./.claude/agents/\n`
+      );
+    } catch (err: any) {
+      console.error(`❌ Error installing agents: ${err.message}`);
+      process.exitCode = 1;
+    }
+  });
+
+// COMPREHENSIVE PROJECT INSTALL COMMAND
+program
+  .command('install [targetDir]')
+  .description(
+    'Full setup: copy/replace all agents into ./.claude/agents and configure dashboard sync hooks in ./.claude/hooks'
+  )
+  .option('-r, --replace', 'Replace / overwrite all existing agents in ./.claude/agents')
+  .option('-c, --clean', 'Clean / purge target ./.claude/agents directory before installing')
+  .option('-m, --move', 'Move agent files instead of copying them')
+  .option('--skip-hooks', 'Skip installing hooks')
+  .option('--skip-agents', 'Skip installing agents')
+  .option('--skip-stop-hook', 'Skip Stop story-continue-guard hook')
+  .action(
+    (
+      targetDirArg: string | undefined,
+      options: {
+        replace?: boolean;
+        clean?: boolean;
+        move?: boolean;
+        skipHooks?: boolean;
+        skipAgents?: boolean;
+        skipStopHook?: boolean;
+      }
+    ) => {
+      try {
+        const targetDir = path.resolve(targetDirArg || process.cwd());
+        if (!fs.existsSync(targetDir)) {
+          console.error(`❌ Target directory does not exist: ${targetDir}`);
+          process.exitCode = 1;
+          return;
+        }
+
+        console.log(`\n🚀 Installing Agent Team into: ${targetDir}\n`);
+
+        if (!options.skipAgents) {
+          console.log(`🤖 [1/2] Installing agents into .claude/agents/...`);
+          const { count, destDir } = copyAgentsToProject(targetDir, options);
+          const act = options.move ? 'Moved' : 'Installed/Replaced';
+          console.log(`   ✅ ${act} ${count} agent definitions into ${destDir}\n`);
+        }
+
+        if (!options.skipHooks) {
+          console.log(`🪝 [2/2] Installing hooks into .claude/hooks/...`);
+          installHooksToProject(targetDir, { skipStopHook: options.skipStopHook });
+        }
+
+        console.log(
+          `\n🎉 Installation complete! Agent Team is fully integrated in ${targetDir}`
+        );
+        console.log(
+          `💡 Run "agent-team start" or "agent-team list" to launch the office dashboard.\n`
+        );
+      } catch (err: any) {
+        console.error(`❌ Installation error: ${err.message}`);
+        process.exitCode = 1;
+      }
+    }
+  );
+
+// INSTALL HOOKS COMMAND
 program
   .command('install-hooks [targetDir]')
   .description(
     'Install the PostToolUse/SubagentStop/UserPromptSubmit/Stop sync hooks into a host ' +
-    'project\'s .claude/ directory, so its office dashboard and story-continuation behavior ' +
-    'are structurally guaranteed rather than dependent on Claude remembering to call ' +
-    'office_set_work or re-read CLAUDE.md every turn. The UserPromptSubmit hook auto-dismisses ' +
-    'any desk stuck "working" for 10+ minutes (a TTL safety net for completion events whose ' +
-    'name mapping missed). Safe to re-run (idempotent, merges rather than clobbers existing hooks).'
+      'project\'s .claude/ directory, so its office dashboard and story-continuation behavior ' +
+      'are structurally guaranteed rather than dependent on Claude remembering to call ' +
+      'office_set_work or re-read CLAUDE.md every turn. Safe to re-run.'
   )
-  .option('--skip-stop-hook', 'Only install the dashboard-sync hooks (PostToolUse/SubagentStop), skip the Stop story-continue-guard')
-  .action((targetDirArg: string | undefined, options: { skipStopHook?: boolean }) => {
-    const targetDir = path.resolve(targetDirArg || process.cwd());
-    const templatesDir = path.resolve(__dirname, '../../templates/hooks');
-    const hooksDestDir = path.join(targetDir, '.claude', 'hooks');
-    const settingsPath = path.join(targetDir, '.claude', 'settings.json');
-
-    if (!fs.existsSync(targetDir)) {
-      console.error(`❌ Target directory does not exist: ${targetDir}`);
-      process.exitCode = 1;
-      return;
-    }
-
-    fs.mkdirSync(hooksDestDir, { recursive: true });
-
-    const filesToCopy = ['sync-agent-team.js', 'subagent-stop-sync.js', 'office-stale-cleanup.js', 'real-desks-state.js', 'ceremony-cleanup.js', 'needs-input-watcher.js'];
-    if (!options.skipStopHook) filesToCopy.push('story-continue-guard.cjs');
-
-    for (const file of filesToCopy) {
-      const src = path.join(templatesDir, file);
-      const dest = path.join(hooksDestDir, file);
-      fs.copyFileSync(src, dest);
-      fs.chmodSync(dest, 0o755);
-      console.log(`📄 Installed .claude/hooks/${file}`);
-    }
-
-    let settings: any = {};
-    if (fs.existsSync(settingsPath)) {
+  .option('--skip-stop-hook', 'Only install dashboard-sync hooks, skip Stop story-continue-guard')
+  .option('--with-agents', 'Also install all agents into .claude/agents')
+  .option('--replace-agents', 'Also replace/overwrite all agents in .claude/agents')
+  .action(
+    (
+      targetDirArg: string | undefined,
+      options: { skipStopHook?: boolean; withAgents?: boolean; replaceAgents?: boolean }
+    ) => {
       try {
-        settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-      } catch {
-        console.error(`❌ ${settingsPath} exists but is not valid JSON — not touching it. Merge these hooks in by hand:`);
-        console.error(JSON.stringify(buildHookEntries(options.skipStopHook), null, 2));
+        const targetDir = path.resolve(targetDirArg || process.cwd());
+        if (!fs.existsSync(targetDir)) {
+          console.error(`❌ Target directory does not exist: ${targetDir}`);
+          process.exitCode = 1;
+          return;
+        }
+
+        if (options.withAgents || options.replaceAgents) {
+          copyAgentsToProject(targetDir, { replace: options.replaceAgents });
+        }
+
+        installHooksToProject(targetDir, { skipStopHook: options.skipStopHook });
+      } catch (err: any) {
+        console.error(`❌ Error installing hooks: ${err.message}`);
         process.exitCode = 1;
-        return;
       }
     }
-
-    settings.hooks = settings.hooks || {};
-    const entries = buildHookEntries(options.skipStopHook);
-    for (const [event, newEntries] of Object.entries(entries)) {
-      const existing: any[] = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
-      const alreadyPresent = (entry: any) =>
-        existing.some((e) => JSON.stringify(e) === JSON.stringify(entry));
-      const toAdd = (newEntries as any[]).filter((e) => !alreadyPresent(e));
-      settings.hooks[event] = [...existing, ...toAdd];
-    }
-
-    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-    console.log(`⚙️  Updated ${settingsPath}`);
-    console.log(
-      `\n✅ Hooks installed. Dashboard dispatch/completion sync is now automatic` +
-      (options.skipStopHook ? '.' : ', and the session cannot silently stop mid-story (see docs/agent-team-sync-hooks.md for the escape hatch: reply with "STORY-BLOCKED: <reason>" when genuinely blocked on a human step).')
-    );
-  });
+  );
 
 function buildHookEntries(skipStopHook?: boolean) {
   const entries: Record<string, any[]> = {
