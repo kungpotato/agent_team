@@ -745,6 +745,7 @@ sprintCmd
   .option('-c, --card <id>', 'Card ID to pick from Taskwarrior or Jira')
   .option('-s, --source <source>', 'Card source provider: taskwarrior (default) | jira', 'taskwarrior')
   .option('-p, --points <number>', 'Story points estimation (default: 5 or card points)')
+  .option('-f, --force', 'Bypass DevEx post-sprint audit gate check')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (sprintNumber, storyParts, options) => {
     try {
@@ -758,7 +759,8 @@ sprintCmd
         story,
         points,
         cardId: options.card,
-        source: options.source
+        source: options.source,
+        force: options.force
       }, port);
       console.log(`\n🏃 SPRINT #${res.sprint.sprintNumber} STARTED!`);
       const srcBadge = res.sprint.sourceCard ? `[${res.sprint.sourceCard.source.toUpperCase()}: ${res.sprint.sourceCard.id}] ` : '';
@@ -995,6 +997,57 @@ sprintCmd
     }
   });
 
+sprintCmd
+  .command('devex-audit [sprintNumber]')
+  .alias('audit')
+  .description('DevEx post-sprint delivery bottleneck audit and next-sprint owner assignment (Mandatory Sprint Gate)')
+  .option('-o, --owner <agent>', 'Owner agent assigned to improve the bottleneck (e.g. coder1, qa-tester1, devops-release1)')
+  .option('-a, --action <actionItem>', 'Action item describing the improvement for next sprint')
+  .option('-b, --bottleneck <bottleneck>', 'Identified delivery bottleneck (defaults to DORA report primary bottleneck)')
+  .option('--no-improvement', 'Waive improvement if delivery throughput and DORA flow are certified optimal')
+  .option('--phase <phase>', 'Target sprint ceremony / phase (validation, grooming, planning, working, demo, uat, release, retro)')
+  .option('--notes <notes>', 'Additional DevEx audit notes')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (sprintNumber, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const num = sprintNumber && /^\d+$/.test(sprintNumber) ? parseInt(sprintNumber, 10) : undefined;
+      const improvementNeeded = options.improvement !== false;
+      const res = await apiCall('/api/sprint/devex-audit', 'POST', {
+        sprintNumber: num,
+        improvementNeeded,
+        ownerAgent: options.owner,
+        actionItem: options.action,
+        bottleneck: options.bottleneck,
+        targetPhase: options.phase,
+        notes: options.notes
+      }, port);
+
+      const a = res.audit;
+      console.log(`\n══════════════════════════════════════════════════════════════════════`);
+      console.log(`🛡️ DEVEX POST-SPRINT AUDIT & NEXT-SPRINT MANDATE (Sprint #${a.sprintNumber})`);
+      console.log(`══════════════════════════════════════════════════════════════════════`);
+      console.log(`  • Auditor:             Developer Experience (@devex1)`);
+      console.log(`  • DORA Overall Rating: ${a.doraOverallTier?.toUpperCase()} PERFORMER`);
+      console.log(`  • Delivery Bottleneck: "${a.bottleneck}"`);
+      if (a.status === 'waived') {
+        console.log(`  • Status:              🟢 WAIVED (OPTIMAL FLOW CERTIFIED)`);
+        console.log(`  • Next Sprint Gate:    ✅ UNLOCKED (Squad authorized to start next sprint)`);
+      } else {
+        console.log(`  • Status:              🎯 ASSIGNED & ENFORCED`);
+        console.log(`  • Assigned Owner:      @${a.ownerAgent}`);
+        console.log(`  • Target Stage:        ${(a.targetPhase || 'working').toUpperCase()}`);
+        console.log(`  • Action Item:         "${a.actionItem}"`);
+        if (a.notes) console.log(`  • DevEx Notes:         ${a.notes}`);
+        console.log(`  • Next Sprint Gate:    ✅ UNLOCKED`);
+        console.log(`\n📢 During next Sprint Planning, @${a.ownerAgent} must acknowledge and commit to this mandate.`);
+      }
+      console.log(`══════════════════════════════════════════════════════════════════════\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
 // TOP-LEVEL SHORTCUT ALIASES FOR SPRINT CEREMONIES
 program
   .command('validate [storyParts...]')
@@ -1129,8 +1182,7 @@ program
 program
   .command('dora [sprintNumber]')
   .alias('accelerate')
-  .alias('devex')
-  .alias('dx')
+  .alias('dora-metrics')
   .description('Shortcut: Display 4 DORA delivery metrics & DevEx directives scorecard')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (sprintNumber, options) => {
@@ -1178,6 +1230,7 @@ program
   .option('-c, --card <id>', 'Card ID to pick from Taskwarrior or Jira')
   .option('-s, --source <source>', 'Card source provider: taskwarrior (default) | jira', 'taskwarrior')
   .option('-p, --points <number>', 'Story points estimation')
+  .option('-f, --force', 'Bypass DevEx post-sprint audit gate check')
   .option('--port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (sprintNumber, storyParts, options) => {
     try {
@@ -1190,12 +1243,95 @@ program
         story,
         points,
         cardId: options.card,
-        source: options.source
+        source: options.source,
+        force: options.force
       }, port);
       console.log(`\n🏃 SPRINT #${res.sprint.sprintNumber} STARTED!`);
       const srcBadge = res.sprint.sourceCard ? `[${res.sprint.sourceCard.source.toUpperCase()}: ${res.sprint.sourceCard.id}] ` : '';
       console.log(`📋 Story Card: ${srcBadge}"${res.sprint.story}" (${res.sprint.storyPoints} pts)`);
       console.log(`💡 Next step: Run "agent-team validate" or "agent-team sprint next"\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+// DEVEX COMMAND GROUP
+const devexCmd = program
+  .command('devex')
+  .alias('dx')
+  .description('Developer Experience (DevEx) commands: DORA metrics & bottleneck audit');
+
+devexCmd
+  .command('audit [sprintNumber]')
+  .description('DevEx post-sprint delivery bottleneck audit & next-sprint owner assignment (Mandatory Sprint Gate)')
+  .option('-o, --owner <agent>', 'Owner agent assigned to improve the bottleneck (e.g. coder1, qa-tester1, devops-release1)')
+  .option('-a, --action <actionItem>', 'Action item describing the improvement for next sprint')
+  .option('-b, --bottleneck <bottleneck>', 'Identified delivery bottleneck (defaults to DORA report primary bottleneck)')
+  .option('--no-improvement', 'Waive improvement if delivery throughput and DORA flow are certified optimal')
+  .option('--phase <phase>', 'Target sprint ceremony / phase (validation, grooming, planning, working, demo, uat, release, retro)')
+  .option('--notes <notes>', 'Additional DevEx audit notes')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (sprintNumber, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const num = sprintNumber && /^\d+$/.test(sprintNumber) ? parseInt(sprintNumber, 10) : undefined;
+      const improvementNeeded = options.improvement !== false;
+      const res = await apiCall('/api/sprint/devex-audit', 'POST', {
+        sprintNumber: num,
+        improvementNeeded,
+        ownerAgent: options.owner,
+        actionItem: options.action,
+        bottleneck: options.bottleneck,
+        targetPhase: options.phase,
+        notes: options.notes
+      }, port);
+
+      const a = res.audit;
+      console.log(`\n══════════════════════════════════════════════════════════════════════`);
+      console.log(`🛡️ DEVEX POST-SPRINT AUDIT & NEXT-SPRINT MANDATE (Sprint #${a.sprintNumber})`);
+      console.log(`══════════════════════════════════════════════════════════════════════`);
+      console.log(`  • Auditor:             Developer Experience (@devex1)`);
+      console.log(`  • DORA Overall Rating: ${a.doraOverallTier?.toUpperCase()} PERFORMER`);
+      console.log(`  • Delivery Bottleneck: "${a.bottleneck}"`);
+      if (a.status === 'waived') {
+        console.log(`  • Status:              🟢 WAIVED (OPTIMAL FLOW CERTIFIED)`);
+        console.log(`  • Next Sprint Gate:    ✅ UNLOCKED (Squad authorized to start next sprint)`);
+      } else {
+        console.log(`  • Status:              🎯 ASSIGNED & ENFORCED`);
+        console.log(`  • Assigned Owner:      @${a.ownerAgent}`);
+        console.log(`  • Target Stage:        ${(a.targetPhase || 'working').toUpperCase()}`);
+        console.log(`  • Action Item:         "${a.actionItem}"`);
+        if (a.notes) console.log(`  • DevEx Notes:         ${a.notes}`);
+        console.log(`  • Next Sprint Gate:    ✅ UNLOCKED`);
+        console.log(`\n📢 During next Sprint Planning, @${a.ownerAgent} must acknowledge and commit to this mandate.`);
+      }
+      console.log(`══════════════════════════════════════════════════════════════════════\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+devexCmd
+  .command('dora [sprintNumber]')
+  .description('Show 4 DORA delivery metrics & DevEx directives compliance')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (sprintNumber, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const url = sprintNumber ? `/api/sprint/dora?sprint=${sprintNumber}` : '/api/sprint/dora';
+      const res = await apiCall(url, 'GET', undefined, port);
+      const d = res.dora;
+      console.log(`\n══════════════════════════════════════════════════════════════════════`);
+      console.log(`📊 ACCELERATE & DORA DELIVERY METRICS SCORECARD (Sprint #${d.sprintNumber})`);
+      console.log(`   Evaluated by: Developer Experience (DevEx)`);
+      console.log(`══════════════════════════════════════════════════════════════════════`);
+      console.log(`🎯 Story Card: "${d.story}"`);
+      console.log(`🚀 Overall Performance Tier: [${d.overallTier.toUpperCase()} PERFORMER]\n`);
+      console.log(`1. Deployment Frequency:    ${d.deploymentFrequency.value} [${d.deploymentFrequency.tier}]`);
+      console.log(`2. Lead Time for Changes:   ${d.leadTimeForChanges.value} [${d.leadTimeForChanges.tier}]`);
+      console.log(`3. Change Failure Rate:     ${d.changeFailureRate.value} [${d.changeFailureRate.tier}]`);
+      console.log(`4. Time to Restore Service: ${d.timeToRestoreService.value} [${d.timeToRestoreService.tier}]`);
+      console.log(`══════════════════════════════════════════════════════════════════════\n`);
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
     }

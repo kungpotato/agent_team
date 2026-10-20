@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary, Thread, ThreadMessage, ThreadCategory, formatSmartBrevity, extractMentions, DoraMetricsSummary, DoraPerformanceTier, DoraMetricItem, DevExDirective } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary, Thread, ThreadMessage, ThreadCategory, formatSmartBrevity, extractMentions, DoraMetricsSummary, DoraPerformanceTier, DoraMetricItem, DevExDirective, DevExAuditRecord } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
 
@@ -349,8 +349,32 @@ export class StateManager {
         ];
         break;
 
-      case 'planning':
-        dialogues = [
+      case 'planning': {
+        const inherited = this.sprint.inheritedDevExAudit;
+        let devexPoint = `DevEx Directives for Sprint #${this.sprint.sprintNumber}: 1. Batch sizes strictly capped under 300 LOC per PR. 2. WIP limit: max 2 active tasks per developer. 3. Fast-feedback CI checks activated (<60s). Squad compliance is mandatory.`;
+        let devexNext = '@coder1 and @devops-release1 acknowledge directives and commit to small-batch flow.';
+        let devexMentions = ['@coder1', '@devops-release1'];
+        let ownerCommitDialogue: any = null;
+
+        if (inherited && inherited.status === 'assigned' && inherited.ownerAgent) {
+          const owner = inherited.ownerAgent.replace(/^@/, '');
+          devexPoint += ` | ⚠️ MANDATORY IMPROVEMENT MANDATE from Sprint #${inherited.sprintNumber}: Bottleneck diagnosed as "${inherited.bottleneck}". Assigned Owner: @${owner} to implement "${inherited.actionItem}".`;
+          devexNext = `@${owner} acknowledge DevEx mandate and commit to improvement plan.`;
+          devexMentions = [`@${owner}`, '@coder1', '@devops-release1'];
+
+          ownerCommitDialogue = {
+            author: owner,
+            topic: `DevEx Improvement Mandate Commitment (Sprint #${inherited.sprintNumber} Bottleneck Remediation)`,
+            intent: `Acknowledge DevEx post-sprint audit finding and commit specific engineering remediation in Sprint #${this.sprint.sprintNumber}.`,
+            point: `Acknowledged DevEx mandate. As owner for "${inherited.bottleneck}", I commit to executing: "${inherited.actionItem}" throughout this sprint.`,
+            nextSteps: 'Remediation plan integrated into sprint backlog tasks.',
+            mentions: ['@devex1', '@project-planner1']
+          };
+        } else if (inherited && inherited.status === 'waived') {
+          devexPoint += ` | ✅ Sprint #${inherited.sprintNumber} audit certified delivery flow optimal. No bottleneck remediation required.`;
+        }
+
+        const planningDialogues = [
           {
             author: 'project-planner1',
             topic: 'Sprint Wave Decomposition & Work Allocation',
@@ -363,10 +387,17 @@ export class StateManager {
             author: 'devex1',
             topic: 'DevEx Directives & Flow Constraints (Mandatory Squad Alignment)',
             intent: 'Enforce small batch sizing, WIP limits, and eliminate work-in-progress bottlenecks to optimize delivery throughput.',
-            point: `DevEx Directives for Sprint #${this.sprint.sprintNumber}: 1. Batch sizes strictly capped under 300 LOC per PR. 2. WIP limit: max 2 active tasks per developer. 3. Fast-feedback CI checks activated (<60s). Squad compliance is mandatory.`,
-            nextSteps: '@coder1 and @devops-release1 acknowledge directives and commit to small-batch flow.',
-            mentions: ['@coder1', '@devops-release1']
-          },
+            point: devexPoint,
+            nextSteps: devexNext,
+            mentions: devexMentions
+          }
+        ];
+
+        if (ownerCommitDialogue) {
+          planningDialogues.push(ownerCommitDialogue);
+        }
+
+        planningDialogues.push(
           {
             author: 'coder1',
             topic: 'Engineering Capacity & DevEx Compliance Commitment',
@@ -383,8 +414,11 @@ export class StateManager {
             nextSteps: 'Sprint backlog locked with DevEx sign-off. Team moving to open-space workbenches for Sprint Work!',
             mentions: ['@project-planner1', '@coder1', '@devex1']
           }
-        ];
+        );
+
+        dialogues = planningDialogues;
         break;
+      }
 
       case 'working':
         dialogues = [
@@ -422,7 +456,15 @@ export class StateManager {
             topic: 'Design System & Usability Audit',
             intent: 'Ensure pixel-perfect fidelity with design guidelines and error states.',
             point: 'Visual hierarchy, typography, and responsive toast feedback verified. User interaction flow approved.',
-            nextSteps: '@product-manager1 ready for formal UAT sign-off in Delta Room.',
+            nextSteps: '@qa-tester1 please verify functional test coverage against demo build.',
+            mentions: ['@qa-tester1']
+          },
+          {
+            author: 'qa-tester1',
+            topic: 'Demo Verification & Test Pass Rate',
+            intent: 'Verify feature demo against test matrix and pass acceptance criteria.',
+            point: 'All 36 automated regression tests passed cleanly during demo execution. Zero unexpected latency spikes.',
+            nextSteps: '@product-manager1 ready for demo acceptance and formal UAT sign-off in Delta Room.',
             mentions: ['@product-manager1']
           },
           {
@@ -621,7 +663,9 @@ export class StateManager {
         const author = m.author.toLowerCase();
         const role = (m.roleTitle || '').toLowerCase();
         const dept = (m.department || '').toLowerCase();
-        return author.includes(lower) || author.startsWith(lower) || role.includes(lower) || dept.includes(lower);
+        const isDevEx = (lower.includes('developer-experience') || lower.includes('devex') || lower.includes('dx')) &&
+          (author.includes('devex') || author.includes('dx') || author.includes('developer-experience') || role.includes('devex'));
+        return isDevEx || author.includes(lower) || author.startsWith(lower) || role.includes(lower) || dept.includes(lower);
       });
       if (!hasContribution) {
         missingRoles.push(reqRole);
@@ -1802,7 +1846,7 @@ export class StateManager {
    * Cards can be sourced from Taskwarrior (default) or Jira
    */
   public async startSprint(
-    sprintNumberOrOptions?: number | { sprintNumber?: number; story?: string; points?: number; cardId?: string; source?: CardSourceProvider },
+    sprintNumberOrOptions?: number | { sprintNumber?: number; story?: string; points?: number; cardId?: string; source?: CardSourceProvider; force?: boolean },
     storyArg?: string,
     pointsArg?: number
   ): Promise<SprintState> {
@@ -1811,11 +1855,29 @@ export class StateManager {
       : {
           sprintNumber: typeof sprintNumberOrOptions === 'number' ? sprintNumberOrOptions : undefined,
           story: storyArg,
-          points: pointsArg
+          points: pointsArg,
+          force: false
         };
 
     const isCompleted = this.sprint.phase === 'completed';
     const num = opts.sprintNumber || (isCompleted ? (this.sprint.sprintNumber || 0) + 1 : (this.sprint.sprintNumber || 1));
+
+    // MANDATORY DEVEX AUDIT GATE ENFORCEMENT:
+    // Every completed sprint must have its delivery bottlenecks and DORA metrics audited by Developer Experience (DevEx)
+    // with an assigned improvement owner (or explicit waiver) before starting a new sprint cycle.
+    if (this.completedSprints.length > 0 && !opts.force) {
+      const lastCompleted = this.completedSprints[this.completedSprints.length - 1];
+      if (!lastCompleted.devexAudit || lastCompleted.devexAudit.status === 'pending') {
+        throw new Error(
+          `🚫 DEVEX AUDIT GATE ENFORCEMENT: Starting Sprint #${num} is BLOCKED!\n` +
+          `Developer Experience (DevEx) must audit Sprint #${lastCompleted.sprintNumber} report, identify delivery bottlenecks, ` +
+          `measure DORA metrics, and assign an improvement owner (or waive if optimal) before a new sprint can start.\n` +
+          `👉 Run: 'agent-team devex audit --owner <agent> --action "<improvement>"' or '--no-improvement'.\n` +
+          `👉 Or pass '--force' to bypass governance.`
+        );
+      }
+    }
+
     const cardSrc = opts.source || 'taskwarrior';
 
     let card: StoryCard | undefined;
@@ -1844,6 +1906,11 @@ export class StateManager {
     // Free any active meeting rooms
     this.endMeeting();
 
+    const lastCompleted = this.completedSprints.length > 0 ? this.completedSprints[this.completedSprints.length - 1] : undefined;
+    const inheritedAudit = (lastCompleted && lastCompleted.devexAudit && lastCompleted.devexAudit.status !== 'pending')
+      ? lastCompleted.devexAudit
+      : undefined;
+
     this.sprint = {
       sprintNumber: num,
       story: storyTitle,
@@ -1853,7 +1920,8 @@ export class StateManager {
       startedAt: Date.now(),
       sourceCard: card,
       history: [],
-      completedSprints: [...this.completedSprints]
+      completedSprints: [...this.completedSprints],
+      inheritedDevExAudit: inheritedAudit
     };
 
     const dummyAgent: Agent = {
@@ -2133,6 +2201,21 @@ export class StateManager {
     record.devexDirectives = dora.devexDirectives;
     this.sprint.doraMetrics = dora;
     this.sprint.devexDirectives = dora.devexDirectives;
+
+    // MANDATORY DEVEX POST-SPRINT AUDIT REQUIREMENT:
+    // Every sprint completion initiates a pending DevEx audit. The next sprint is gated until DevEx audits bottlenecks.
+    const pendingAudit: DevExAuditRecord = {
+      sprintNumber: record.sprintNumber,
+      auditedAt: 0,
+      auditor: 'developer-experience',
+      bottleneck: dora.bottleneckAnalysis.primaryBottleneck || 'Pending post-sprint delivery bottleneck diagnosis',
+      improvementNeeded: true,
+      status: 'pending',
+      notes: 'Awaiting DevEx post-sprint audit & next-sprint owner assignment',
+      doraOverallTier: dora.overallTier
+    };
+    record.devexAudit = pendingAudit;
+    this.sprint.devexAudit = pendingAudit;
 
     if (this.sprint.sourceCard) {
       cardManager.completeCard(this.sprint.sourceCard).catch(() => {});
@@ -2449,6 +2532,44 @@ export class StateManager {
 `;
     }
 
+    let devexAuditBlock = '';
+    const audit = record.devexAudit;
+    if (audit) {
+      if (audit.status === 'pending') {
+        devexAuditBlock = `
+### 🛡️ DevEx Post-Sprint Bottleneck Audit & Next-Sprint Mandate
+> **Audit Status:** ⏳ **PENDING DEVEX POST-SPRINT AUDIT**  
+> **Mandatory Policy Gate:** Starting a new sprint cycle is **STRICTLY BLOCKED** until Developer Experience (\`devex1\`) reviews this DORA scorecard, diagnoses delivery bottlenecks, and assigns an improvement owner (or certifies optimal flow).  
+> **Identified Initial Bottleneck:** ${audit.bottleneck}  
+> **Required Action:** Run \`agent-team devex audit --owner <agent> --action "<improvement>"\` (or \`--no-improvement\` if flow is optimal).
+`;
+      } else if (audit.status === 'assigned') {
+        const auditedDateStr = audit.auditedAt ? new Date(audit.auditedAt).toLocaleString() : 'N/A';
+        devexAuditBlock = `
+### 🛡️ DevEx Post-Sprint Bottleneck Audit & Next-Sprint Mandate
+> **Audit Status:** 🎯 **ASSIGNED & ENFORCED** (Next Sprint Unlocked)  
+> **Audited At:** \`${auditedDateStr}\` by **Developer Experience (\`devex1\`)**  
+> **Delivery Bottleneck Diagnosed:** **${audit.bottleneck}**  
+> **Improvement Mandate:** Required for Next Sprint  
+> **Assigned Owner Agent:** \`@${audit.ownerAgent}\`  
+> **Target Sprint Ceremony:** \`${audit.targetPhase ? audit.targetPhase.toUpperCase() : 'WORKING'}\`  
+> **Action Item:** "${audit.actionItem}"  
+${audit.notes ? `> **DevEx Notes:** ${audit.notes}  \n` : ''}
+> **Squad Mandate:** During next Sprint Planning, \`@${audit.ownerAgent}\` must acknowledge and commit to this mandate.
+`;
+      } else if (audit.status === 'waived') {
+        const auditedDateStr = audit.auditedAt ? new Date(audit.auditedAt).toLocaleString() : 'N/A';
+        devexAuditBlock = `
+### 🛡️ DevEx Post-Sprint Bottleneck Audit & Next-Sprint Mandate
+> **Audit Status:** 🟢 **WAIVED (OPTIMAL FLOW CERTIFIED)** (Next Sprint Unlocked)  
+> **Audited At:** \`${auditedDateStr}\` by **Developer Experience (\`devex1\`)**  
+> **Delivery Bottleneck Diagnosed:** ${audit.bottleneck || 'None detected'}  
+> **Improvement Mandate:** None (Waived)  
+> **Finding:** Squad throughput and stability are operating at Elite velocity. No intervention required.
+`;
+      }
+    }
+
     return `# 🏃 Sprint #${record.sprintNumber} Governance Audit & Completion Report
 
 > **Session / Project:** \`${this.sessionId}\`  
@@ -2485,6 +2606,7 @@ ${cardBlock}
 |---|---|---|---|---|
 ${directivesRows}
 ${historyBlock}
+${devexAuditBlock}
 ### 🔍 Theory of Constraints: Delivery Bottleneck Diagnosis
 - **Primary Delivery Bottleneck:** ${dora.bottleneckAnalysis.primaryBottleneck}
 - **Throughput Impact:** ${dora.bottleneckAnalysis.throughputImpact}
@@ -2518,6 +2640,101 @@ ${historyRows || '| - | *No ceremony events logged* | - | - | - |'}
 
   public getCompletedSprints(): SprintRecord[] {
     return [...this.completedSprints];
+  }
+
+  /**
+   * Perform Developer Experience (DevEx) post-sprint audit & bottleneck removal
+   * Analyzes DORA metrics, diagnoses delivery bottlenecks, and assigns an owner agent
+   * (or waives if flow is optimal).
+   */
+  public performDevExAudit(options: {
+    sprintNumber?: number;
+    improvementNeeded: boolean;
+    ownerAgent?: string;
+    actionItem?: string;
+    bottleneck?: string;
+    targetPhase?: SprintPhase;
+    notes?: string;
+  }): DevExAuditRecord {
+    const targetSprintNum = options.sprintNumber || (this.completedSprints.length > 0 ? this.completedSprints[this.completedSprints.length - 1].sprintNumber : this.sprint.sprintNumber);
+    const sprintRecord = this.completedSprints.find(s => s.sprintNumber === targetSprintNum);
+    if (!sprintRecord) {
+      throw new Error(`Cannot perform DevEx audit: Sprint #${targetSprintNum} has not been completed yet.`);
+    }
+
+    if (options.improvementNeeded) {
+      if (!options.ownerAgent || !options.ownerAgent.trim()) {
+        throw new Error(`DevEx audit requires an owner agent when improvement is needed (e.g. coder1, qa-tester1, devops-release1).`);
+      }
+      if (!options.actionItem || !options.actionItem.trim()) {
+        throw new Error(`DevEx audit requires an action item describing how the bottleneck will be addressed in the next sprint.`);
+      }
+    }
+
+    const cleanOwner = options.ownerAgent ? options.ownerAgent.trim().replace(/^@/, '') : undefined;
+    const bottleneck = options.bottleneck?.trim() || sprintRecord.doraMetrics?.bottleneckAnalysis.primaryBottleneck || 'Backlog Refinement & Dependency Hand-off';
+
+    const auditRecord: DevExAuditRecord = {
+      sprintNumber: sprintRecord.sprintNumber,
+      auditedAt: Date.now(),
+      auditor: 'developer-experience',
+      bottleneck,
+      improvementNeeded: options.improvementNeeded,
+      ownerAgent: options.improvementNeeded ? cleanOwner : undefined,
+      actionItem: options.improvementNeeded ? options.actionItem?.trim() : undefined,
+      targetPhase: options.targetPhase || (options.improvementNeeded ? 'working' : undefined),
+      status: options.improvementNeeded ? 'assigned' : 'waived',
+      notes: options.notes?.trim(),
+      doraOverallTier: sprintRecord.doraMetrics?.overallTier || 'Elite'
+    };
+
+    sprintRecord.devexAudit = auditRecord;
+    if (this.sprint.sprintNumber === sprintRecord.sprintNumber) {
+      this.sprint.devexAudit = auditRecord;
+    }
+
+    // Refresh report markdown on disk
+    try {
+      const reportDir = path.join(process.cwd(), 'docs', 'sprints');
+      const reportFileName = `sprint_${sprintRecord.sprintNumber}_report.md`;
+      const reportPath = path.join(reportDir, reportFileName);
+      const mdContent = this.generateSprintMarkdownReport(sprintRecord);
+      fs.writeFileSync(reportPath, mdContent, 'utf-8');
+      sprintRecord.reportPath = reportPath;
+    } catch (err) {
+      console.error(`[StateManager] Failed to update sprint markdown report with DevEx audit:`, err);
+    }
+
+    // Post to Retro / DevEx Slack feed
+    const auditThreadId = `th-devex-audit-sprint-${sprintRecord.sprintNumber}`;
+    const mentions = cleanOwner ? [`@${cleanOwner}`, '@devex1'] : ['@devex1'];
+    const statusLabel = options.improvementNeeded ? `Assigned to @${cleanOwner}` : 'Waived (Optimal Flow Certified)';
+
+    this.createThread({
+      id: auditThreadId,
+      category: 'ceremony',
+      sprintNumber: sprintRecord.sprintNumber,
+      title: `[Sprint #${sprintRecord.sprintNumber} DevEx Audit] Delivery Bottleneck Analysis & Next-Sprint Assignment`,
+      author: 'devex1',
+      topic: `DevEx Post-Sprint #${sprintRecord.sprintNumber} Bottleneck Audit`,
+      intent: `Diagnose delivery constraints from Sprint #${sprintRecord.sprintNumber} DORA report to optimize next-sprint throughput.`,
+      point: `DORA Overall Tier: ${auditRecord.doraOverallTier?.toUpperCase()} Performer. Identified Bottleneck: "${bottleneck}". Status: ${statusLabel}.${options.improvementNeeded ? ` Mandate assigned to @${cleanOwner}: "${options.actionItem}".` : ' Flow is operating at optimal velocity; no intervention required.'}`,
+      nextSteps: options.improvementNeeded ? `@${cleanOwner} please acknowledge and commit during Next Sprint Planning.` : 'Squad authorized to proceed with next sprint planning.',
+      mentions
+    });
+
+    return auditRecord;
+  }
+
+  public getDevExAudit(sprintNumber?: number): DevExAuditRecord | undefined {
+    if (sprintNumber !== undefined) {
+      const rec = this.completedSprints.find(s => s.sprintNumber === sprintNumber);
+      return rec?.devexAudit || (this.sprint.sprintNumber === sprintNumber ? this.sprint.devexAudit : undefined);
+    }
+    if (this.completedSprints.length > 0) {
+      return this.completedSprints[this.completedSprints.length - 1].devexAudit;
+    }
+    return this.sprint.devexAudit;
   }
 
   public getSprint(): SprintState {

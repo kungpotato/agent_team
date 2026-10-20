@@ -505,15 +505,17 @@ STRICT RULES:
       card_id: z.string().optional().describe('Story card ID from Taskwarrior (e.g. "1") or Jira (e.g. "JIRA-101")'),
       source: z.enum(['taskwarrior', 'jira']).optional().describe('Story card source provider (default: taskwarrior)'),
       story: z.string().optional().describe('User story title (optional if card_id or Taskwarrior backlog is used)'),
-      points: z.number().optional().describe('Story points estimation (default: card points or 5)')
+      points: z.number().optional().describe('Story points estimation (default: card points or 5)'),
+      force: z.boolean().optional().describe('Bypass DevEx post-sprint audit gate check')
     },
-    async ({ sprint_number, card_id, source, story, points }) => {
+    async ({ sprint_number, card_id, source, story, points, force }) => {
       const res = await apiCall('/api/sprint/start', 'POST', {
         sprintNumber: sprint_number,
         cardId: card_id,
         source: source || 'taskwarrior',
         story,
-        points
+        points,
+        force
       });
       const cardBadge = res.sprint.sourceCard ? ` [${res.sprint.sourceCard.source.toUpperCase()}: ${res.sprint.sourceCard.id}]` : '';
       return {
@@ -704,6 +706,47 @@ STRICT RULES:
       lines.push(`   WIP Status:  ${d.bottleneckAnalysis.wipStatus}`);
       return {
         content: [{ type: 'text', text: lines.join('\n') }]
+      };
+    }
+  );
+
+  // 17c. DEVEX POST-SPRINT AUDIT & BOTTLENECK REMOVAL
+  server.tool(
+    'office_devex_audit',
+    'Perform Developer Experience (DevEx) post-sprint audit. Analyzes DORA metrics, diagnoses delivery bottlenecks, and assigns an owner agent (e.g. coder1, qa-tester1, devops-release1) with an action item for the next sprint, or waives if flow is optimal. MANDATORY GATE: Starting a new sprint is blocked until DevEx performs this audit on the previous sprint.',
+    {
+      sprint: z.number().optional().describe('Sprint number to audit (defaults to last completed sprint)'),
+      no_improvement: z.boolean().optional().describe('Set to true if flow is optimal and no bottleneck intervention is needed (waive)'),
+      owner_agent: z.string().optional().describe('Owner agent assigned to remove the bottleneck in the next sprint (e.g. coder1, qa-tester1, devops-release1)'),
+      action_item: z.string().optional().describe('Specific action item or capability to improve in the next sprint'),
+      bottleneck: z.string().optional().describe('Identified delivery bottleneck (e.g. "PR batch size latency", "Slow CI feedback", "Flaky test runs")'),
+      phase: z.enum(['validation', 'grooming', 'planning', 'working', 'demo', 'uat', 'release', 'retro']).optional().describe('Sprint phase targeted for improvement'),
+      notes: z.string().optional().describe('Additional audit observations or context')
+    },
+    async ({ sprint, no_improvement, owner_agent, action_item, bottleneck, phase, notes }) => {
+      const res = await apiCall('/api/sprint/devex-audit', 'POST', {
+        sprintNumber: sprint,
+        improvementNeeded: !no_improvement,
+        ownerAgent: owner_agent,
+        actionItem: action_item,
+        bottleneck,
+        targetPhase: phase,
+        notes
+      });
+      const a = res.audit;
+      if (a.status === 'waived') {
+        return {
+          content: [{
+            type: 'text',
+            text: `✅ DEVEX POST-SPRINT AUDIT COMPLETED (Sprint #${a.sprintNumber}):\nDelivery throughput and DORA metrics certified OPTIMAL. Improvement waived. Squad authorized to start next sprint.`
+          }]
+        };
+      }
+      return {
+        content: [{
+          type: 'text',
+          text: `🛡️ DEVEX POST-SPRINT AUDIT COMPLETED (Sprint #${a.sprintNumber}):\n🔍 Bottleneck: "${a.bottleneck}"\n👤 Assigned Owner: @${a.ownerAgent}\n🎯 Action Item: "${a.actionItem}"\n📍 Target Phase: ${a.targetPhase ? a.targetPhase.toUpperCase() : 'WORKING'}\n🚀 Next sprint is now UNLOCKED! During Planning, @${a.ownerAgent} must commit to this mandate.`
+        }]
       };
     }
   );

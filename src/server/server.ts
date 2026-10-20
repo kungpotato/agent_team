@@ -404,13 +404,14 @@ export function createServer() {
   app.post('/api/sprint/start', async (req, res) => {
     try {
       const sm: StateManager = (req as any).stateManager;
-      const { sprintNumber, story, points, cardId, source } = req.body || {};
+      const { sprintNumber, story, points, cardId, source, force } = req.body || {};
       const sprint = await sm.startSprint({
         sprintNumber: sprintNumber ? Number(sprintNumber) : undefined,
         story,
         points: points ? Number(points) : undefined,
         cardId,
-        source
+        source,
+        force: Boolean(force)
       });
       res.json({ success: true, session: sm.sessionId, sprint });
     } catch (err: any) {
@@ -438,7 +439,8 @@ export function createServer() {
   app.post('/api/sprint/next', (req, res) => {
     try {
       const sm: StateManager = (req as any).stateManager;
-      const result = sm.nextCeremony();
+      const { force } = req.body || {};
+      const result = sm.nextCeremony({ force: Boolean(force) });
       res.json({ success: true, session: sm.sessionId, ...result });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -448,8 +450,8 @@ export function createServer() {
   app.post('/api/sprint/complete', (req, res) => {
     try {
       const sm: StateManager = (req as any).stateManager;
-      const { summary } = req.body || {};
-      const result = sm.completeSprint(summary);
+      const { summary, force } = req.body || {};
+      const result = sm.completeSprint(summary, { force: Boolean(force) });
       res.json({ success: true, session: sm.sessionId, ...result });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -474,6 +476,39 @@ export function createServer() {
       }
       const dora = sm.calculateDoraMetrics(record);
       res.json({ success: true, session: sm.sessionId, dora });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/sprint/devex-audit', (req, res) => {
+    try {
+      const sm: StateManager = (req as any).stateManager;
+      const { sprintNumber, improvementNeeded, ownerAgent, actionItem, bottleneck, targetPhase, notes } = req.body || {};
+      const audit = sm.performDevExAudit({
+        sprintNumber: sprintNumber !== undefined ? Number(sprintNumber) : undefined,
+        improvementNeeded: improvementNeeded !== false,
+        ownerAgent,
+        actionItem,
+        bottleneck,
+        targetPhase,
+        notes
+      });
+      res.json({ success: true, session: sm.sessionId, audit });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/sprint/devex-audit', (req, res) => {
+    try {
+      const sm: StateManager = (req as any).stateManager;
+      const sprintNumber = req.query.sprint ? parseInt(req.query.sprint as string, 10) : undefined;
+      const audit = sm.getDevExAudit(sprintNumber);
+      if (!audit) {
+        return res.status(404).json({ error: `No DevEx audit found for sprint ${sprintNumber ?? 'current'}` });
+      }
+      res.json({ success: true, session: sm.sessionId, audit });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

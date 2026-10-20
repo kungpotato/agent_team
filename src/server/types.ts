@@ -211,6 +211,20 @@ export interface DoraMetricsSummary {
   };
 }
 
+export interface DevExAuditRecord {
+  sprintNumber: number;
+  auditedAt: number;
+  auditor: string; // e.g. "developer-experience" / "devex1"
+  bottleneck: string; // Identified delivery bottleneck from report
+  improvementNeeded: boolean; // true if bottleneck found, false if optimal / waived
+  ownerAgent?: string; // Assigned owner agent e.g. "coder1", "qa-tester1", "devops-release1"
+  actionItem?: string; // What the assigned agent must improve in the next sprint
+  targetPhase?: SprintPhase; // Ceremony / phase targeted for improvement
+  status: 'pending' | 'assigned' | 'waived';
+  notes?: string;
+  doraOverallTier?: DoraPerformanceTier;
+}
+
 export interface SprintRecord {
   sprintNumber: number;
   story: string;
@@ -223,6 +237,7 @@ export interface SprintRecord {
   reportPath?: string;
   doraMetrics?: DoraMetricsSummary;
   devexDirectives?: DevExDirective[];
+  devexAudit?: DevExAuditRecord;
 }
 
 export interface SprintState {
@@ -237,6 +252,8 @@ export interface SprintState {
   sourceCard?: StoryCard;
   doraMetrics?: DoraMetricsSummary;
   devexDirectives?: DevExDirective[];
+  devexAudit?: DevExAuditRecord;
+  inheritedDevExAudit?: DevExAuditRecord;
   history: {
     phase: SprintPhase;
     timestamp: number;
