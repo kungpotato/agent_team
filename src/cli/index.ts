@@ -701,7 +701,7 @@ program
 // POTATO-WORKFLOW COMMAND
 program
   .command('potato-workflow <workflow>')
-  .description('Run a predefined Potato-Skill meeting workflow: review | arch | qa | triage | all-hands')
+  .description('Run a predefined Potato-Skill meeting workflow: review | arch | qa | triage | all-hands | em')
   .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
   .action(async (workflow, options) => {
     try {
@@ -720,11 +720,14 @@ program
         await apiCall('/api/agents/meet', 'POST', { names: ['runtime-sre1', 'coder1'], room: 4, topic: 'Runtime Incident RCA & Hotfix' }, port);
         console.log(`📋 Potato Workflow [triage]: runtime-sre1 & coder1 are in Omega Room (Ω)!`);
       } else if (wf === 'all-hands') {
-        const team = ['project-planner1', 'product-manager1', 'system-architect1', 'coder1', 'code-reviewer1', 'qa-tester1', 'devops-release1', 'runtime-sre1'];
+        const team = ['project-planner1', 'product-manager1', 'system-architect1', 'coder1', 'code-reviewer1', 'qa-tester1', 'devops-release1', 'runtime-sre1', 'engineering-manager1'];
         await apiCall('/api/agents/meet', 'POST', { names: team, room: 5, topic: 'Sprint DAG Wave Planning' }, port);
-        console.log(`📋 Potato Workflow [all-hands]: Full squad (8 agents) in Infinity Boardroom (∞)!`);
+        console.log(`📋 Potato Workflow [all-hands]: Full squad (9 agents) in Infinity Boardroom (∞)!`);
+      } else if (wf === 'em' || wf === 'dora') {
+        await apiCall('/api/agents/meet', 'POST', { names: ['engineering-manager1', 'project-planner1'], room: 5, topic: 'DORA Delivery Metrics & Accelerate Bottleneck Audit' }, port);
+        console.log(`📋 Potato Workflow [em]: engineering-manager1 & project-planner1 in Infinity Boardroom (∞)!`);
       } else {
-        console.log(`Unknown workflow "${workflow}". Available: review | arch | qa | triage | all-hands`);
+        console.log(`Unknown workflow "${workflow}". Available: review | arch | qa | triage | all-hands | em`);
       }
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
@@ -933,6 +936,49 @@ sprintCmd
     }
   });
 
+sprintCmd
+  .command('dora [sprintNumber]')
+  .alias('accelerate')
+  .description('Display 4 DORA delivery metrics, Accelerate capabilities, and bottleneck diagnosis')
+  .option('--port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (sprintNumber, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const url = sprintNumber ? `/api/sprint/dora?sprint=${sprintNumber}` : '/api/sprint/dora';
+      const res = await apiCall(url, 'GET', undefined, port);
+      const d = res.dora;
+
+      console.log(`\n══════════════════════════════════════════════════════════════════════`);
+      console.log(`📊 ACCELERATE & DORA DELIVERY METRICS SCORECARD (Sprint #${d.sprintNumber})`);
+      console.log(`   Audited by: Engineering Manager (EM - Accelerate Champion)`);
+      console.log(`   Story: "${d.story}"`);
+      console.log(`   Overall Rating: 🚀 [${d.overallTier.toUpperCase()} PERFORMER]`);
+      console.log(`══════════════════════════════════════════════════════════════════════`);
+      console.log(`\n4 CORE DORA METRICS:`);
+      console.log(`  1. Deployment Frequency (DF):      ${d.deploymentFrequency.value} [${d.deploymentFrequency.tier}]`);
+      console.log(`     Target: ${d.deploymentFrequency.target}`);
+      console.log(`  2. Lead Time for Changes (LT):     ${d.leadTimeForChanges.value} [${d.leadTimeForChanges.tier}]`);
+      console.log(`     Target: ${d.leadTimeForChanges.target}`);
+      console.log(`  3. Change Failure Rate (CFR):      ${d.changeFailureRate.value} [${d.changeFailureRate.tier}]`);
+      console.log(`     Target: ${d.changeFailureRate.target}`);
+      console.log(`  4. Time to Restore Service (MTTR):  ${d.timeToRestoreService.value} [${d.timeToRestoreService.tier}]`);
+      console.log(`     Target: ${d.timeToRestoreService.target}`);
+      console.log(`\n🔍 BOTTLENECK DIAGNOSIS (Theory of Constraints):`);
+      console.log(`  • Primary Bottleneck:    ${d.bottleneckAnalysis.primaryBottleneck}`);
+      console.log(`  • Throughput Impact:     ${d.bottleneckAnalysis.throughputImpact}`);
+      console.log(`  • Recommended Capability: ${d.bottleneckAnalysis.recommendedCapability}`);
+      console.log(`  • WIP Flow Status:       ${d.bottleneckAnalysis.wipStatus}`);
+      console.log(`\n🛠️ ACCELERATE CAPABILITIES AUDIT:`);
+      d.accelerateCapabilities.forEach((c: any) => {
+        console.log(`  [${c.status}] ${c.capability} (${c.stage})`);
+        console.log(`      ↳ ${c.impact}`);
+      });
+      console.log(`══════════════════════════════════════════════════════════════════════\n`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
 // TOP-LEVEL SHORTCUT ALIASES FOR SPRINT CEREMONIES
 program
   .command('validate [storyParts...]')
@@ -1059,6 +1105,38 @@ program
       const res = await apiCall('/api/sprint/complete', 'POST', { summary }, port);
       console.log(`\n🏆 SPRINT #${res.record.sprintNumber} COMPLETED!`);
       console.log(`💡 Start the next sprint cycle anytime with: "agent-team start-sprint" or "agent-team sprint start"`);
+    } catch (err: any) {
+      console.error(`❌ Error: ${err.message}`);
+    }
+  });
+
+program
+  .command('dora [sprintNumber]')
+  .alias('accelerate')
+  .description('Shortcut: Display 4 DORA delivery metrics & Accelerate capabilities scorecard')
+  .option('-p, --port <number>', 'Server port', String(DEFAULT_PORT))
+  .action(async (sprintNumber, options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const url = sprintNumber ? `/api/sprint/dora?sprint=${sprintNumber}` : '/api/sprint/dora';
+      const res = await apiCall(url, 'GET', undefined, port);
+      const d = res.dora;
+      console.log(`\n══════════════════════════════════════════════════════════════════════`);
+      console.log(`📊 ACCELERATE & DORA DELIVERY METRICS SCORECARD (Sprint #${d.sprintNumber})`);
+      console.log(`   Audited by: Engineering Manager (EM - Accelerate Champion)`);
+      console.log(`   Story: "${d.story}"`);
+      console.log(`   Overall Rating: 🚀 [${d.overallTier.toUpperCase()} PERFORMER]`);
+      console.log(`══════════════════════════════════════════════════════════════════════`);
+      console.log(`\n4 CORE DORA METRICS:`);
+      console.log(`  1. Deployment Frequency (DF):      ${d.deploymentFrequency.value} [${d.deploymentFrequency.tier}]`);
+      console.log(`  2. Lead Time for Changes (LT):     ${d.leadTimeForChanges.value} [${d.leadTimeForChanges.tier}]`);
+      console.log(`  3. Change Failure Rate (CFR):      ${d.changeFailureRate.value} [${d.changeFailureRate.tier}]`);
+      console.log(`  4. Time to Restore Service (MTTR):  ${d.timeToRestoreService.value} [${d.timeToRestoreService.tier}]`);
+      console.log(`\n🔍 BOTTLENECK DIAGNOSIS:`);
+      console.log(`  • Primary Bottleneck:    ${d.bottleneckAnalysis.primaryBottleneck}`);
+      console.log(`  • Recommended Capability: ${d.bottleneckAnalysis.recommendedCapability}`);
+      console.log(`  • WIP Flow Status:       ${d.bottleneckAnalysis.wipStatus}`);
+      console.log(`══════════════════════════════════════════════════════════════════════\n`);
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
     }

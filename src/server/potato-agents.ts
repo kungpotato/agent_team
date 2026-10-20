@@ -145,6 +145,11 @@ export function loadPotatoAgents(dirPath: string = DEFAULT_AGENTS_DIR): Map<stri
       defaultColor = 'purple';
       defaultTask = 'Designing RAG architectures & prompt chains';
       targetBench = 4; // Bench 5 (AI & DATA)
+    } else if (name === 'engineering-manager' || name === 'em') {
+      roleTitle = 'EM';
+      defaultColor = 'blue';
+      defaultTask = 'Analyzing DORA delivery bottlenecks & Accelerate capabilities';
+      targetBench = 2; // Bench 3 (TECH: Frontend + Backend + QA)
     }
 
     const assignedColor = colorMatch ? colorMatch[1].trim().toLowerCase() : defaultColor;

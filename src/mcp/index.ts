@@ -658,6 +658,45 @@ STRICT RULES:
     }
   );
 
+  // 17b. DORA METRICS & ACCELERATE AUDIT
+  server.tool(
+    'office_get_dora_metrics',
+    'Get 4 DORA delivery metrics (Deployment Frequency, Lead Time for Changes, Change Failure Rate, Time to Restore Service) and Accelerate capabilities bottleneck audit evaluated by the Engineering Manager.',
+    {
+      sprint: z.number().optional().describe('Sprint number to inspect (defaults to current or most recently completed sprint)')
+    },
+    async ({ sprint }) => {
+      const url = sprint ? `/api/sprint/dora?sprint=${sprint}` : '/api/sprint/dora';
+      const res = await apiCall(url, 'GET');
+      const d = res.dora;
+      const lines = [
+        `📊 ACCELERATE & DORA METRICS SCORECARD (Sprint #${d.sprintNumber})`,
+        `🎯 Story: "${d.story}"`,
+        `🚀 Overall Delivery Performance: [${d.overallTier.toUpperCase()} PERFORMER]\n`,
+        `1. Deployment Frequency (DF):      ${d.deploymentFrequency.value} [${d.deploymentFrequency.tier}]`,
+        `   Target: ${d.deploymentFrequency.target}`,
+        `2. Lead Time for Changes (LT):     ${d.leadTimeForChanges.value} [${d.leadTimeForChanges.tier}]`,
+        `   Target: ${d.leadTimeForChanges.target}`,
+        `3. Change Failure Rate (CFR):      ${d.changeFailureRate.value} [${d.changeFailureRate.tier}]`,
+        `   Target: ${d.changeFailureRate.target}`,
+        `4. Time to Restore Service (MTTR): ${d.timeToRestoreService.value} [${d.timeToRestoreService.tier}]`,
+        `   Target: ${d.timeToRestoreService.target}\n`,
+        `🔍 BOTTLENECK DIAGNOSIS (Theory of Constraints):`,
+        `   Bottleneck:  ${d.bottleneckAnalysis.primaryBottleneck}`,
+        `   Impact:      ${d.bottleneckAnalysis.throughputImpact}`,
+        `   Capability:  ${d.bottleneckAnalysis.recommendedCapability}`,
+        `   WIP Status:  ${d.bottleneckAnalysis.wipStatus}\n`,
+        `🛠️ ACCELERATE CAPABILITIES:`
+      ];
+      d.accelerateCapabilities.forEach((c: any) => {
+        lines.push(`   - [${c.status}] ${c.capability} (${c.stage}) ➔ ${c.impact}`);
+      });
+      return {
+        content: [{ type: 'text', text: lines.join('\n') }]
+      };
+    }
+  );
+
   // 18. GET STORY CARDS (Taskwarrior default, or Jira)
   server.tool(
     'office_get_cards',

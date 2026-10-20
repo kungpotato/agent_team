@@ -461,6 +461,24 @@ export function createServer() {
     res.json({ success: true, session: sm.sessionId, completedSprints: sm.getCompletedSprints() });
   });
 
+  app.get('/api/sprint/dora', (req, res) => {
+    try {
+      const sm: StateManager = (req as any).stateManager;
+      const sprintNumber = req.query.sprint ? parseInt(req.query.sprint as string, 10) : undefined;
+      let record = undefined;
+      if (sprintNumber !== undefined) {
+        record = sm.getCompletedSprints().find(s => s.sprintNumber === sprintNumber);
+        if (!record && sm.getSprint().sprintNumber !== sprintNumber) {
+          return res.status(404).json({ error: `Sprint #${sprintNumber} not found` });
+        }
+      }
+      const dora = sm.calculateDoraMetrics(record);
+      res.json({ success: true, session: sm.sessionId, dora });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Story Cards API (Taskwarrior default, or Jira)
   app.get('/api/cards', async (req, res) => {
     try {

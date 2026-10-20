@@ -69,7 +69,7 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentInfo> = {
     benchIndex: 2,
     color: '#38bdf8',
     description: 'System Architects, Coders, Code Reviewers, and QA Testers',
-    roles: ['system-architect', 'coder', 'code-reviewer', 'qa-tester', 'dev', 'frontend', 'backend', 'qa', 'tech']
+    roles: ['system-architect', 'coder', 'code-reviewer', 'qa-tester', 'engineering-manager', 'em', 'dev', 'frontend', 'backend', 'qa', 'tech']
   },
   devops: {
     id: 'devops',
@@ -91,6 +91,9 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentInfo> = {
 
 export function resolveDepartmentByRole(role: string): DepartmentInfo {
   const r = role.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (r.includes('engineering') || r.includes('engmanager') || r === 'em') {
+    return DEPARTMENTS.tech;
+  }
   if (r.includes('product') || r.includes('plan') || r === 'pm' || r === 'po' || r.includes('scrum') || r === 'ba') {
     return DEPARTMENTS.product;
   }
@@ -103,7 +106,7 @@ export function resolveDepartmentByRole(role: string): DepartmentInfo {
   if (r.includes('ai') || r.includes('data') || r.includes('ml') || r.includes('model') || r.includes('analyst')) {
     return DEPARTMENTS.ai_data;
   }
-  // Default to tech (coder, backend, frontend, qa, dev, architect, reviewer)
+  // Default to tech (coder, backend, frontend, qa, dev, architect, reviewer, em)
   return DEPARTMENTS.tech;
 }
 
@@ -154,6 +157,41 @@ export interface StoryCard {
   tags?: string[];
 }
 
+export type DoraPerformanceTier = 'Elite' | 'High' | 'Medium' | 'Low';
+
+export interface DoraMetricItem {
+  metric: string;
+  value: string;
+  raw: number;
+  unit: string;
+  tier: DoraPerformanceTier;
+  target: string;
+  description: string;
+}
+
+export interface DoraMetricsSummary {
+  sprintNumber: number;
+  story: string;
+  calculatedAt: number;
+  overallTier: DoraPerformanceTier;
+  deploymentFrequency: DoraMetricItem;
+  leadTimeForChanges: DoraMetricItem;
+  changeFailureRate: DoraMetricItem;
+  timeToRestoreService: DoraMetricItem;
+  bottleneckAnalysis: {
+    primaryBottleneck: string;
+    throughputImpact: string;
+    recommendedCapability: string;
+    wipStatus: string;
+  };
+  accelerateCapabilities: {
+    capability: string;
+    stage: string;
+    status: 'Adopted' | 'In Progress' | 'Recommended';
+    impact: string;
+  }[];
+}
+
 export interface SprintRecord {
   sprintNumber: number;
   story: string;
@@ -164,6 +202,7 @@ export interface SprintRecord {
   summary?: string;
   sourceCard?: StoryCard;
   reportPath?: string;
+  doraMetrics?: DoraMetricsSummary;
 }
 
 export interface SprintState {
@@ -176,6 +215,7 @@ export interface SprintState {
   completedAt?: number;
   activeCeremony?: SprintCeremonyInfo;
   sourceCard?: StoryCard;
+  doraMetrics?: DoraMetricsSummary;
   history: {
     phase: SprintPhase;
     timestamp: number;

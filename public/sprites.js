@@ -30,6 +30,7 @@ function getAgentLabel(name) {
   if (clean.startsWith('design-to-code')) return clean.replace('design-to-code', 'ui-dev');
   if (clean.startsWith('devops-release')) return clean.replace('devops-release', 'devops');
   if (clean.startsWith('runtime-sre')) return clean.replace('runtime-sre', 'sre');
+  if (clean.startsWith('engineering-manager')) return clean.replace('engineering-manager', 'em');
   return name;
 }
 
