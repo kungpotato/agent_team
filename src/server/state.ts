@@ -69,9 +69,9 @@ export const SPRINT_CEREMONIES: {
     phaseIndex: 6,
     name: 'UAT Verification & Formal Sign-Off',
     shortName: '6. UAT SIGN-OFF',
-    description: 'PO and QA verify acceptance criteria, review test results, and grant formal UAT sign-off.',
+    description: 'PO, QA, and UI/UX Designer verify acceptance criteria, review test results, and grant formal UAT sign-off.',
     room: 2,
-    roles: ['product-manager', 'qa-tester', 'coder', 'system-architect'],
+    roles: ['product-manager', 'qa-tester', 'coder', 'system-architect', 'ui-ux-designer'],
     defaultTopic: 'UAT Acceptance Criteria Review & Sign-Off'
   },
   {
@@ -102,7 +102,7 @@ export const CEREMONY_REQUIRED_SIGNOFFS: Record<SprintPhase, string[]> = {
   planning: ['project-planner', 'coder', 'developer-experience'],
   working: ['coder'],
   demo: ['coder', 'qa-tester'],
-  uat: ['qa-tester', 'product-manager'],
+  uat: ['qa-tester', 'product-manager', 'ui-ux-designer'],
   release: ['devops-release', 'runtime-sre'],
   retro: ['project-planner', 'product-manager', 'developer-experience'],
   idle: [],
@@ -496,14 +496,22 @@ export class StateManager {
             topic: 'UAT Acceptance Test Execution Report',
             intent: 'Final quality gatekeeper before authorizing production release.',
             point: '54/54 end-to-end acceptance tests passed. 100% criteria coverage, 0 open defects, zero security vulnerabilities.',
-            nextSteps: '@product-manager1 please provide formal sign-off signature.',
+            nextSteps: '@ui-ux-designer1 please verify visual fidelity, design tokens, and UX flow.',
+            mentions: ['@ui-ux-designer1']
+          },
+          {
+            author: 'ui-ux-designer1',
+            topic: 'Design QA & UX Fidelity Verification',
+            intent: 'Verify that delivered UI matches the approved visual design, design tokens, and usability heuristics.',
+            point: 'Design QA complete: 8pt spatial rhythm, typography scale, micro-interactions, responsive states, and WCAG 2.1 AA accessibility contrast match the approved UI specifications 100%. User flow is intuitive and seamless.',
+            nextSteps: '@product-manager1 design fidelity certified. Ready for formal UAT sign-off approval.',
             mentions: ['@product-manager1']
           },
           {
             author: 'product-manager1',
             topic: 'Formal UAT Sign-Off Approval',
             intent: 'Authorize deployment of milestone to production.',
-            point: `Formal UAT Sign-Off APPROVED for "${pStory}". Product quality meets all business criteria.`,
+            point: `Formal UAT Sign-Off APPROVED for "${pStory}". Product quality, technical criteria, and UX design fidelity meet all standards.`,
             nextSteps: '@devops-release1 and @runtime-sre1 authorized to proceed with Phase 7 Production Release.',
             mentions: ['@devops-release1', '@runtime-sre1']
           }
@@ -2622,7 +2630,7 @@ ${historyRows || '| - | *No ceremony events logged* | - | - | - |'}
 
 - [x] **Developer Experience (DevEx - Accelerate Champion):** Delivery throughput, DORA Elite benchmarks, and small-batch WIP limits certified.
 - [x] **Product Department (PO / PM):** Acceptance criteria validated in Delta Room (Δ) & UAT Sign-off approved.
-- [x] **Designer Department (UI/UX):** Design system fidelity and user interaction validated in Demo (λ).
+- [x] **Designer Department (UI/UX):** Design system fidelity, usability heuristics, and visual acceptance verified in Demo (λ) and UAT (Δ).
 - [x] **Tech Department (Frontend + Backend + QA):** Code reviewed, tests passing, zero regressions committed.
 - [x] **DevOps & Platform (Release & SRE):** Production release deployed with automated canary verification in Omega Room (Ω).
 - [x] **AI & Data Department:** Pipeline stability, prompt alignment, and data consistency verified.

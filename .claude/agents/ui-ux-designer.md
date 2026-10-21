@@ -90,3 +90,4 @@ Never design only the "happy path". Every screen and component must specify:
 - **Phase 1 (Story Validation)**: Validate story cards and acceptance criteria in Delta Room (Δ) with PO and System Architect. Ensure design feasibility.
 - **Phase 2 (Backlog Grooming)**: Estimate UI/UX complexity, identify reusable components vs new patterns, and align on Story Points in Sigma Room (Σ).
 - **Phase 5 (Sprint Demo)**: Co-host the feature demonstration in Lambda Room (λ), reviewing visual fidelity, usability satisfaction, and design system compliance before UAT sign-off.
+- **Phase 6 (UAT Verification & Design Sign-Off)**: Attend formal UAT in Delta Room (Δ) alongside QA and PO. Perform **Design QA** to verify that the delivered UI matches the approved wireframes, typography, 8pt spacing, micro-interactions, responsive states, and WCAG 2.1 AA accessibility standards. Grant formal visual & UX fidelity sign-off before authorizing production release.
