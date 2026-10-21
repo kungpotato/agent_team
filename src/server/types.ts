@@ -225,6 +225,26 @@ export interface DevExAuditRecord {
   doraOverallTier?: DoraPerformanceTier;
 }
 
+export interface EnrichedAcceptanceCriteria {
+  id: string; // e.g. "AC-01", "AC-02"
+  title: string;
+  category: 'functional' | 'edge_case' | 'security' | 'ux_state' | 'performance';
+  description: string;
+  source: 'product' | 'architecture' | 'qa' | 'design';
+  status: 'defined' | 'verified';
+}
+
+export interface EdgeCaseAnalysis {
+  identifiedCases: {
+    scenario: string;
+    risk: 'high' | 'medium' | 'low';
+    mitigation: string;
+    identifiedBy: string;
+    acReference?: string;
+  }[];
+  enrichedAt: number;
+}
+
 export interface SprintRecord {
   sprintNumber: number;
   story: string;
@@ -238,6 +258,8 @@ export interface SprintRecord {
   doraMetrics?: DoraMetricsSummary;
   devexDirectives?: DevExDirective[];
   devexAudit?: DevExAuditRecord;
+  enrichedAcceptanceCriteria?: EnrichedAcceptanceCriteria[];
+  edgeCaseAnalysis?: EdgeCaseAnalysis;
 }
 
 export interface SprintState {
@@ -254,6 +276,8 @@ export interface SprintState {
   devexDirectives?: DevExDirective[];
   devexAudit?: DevExAuditRecord;
   inheritedDevExAudit?: DevExAuditRecord;
+  enrichedAcceptanceCriteria?: EnrichedAcceptanceCriteria[];
+  edgeCaseAnalysis?: EdgeCaseAnalysis;
   history: {
     phase: SprintPhase;
     timestamp: number;

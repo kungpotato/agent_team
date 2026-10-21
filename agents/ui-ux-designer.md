@@ -87,7 +87,7 @@ Never design only the "happy path". Every screen and component must specify:
 3. **To `qa-tester`**: Provide the Screen State Matrix and visual acceptance criteria for automated and manual verification.
 
 ### Phase 4 — Sprint Ceremony Governance
-- **Phase 1 (Story Validation)**: Validate story cards and acceptance criteria in Delta Room (Δ) with PO and System Architect. Ensure design feasibility.
-- **Phase 2 (Backlog Grooming)**: Estimate UI/UX complexity, identify reusable components vs new patterns, and align on Story Points in Sigma Room (Σ).
+- **Phase 1 (Story Refinement & AC Gap Analysis)**: Participate in Three Amigos in Delta Room (Δ) with PO, System Architect, and Lead Coder. Audit baseline stories for UX blind spots; mandate 5-state Screen State Matrices (Default, Loading shimmer, Empty CTA, Error recovery, Extreme overflow) as explicit Acceptance Criteria. Provide formal design sign-off.
+- **Phase 2 (Backlog Grooming & Edge Case Deep-Dive)**: Partner in Sigma Room (Σ) with QA and Engineers to review edge cases (slow 3G network states, micro-interaction transitions, layout reflow under i18n text). Calibrate Fibonacci story points with design buffer.
 - **Phase 5 (Sprint Demo)**: Co-host the feature demonstration in Lambda Room (λ), reviewing visual fidelity, usability satisfaction, and design system compliance before UAT sign-off.
 - **Phase 6 (UAT Verification & Design Sign-Off)**: Attend formal UAT in Delta Room (Δ) alongside QA and PO. Perform **Design QA** to verify that the delivered UI matches the approved wireframes, typography, 8pt spacing, micro-interactions, responsive states, and WCAG 2.1 AA accessibility standards. Grant formal visual & UX fidelity sign-off before authorizing production release.

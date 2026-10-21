@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary, Thread, ThreadMessage, ThreadCategory, formatSmartBrevity, extractMentions, DoraMetricsSummary, DoraPerformanceTier, DoraMetricItem, DevExDirective, DevExAuditRecord } from './types.js';
+import { Agent, AgentStatus, RoomType, ServerState, MeetingQueueItem, RoomStatusInfo, VisitSession, SprintState, SprintPhase, SprintCeremonyInfo, SprintRecord, CardSourceProvider, StoryCard, DepartmentId, DepartmentInfo, DEPARTMENTS, resolveDepartmentByRole, MEETING_ROOMS, resolveRoomId, SessionSummary, Thread, ThreadMessage, ThreadCategory, formatSmartBrevity, extractMentions, DoraMetricsSummary, DoraPerformanceTier, DoraMetricItem, DevExDirective, DevExAuditRecord, EnrichedAcceptanceCriteria, EdgeCaseAnalysis } from './types.js';
 import { potatoAgentRegistry } from './potato-agents.js';
 import { cardManager } from './cards.js';
 
@@ -18,22 +18,22 @@ export const SPRINT_CEREMONIES: {
   {
     phase: 'validation',
     phaseIndex: 1,
-    name: 'Story Refinement & Validation',
+    name: 'Story Refinement & AC Gap Analysis',
     shortName: '1. VALIDATION',
-    description: 'PO brings story cards to dev/architect for refinement and validation.',
+    description: 'Three Amigos (PO, Architect, Dev, Designer) audit scope gaps, uncover missing ACs, and enrich edge case requirements.',
     room: 2,
-    roles: ['product-manager', 'system-architect', 'coder'],
-    defaultTopic: 'Story Validation & AC Refinement'
+    roles: ['product-manager', 'system-architect', 'coder', 'ui-ux-designer'],
+    defaultTopic: 'Story Validation & AC Scope Gap Analysis'
   },
   {
     phase: 'grooming',
     phaseIndex: 2,
-    name: 'Backlog Grooming & Point Estimation',
+    name: 'Backlog Grooming & Edge Case Deep-Dive',
     shortName: '2. GROOMING',
-    description: 'Dev, QA, and PO discuss story cards and estimate story points.',
+    description: 'Dev, QA, and PO dissect boundary conditions, concurrency risks, and lock in story points with comprehensive test matrix.',
     room: 1,
     roles: ['product-manager', 'coder', 'qa-tester', 'code-reviewer', 'system-architect'],
-    defaultTopic: 'Backlog Grooming & Point Estimation'
+    defaultTopic: 'Backlog Grooming & Edge Case Test Matrix'
   },
   {
     phase: 'planning',
@@ -97,8 +97,8 @@ export const SPRINT_CEREMONIES: {
 ];
 
 export const CEREMONY_REQUIRED_SIGNOFFS: Record<SprintPhase, string[]> = {
-  validation: ['product-manager', 'system-architect'],
-  grooming: ['coder', 'qa-tester'],
+  validation: ['product-manager', 'system-architect', 'ui-ux-designer'],
+  grooming: ['coder', 'qa-tester', 'product-manager'],
   planning: ['project-planner', 'coder', 'developer-experience'],
   working: ['coder'],
   demo: ['coder', 'qa-tester'],
@@ -302,63 +302,171 @@ export class StateManager {
     let dialogues: { author: string; topic?: string; intent: string; point: string; nextSteps: string; mentions: string[] }[] = [];
 
     switch (phase) {
-      case 'validation':
+      case 'validation': {
+        const storyTitle = this.sprint.story || pStory;
+        const enrichedAcs: EnrichedAcceptanceCriteria[] = [
+          {
+            id: 'AC-01',
+            title: 'Core Functional Delivery (Happy Path)',
+            category: 'functional',
+            description: `Execute core business capabilities for "${storyTitle}" meeting user value expectations.`,
+            source: 'product',
+            status: 'verified'
+          },
+          {
+            id: 'AC-02',
+            title: 'Timeout & Network Degradation Resilience',
+            category: 'edge_case',
+            description: 'Provide sub-3s timeout fallback with exponential backoff and graceful circuit-breaker degradation.',
+            source: 'architecture',
+            status: 'verified'
+          },
+          {
+            id: 'AC-03',
+            title: 'Idempotency & Duplicate Request Protection',
+            category: 'security',
+            description: 'Enforce client Idempotency-Key deduplication to prevent double-submit database mutations.',
+            source: 'architecture',
+            status: 'verified'
+          },
+          {
+            id: 'AC-04',
+            title: 'Complete 5-State UX Architecture',
+            category: 'ux_state',
+            description: 'Deliver Shimmer Skeleton, Empty State onboarding, actionable Error State, and text truncation (>60 chars).',
+            source: 'design',
+            status: 'verified'
+          },
+          {
+            id: 'AC-05',
+            title: 'Boundary Limits & Negative Test Defense',
+            category: 'edge_case',
+            description: 'Reject null/empty payloads, enforce maximum boundary sizes, and sanitize against injection payloads.',
+            source: 'qa',
+            status: 'verified'
+          }
+        ];
+
+        const edgeCaseAudit: EdgeCaseAnalysis = {
+          identifiedCases: [
+            {
+              scenario: 'Rapid consecutive button clicks / Double submit submission',
+              risk: 'high',
+              mitigation: 'Client-side UI button debounce + Server-side Idempotency Key deduplication',
+              identifiedBy: 'coder1',
+              acReference: 'AC-03'
+            },
+            {
+              scenario: 'Downstream microservice response timeout (>3s) or network drop',
+              risk: 'medium',
+              mitigation: 'Circuit breaker pattern with graceful cached fallback response',
+              identifiedBy: 'system-architect1',
+              acReference: 'AC-02'
+            },
+            {
+              scenario: 'Zero data records returned / First-time user onboarding',
+              risk: 'low',
+              mitigation: 'Friendly empty state visual with "Create First Item" action button',
+              identifiedBy: 'ui-ux-designer1',
+              acReference: 'AC-04'
+            },
+            {
+              scenario: 'Malicious payload, SQLi/XSS, or extreme string length (>1,000 chars)',
+              risk: 'high',
+              mitigation: 'Zod/Pydantic strict schema validation + client text-truncation tooltip',
+              identifiedBy: 'qa-tester1',
+              acReference: 'AC-05'
+            }
+          ],
+          enrichedAt: Date.now()
+        };
+
+        this.sprint.enrichedAcceptanceCriteria = enrichedAcs;
+        this.sprint.edgeCaseAnalysis = edgeCaseAudit;
+
         dialogues = [
           {
             author: 'product-manager1',
-            topic: `Acceptance Criteria for "${pStory}"`,
-            intent: 'Establish business value and scope boundaries before technical design.',
-            point: `Story "${pStory}" requires robust validation, zero-trust auth token lifecycle, and intuitive UX feedback.`,
-            nextSteps: '@system-architect1 please confirm system feasibility and data model fit.',
-            mentions: ['@system-architect1']
+            topic: `Baseline User Story: "${pStory}"`,
+            intent: 'Establish initial user story and propose baseline acceptance criteria.',
+            point: `Story "${pStory}" initialized. Baseline scope covers core user action. Opening Three Amigos AC Gap Audit to identify missing boundary and edge cases.`,
+            nextSteps: '@system-architect1 and @ui-ux-designer1 please audit architectural and UX gaps.',
+            mentions: ['@system-architect1', '@ui-ux-designer1']
           },
           {
             author: 'system-architect1',
-            topic: 'System Architecture & Non-Functional Requirements',
-            intent: 'Prevent architectural bottlenecks, race conditions, and latency spikes.',
-            point: 'Architecture validated. Schema supports token refresh rotation with sub-20ms lookup latency. Zero architectural blockers.',
-            nextSteps: '@coder1 technical scope confirmed feasible. Ready for backlog grooming.',
+            topic: 'AC Gap Audit: System Failover & Idempotency Gaps',
+            intent: 'Surface unstated non-functional requirements and network failure edge cases.',
+            point: 'AC Gap Detected: Baseline AC lacks timeout handling and double-click protection. If client retries on flaky network, DB risks duplicate records. Recommending AC-02 (Timeout Fallback) and AC-03 (Idempotency Key).',
+            nextSteps: '@ui-ux-designer1 please audit edge-case visual states.',
+            mentions: ['@ui-ux-designer1']
+          },
+          {
+            author: 'ui-ux-designer1',
+            topic: 'AC Gap Audit: UX States & Boundary Truncation',
+            intent: 'Ensure complete 5-state UX design coverage and accessibility criteria.',
+            point: 'AC Gap Detected: Missing zero-data empty state, shimmer skeleton loading, and text truncation rules for long input strings. Recommending AC-04 (Complete 5-State UX Architecture).',
+            nextSteps: '@coder1 please confirm technical feasibility and boundary integration.',
             mentions: ['@coder1']
           },
           {
             author: 'coder1',
-            topic: 'Engineering Feasibility Sign-off',
-            intent: 'Confirm developer capacity and library compatibility.',
-            point: 'Integration vectors verified with existing service middleware. All dependencies satisfied.',
-            nextSteps: 'Validation ceremony complete with PO and Architect sign-off. Advancing to Grooming.',
-            mentions: ['@product-manager1', '@system-architect1']
+            topic: 'Engineering Feasibility & Boundary Validation',
+            intent: 'Confirm developer capacity, data schema, and defensive edge case guards.',
+            point: 'Engineering endorses AC-02, AC-03, AC-04. Adding client-side submit button debounce and server idempotency middleware.',
+            nextSteps: '@product-manager1 please formally enrich Story Card acceptance criteria.',
+            mentions: ['@product-manager1']
+          },
+          {
+            author: 'product-manager1',
+            topic: 'Story Card Scope Enrichment: 5 Hardened Criteria Locked',
+            intent: 'Formally expand Story Card ACs with Three Amigos gap findings.',
+            point: `Scope Enriched! Formalized 5 comprehensive criteria: AC-01 (Core Functionality), AC-02 (Timeout Resilience), AC-03 (Idempotency Guard), AC-04 (5-State UX), and AC-05 (Boundary Defense). Definition of Ready (DoR) satisfied.`,
+            nextSteps: 'Validation complete with PO, Architect, and Designer sign-offs. Advancing to Grooming for technical edge case test matrix.',
+            mentions: ['@coder1', '@qa-tester1', '@system-architect1']
           }
         ];
         break;
+      }
 
-      case 'grooming':
+      case 'grooming': {
+        const enrichedCount = this.sprint.enrichedAcceptanceCriteria?.length || 5;
         dialogues = [
           {
             author: 'coder1',
-            topic: 'Technical Deep-Dive & Edge Cases',
-            intent: 'Surface concurrency traps and error handling scenarios before point estimation.',
-            point: 'Identified 3 edge cases: concurrent refresh race conditions, token revocation on logout, and clock skew tolerances.',
-            nextSteps: '@qa-tester1 please review test matrix for edge case coverage.',
+            topic: 'Technical Deep-Dive: Concurrency Traps & Race Conditions',
+            intent: 'Dissect enriched ACs to uncover multi-tenant concurrency and clock skew traps.',
+            point: 'Deep-dive on AC-02 and AC-03: Identified 3 concurrency traps — concurrent token refresh race conditions, optimistic locking version conflicts on parallel edits, and 30s clock skew tolerance.',
+            nextSteps: '@qa-tester1 please construct negative testing and edge-case test matrix.',
             mentions: ['@qa-tester1']
           },
           {
             author: 'qa-tester1',
-            topic: 'Test Matrix & Acceptance Criteria Verification',
-            intent: 'Ensure comprehensive automated test coverage across happy and failure paths.',
-            point: 'Prepared 24 automated unit tests and 12 integration vectors covering token tampering and expiry scenarios.',
-            nextSteps: '@code-reviewer1 please evaluate complexity and estimate story points.',
+            topic: 'Edge Case Test Matrix & Negative Scenarios',
+            intent: 'Ensure comprehensive automated test coverage across boundary and failure paths.',
+            point: `Constructed comprehensive test matrix: 36 automated unit tests and 18 negative integration vectors covering boundary limits (0, max, null), SQLi/XSS sanitization, 30% packet loss simulation, and double-click race conditions across all ${enrichedCount} enriched ACs.`,
+            nextSteps: '@code-reviewer1 please evaluate complexity with edge-case buffer and estimate story points.',
             mentions: ['@code-reviewer1']
           },
           {
             author: 'code-reviewer1',
-            topic: `Story Point Estimation: ${points} PTS`,
-            intent: 'Achieve team consensus on story points using Fibonacci scale.',
-            point: `Given moderate complexity and high test coverage requirements, team consensus estimates ${points} Story Points.`,
-            nextSteps: 'Grooming complete. Story points locked in. Ready for Sprint Planning.',
-            mentions: ['@product-manager1', '@project-planner1']
+            topic: `Story Point Estimation (Calibrated with Edge Case Buffer): ${points} PTS`,
+            intent: 'Achieve team consensus on story points accounting for edge-case coverage.',
+            point: `Given 5 enriched ACs, concurrency safeguards, and comprehensive 54-vector test matrix, team consensus estimates ${points} Story Points (preventing underestimation).`,
+            nextSteps: '@product-manager1 verify Grooming consensus and lock in estimate.',
+            mentions: ['@product-manager1']
+          },
+          {
+            author: 'product-manager1',
+            topic: `Backlog Grooming Locked: ${points} Story Points`,
+            intent: 'Certify Definition of Ready and lock estimated points for Sprint Planning.',
+            point: `Grooming complete! All ${enrichedCount} Acceptance Criteria and edge-case defense vectors locked in at ${points} Story Points. Backlog item ready for Boardroom execution wave allocation.`,
+            nextSteps: 'Grooming complete with Dev, QA, and PO sign-off. Advancing to Sprint Planning.',
+            mentions: ['@project-planner1', '@devex1']
           }
         ];
         break;
+      }
 
       case 'planning': {
         const inherited = this.sprint.inheritedDevExAudit;
@@ -2219,6 +2327,9 @@ export class StateManager {
     record.devexAudit = pendingAudit;
     this.sprint.devexAudit = pendingAudit;
 
+    record.enrichedAcceptanceCriteria = this.sprint.enrichedAcceptanceCriteria;
+    record.edgeCaseAnalysis = this.sprint.edgeCaseAnalysis;
+
     if (this.sprint.sourceCard) {
       cardManager.completeCard(this.sprint.sourceCard, this.projectDir).catch(() => {});
     }
@@ -2572,6 +2683,41 @@ ${audit.notes ? `> **DevEx Notes:** ${audit.notes}  \n` : ''}
       }
     }
 
+    let acBlock = '';
+    const acs = record.enrichedAcceptanceCriteria || this.sprint.enrichedAcceptanceCriteria;
+    const edgeCases = record.edgeCaseAnalysis || this.sprint.edgeCaseAnalysis;
+
+    if (acs && acs.length > 0) {
+      const acRows = acs.map(a =>
+        `| \`${a.id}\` | \`${a.category.toUpperCase()}\` | **${a.title}** | \`@${a.source}\` | ${a.description} | ✅ \`${a.status.toUpperCase()}\` |`
+      ).join('\n');
+
+      let edgeCaseRows = '';
+      if (edgeCases && edgeCases.identifiedCases.length > 0) {
+        edgeCaseRows = edgeCases.identifiedCases.map((ec, idx) => {
+          const riskBadge = ec.risk === 'high' ? '🔴 **HIGH**' : ec.risk === 'medium' ? '🟡 **MEDIUM**' : '🟢 **LOW**';
+          return `| ${idx + 1} | **${ec.scenario}** | ${riskBadge} | ${ec.mitigation} | \`@${ec.identifiedBy}\` | \`${ec.acReference || '-'}\` |`;
+        }).join('\n');
+      }
+
+      acBlock = `
+## 🔍 Acceptance Criteria (AC) Gap Audit & Edge Case Matrix
+> **Refinement Methodology:** Three Amigos (Product, Architecture, QA, UI/UX)  
+> **Initial Baseline Scope:** 1 Happy-Path Business Criterion  
+> **Enriched Post-Refinement Scope:** ${acs.length} Hardened Criteria (+${acs.length - 1} Edge Cases Captured Prior to Execution)  
+
+### 📋 Enriched Acceptance Criteria & Scope Expansion
+| AC ID | Category | Criterion Title | Source Role | Verification Description | Status |
+|---|---|---|---|---|---|
+${acRows}
+
+### ⚡ Edge Cases & Defensive Engineering Mitigations
+| # | Edge Case Scenario | Risk Level | Defensive Architecture & Mitigation | Discovered By | AC Ref |
+|---|---|---|---|---|---|
+${edgeCaseRows || '| - | *Standard operational flows* | - | - | - | - |'}
+`;
+    }
+
     return `# 🏃 Sprint #${record.sprintNumber} Governance Audit & Completion Report
 
 > **Session / Project:** \`${this.sessionId}\`  
@@ -2591,6 +2737,7 @@ ${record.summary}
 - **Total Duration:** \`${duration}\`
 - **Total Ceremonies Logged:** ${record.ceremoniesCount}
 ${cardBlock}
+${acBlock}
 ## 📊 Accelerate & DORA Delivery Metrics Scorecard
 > **Evaluated by:** Developer Experience (\`devex1\`)  
 > **Benchmark Source:** *Accelerate: The Science of Lean Software and DevOps* (Forsgren, Humble, Kim)  
