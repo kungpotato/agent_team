@@ -30,10 +30,10 @@ export const SPRINT_CEREMONIES: {
     phaseIndex: 2,
     name: 'Backlog Grooming & Edge Case Deep-Dive',
     shortName: '2. GROOMING',
-    description: 'Dev, QA, and PO dissect boundary conditions, concurrency risks, and lock in story points with comprehensive test matrix.',
+    description: 'Dev, QA, UI/UX Designer, and PO dissect boundary conditions, navigation entry points, UI component breakdown, and lock in story points.',
     room: 1,
-    roles: ['product-manager', 'coder', 'qa-tester', 'code-reviewer', 'system-architect'],
-    defaultTopic: 'Backlog Grooming & Edge Case Test Matrix'
+    roles: ['product-manager', 'coder', 'qa-tester', 'ui-ux-designer', 'code-reviewer', 'system-architect'],
+    defaultTopic: 'Backlog Grooming, UI Entry Points & Edge Case Test Matrix'
   },
   {
     phase: 'planning',
@@ -98,7 +98,7 @@ export const SPRINT_CEREMONIES: {
 
 export const CEREMONY_REQUIRED_SIGNOFFS: Record<SprintPhase, string[]> = {
   validation: ['product-manager', 'system-architect', 'ui-ux-designer'],
-  grooming: ['coder', 'qa-tester', 'product-manager'],
+  grooming: ['coder', 'qa-tester', 'product-manager', 'ui-ux-designer'],
   planning: ['project-planner', 'coder', 'developer-experience'],
   working: ['coder'],
   demo: ['coder', 'qa-tester'],
@@ -437,15 +437,23 @@ export class StateManager {
             topic: 'Technical Deep-Dive: Concurrency Traps & Race Conditions',
             intent: 'Dissect enriched ACs to uncover multi-tenant concurrency and clock skew traps.',
             point: 'Deep-dive on AC-02 and AC-03: Identified 3 concurrency traps — concurrent token refresh race conditions, optimistic locking version conflicts on parallel edits, and 30s clock skew tolerance.',
-            nextSteps: '@qa-tester1 please construct negative testing and edge-case test matrix.',
+            nextSteps: '@ui-ux-designer1 please audit UI entry points, navigation discovery, and micro-UI elements.',
+            mentions: ['@ui-ux-designer1']
+          },
+          {
+            author: 'ui-ux-designer1',
+            topic: 'UI Entry Points, Navigation Path & Micro-UI Details Audit',
+            intent: 'Verify feature discoverability, user entry points, breadcrumbs, and micro-interaction states.',
+            point: 'UI/UX Grooming Check: 1. Entry Point: Confirmed navbar quick-action button and dashboard widget link so users can easily find this feature without orphan routing. 2. Micro-UI details: Added tooltips, modal ESC/backdrop dismiss, disabled button loading spinners, and breadcrumb back-navigation. 3. Component reuse: Leveraged existing Design System Modal and Button primitives.',
+            nextSteps: '@qa-tester1 please construct negative testing and edge-case test matrix covering both logic and UI states.',
             mentions: ['@qa-tester1']
           },
           {
             author: 'qa-tester1',
             topic: 'Edge Case Test Matrix & Negative Scenarios',
             intent: 'Ensure comprehensive automated test coverage across boundary and failure paths.',
-            point: `Constructed comprehensive test matrix: 36 automated unit tests and 18 negative integration vectors covering boundary limits (0, max, null), SQLi/XSS sanitization, 30% packet loss simulation, and double-click race conditions across all ${enrichedCount} enriched ACs.`,
-            nextSteps: '@code-reviewer1 please evaluate complexity with edge-case buffer and estimate story points.',
+            point: `Constructed comprehensive test matrix: 36 automated unit tests and 18 negative integration vectors covering boundary limits (0, max, null), SQLi/XSS sanitization, 30% packet loss simulation, UI state transitions, and double-click race conditions across all ${enrichedCount} enriched ACs.`,
+            nextSteps: '@code-reviewer1 please evaluate complexity with edge-case and UI buffer and estimate story points.',
             mentions: ['@code-reviewer1']
           },
           {
