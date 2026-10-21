@@ -98,7 +98,7 @@ export function loadPotatoAgents(dirPath: string = DEFAULT_AGENTS_DIR): Map<stri
     } else if (name === 'ui-ux-designer') {
       roleTitle = 'UI/UX';
       defaultColor = 'magenta';
-      defaultTask = 'Building IA & wireframe screen flow';
+      defaultTask = 'Designing intuitive UX/UI & Design Systems';
       targetBench = 1; // Bench 2 (DESIGNER)
     } else if (name === 'design-to-code') {
       roleTitle = 'UI DEV';
